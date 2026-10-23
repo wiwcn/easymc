@@ -13,7 +13,7 @@ export interface InstallProgressDto {
 }
 
 const STAGE_LABELS: Record<string, string> = {
-  meta: "元数据",
+  meta: "游戏信息",
   client: "客户端",
   libraries: "依赖库",
   natives: "本地库",

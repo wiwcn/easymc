@@ -7,10 +7,10 @@ import {
   listAccounts,
   msaStatus,
   setCurseforgeKey,
-  startMicrosoftLogin,
   updateSettings,
 } from "../api";
 import { showToast } from "../toast";
+import "../components/msa-login";
 import type { AccountDto, AppMode, CurseForgeStatusDto, MsaStatusDto } from "../types";
 
 @customElement("easymc-placeholder-page")
@@ -217,15 +217,6 @@ export class PlaceholderPage extends LitElement {
     }
   }
 
-  private async onMsa() {
-    try {
-      await startMicrosoftLogin();
-      await this.refreshAccounts();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
-  }
-
   render() {
     if (this.settings) {
       return html`
@@ -258,10 +249,8 @@ export class PlaceholderPage extends LitElement {
           </div>
           <div class="card">
             <h2>微软账户（正版）</h2>
-            <p>使用微软账户登录 Minecraft（正版）。正版登录即将可用，现在可以先离线游玩。</p>
-            <div class="row">
-              <button class="ghost" type="button" @click=${() => this.onMsa()}>使用微软账户登录</button>
-            </div>
+            <p>使用微软账户登录 Minecraft（正版），可进入正版服务器。</p>
+            <easymc-msa-login @msa-done=${(e: CustomEvent<AccountDto>) => { showToast(`已登录 ${e.detail.username}`); void this.refreshAccounts(); }}></easymc-msa-login>
           </div>
           <details class="card">
             <summary><strong>高级</strong></summary>

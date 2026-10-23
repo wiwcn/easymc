@@ -195,3 +195,11 @@ export interface MsaStatusDto {
   oauth_ready: boolean;
   message_zh: string;
 }
+
+export interface DeviceCodeDto {
+  user_code: string;
+  device_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+}

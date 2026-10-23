@@ -1,7 +1,8 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import { completeOnboarding, createOfflineOrThrow, msaStatus, startMicrosoftLogin } from "../api";
+import { completeOnboarding, createOfflineOrThrow, msaStatus } from "../api";
 import { showToast } from "../toast";
+import "../components/msa-login";
 import type { AppMode, MsaStatusDto, PreferredLogin } from "../types";
 
 type Step = 1 | 2 | 3;
@@ -117,18 +118,6 @@ export class OnboardingPage extends LitElement {
     }
   }
 
-  private async onMsa() {
-    this.busy = true;
-    try {
-      await startMicrosoftLogin();
-      await this.finish();
-    } catch (e) {
-      showToast(this.friendly(e));
-    } finally {
-      this.busy = false;
-    }
-  }
-
   render() {
     return html`
       <div class="wrap">
@@ -192,13 +181,13 @@ export class OnboardingPage extends LitElement {
     if (this.login === "microsoft") {
       return html`
         <h1>正版登录</h1>
-        <div class="notice">正版登录即将可用。我们正在接入微软登录流程，现在可以先用离线名字游玩，之后在设置里添加正版账户。</div>
+        <p class="sub">用浏览器登录微软账户，EasyMC 不会看到你的密码。</p>
+        ${this.msa && !this.msa.configured
+          ? html`<div class="notice">正版登录即将可用，可先离线游玩。</div>`
+          : html`<easymc-msa-login @msa-done=${(e: CustomEvent<{ username: string }>) => { showToast(`欢迎，${e.detail.username}`); void this.finish(); }}></easymc-msa-login>`}
         <div class="row">
           ${back}
-          <div style="display:flex;gap:8px">
-            <button class="btn ghost" ?disabled=${this.busy} @click=${() => this.onMsa()}>尝试正版登录</button>
-            <button class="btn primary" ?disabled=${this.busy} @click=${() => { this.login = "offline"; }}>先离线游玩</button>
-          </div>
+          <button class="btn ghost" ?disabled=${this.busy} @click=${() => { this.login = "offline"; }}>先离线游玩</button>
         </div>
       `;
     }

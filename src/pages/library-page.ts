@@ -791,7 +791,7 @@ export class LibraryPage extends LitElement {
 
   private async onImport() {
     const path = window.prompt(
-      "导入分享包路径（.json 元数据 或 .zip 整合包）",
+      "导入分享包路径（好友发来的 .json 配置或 .zip 整合包）",
       "",
     );
     if (!path?.trim()) return;

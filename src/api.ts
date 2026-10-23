@@ -404,3 +404,11 @@ export async function createOfflineOrThrow(username: string): Promise<AccountDto
 export async function startMicrosoftLogin(): Promise<AccountDto> {
   return invokeOrThrow<AccountDto>("start_microsoft_login");
 }
+
+export async function msaDeviceCode(): Promise<import("./types").DeviceCodeDto> {
+  return invokeOrThrow("msa_device_code_cmd");
+}
+
+export async function msaPoll(info: import("./types").DeviceCodeDto): Promise<AccountDto> {
+  return invokeOrThrow<AccountDto>("msa_poll_cmd", { info });
+}
