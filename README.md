@@ -4,6 +4,8 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
 **License:** MIT · **Milestone:** M1.7 (配置一键分享 — export/import)
 
+**Android track:** sibling repo [`/workspace/easymc-android`](../easymc-android) (A0 scaffold — FCL-class JE true launch; see its DESIGN.md). Not the same milestone as desktop M1.
+
 ## What works (M1)
 
 - Local JSON persistence for instances & accounts (`EASYMC_DATA_DIR` or platform data dir `/EasyMC`)
