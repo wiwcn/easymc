@@ -2,7 +2,7 @@
 
 Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
-**License:** MIT · **Milestone:** M1 slice (install + offline launch path)
+**License:** MIT · **Milestone:** M1.1 (in-UI version pick + multi-instance)
 
 ## What works (M1)
 
@@ -12,6 +12,8 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - System Java detection; Temurin JDK download into `runtimes/` when missing
 - Desktop launch: classpath, natives, argument templates, process + log streaming
 - Home **启动** wires to real install/launch; log panel in UI
+- In-UI version list (release / snapshot toggle) + create named instance
+- Multi-instance: list, set default, launch selected (Home + 库)
 - Microsoft auth: structure + clear TODO (`EASYMC_MSA_CLIENT_ID`); offline play works without it
 - Headless CLI: `cargo run -p easymc-cli -- <cmd>`
 
@@ -33,6 +35,11 @@ cargo run -p easymc-cli -- ensure-java 21
 cargo run -p easymc-cli -- install 1.21.1          # full assets ~800MB+
 # faster iterate without assets (title screen may fail):
 # cargo run -p easymc-cli -- install 1.21.1 --no-assets
+cargo run -p easymc-cli -- list-versions          # releases
+# cargo run -p easymc-cli -- list-versions --snapshots
+cargo run -p easymc-cli -- create-instance "速通" 1.20.1
+cargo run -p easymc-cli -- instances
+cargo run -p easymc-cli -- set-active default
 cargo run -p easymc-cli -- launch default
 ```
 
@@ -42,7 +49,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动**. Settings: offline accounts. Logs stream under the hero card.
+Home: **安装并启动** / **启动** / **新建实例** (version picker). 库: instance list + create. Settings: offline accounts. Logs under the hero card.
 
 ## Crate map
 
@@ -81,7 +88,6 @@ Verified with `EASYMC_DATA_DIR=/workspace/easymc-data`:
 ## Remaining gaps for “actually usable”
 
 - Full MSA login (needs Azure client id + OAuth → Xbox → Minecraft services finish)
-- In-UI version picker / multi-instance create (CLI works today)
 - Mod loaders (Fabric/Forge) — vanilla only for this slice
 - Asset download progress UI polish; optional mirror CDNs
 - Windows JDK zip extract path (Linux tar.gz path works)
