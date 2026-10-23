@@ -1,42 +1,113 @@
-//! Version / metadata provider stubs (no real download yet).
+//! Mojang piston-meta client + installer for Java Edition.
+
+mod rules;
+mod types;
+mod install;
+mod download;
+
+pub use install::*;
+pub use types::*;
+pub use rules::{rules_allow, current_os_name, is_native_library};
 
 use async_trait::async_trait;
 use easymc_core::{EasyMcError, McVersion, Result};
 
-/// Fetches Java Edition version manifests (stub).
+pub const VERSION_MANIFEST_URL: &str =
+    "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+
 #[async_trait]
 pub trait MetaProvider: Send + Sync {
-    async fn list_versions(&self) -> Result<Vec<McVersion>>;
-    async fn resolve(&self, version: &McVersion) -> Result<VersionMeta>;
+    async fn list_versions(&self) -> Result<Vec<VersionSummary>>;
+    async fn resolve(&self, version: &McVersion) -> Result<VersionInfo>;
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct VersionMeta {
-    pub id: McVersion,
-    pub release_type: String,
+pub struct PistonMetaProvider {
+    client: reqwest::Client,
 }
 
-/// Placeholder that returns a fixed list — no network in M0.
+impl Default for PistonMetaProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PistonMetaProvider {
+    pub fn new() -> Self {
+        let client = reqwest::Client::builder()
+            .user_agent(concat!("EasyMC/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("reqwest client");
+        Self { client }
+    }
+
+    pub fn client(&self) -> &reqwest::Client {
+        &self.client
+    }
+}
+
+#[async_trait]
+impl MetaProvider for PistonMetaProvider {
+    async fn list_versions(&self) -> Result<Vec<VersionSummary>> {
+        let manifest: VersionManifest = self
+            .client
+            .get(VERSION_MANIFEST_URL)
+            .send()
+            .await
+            .map_err(|e| EasyMcError::Http(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| EasyMcError::Http(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| EasyMcError::Http(e.to_string()))?;
+        Ok(manifest.versions)
+    }
+
+    async fn resolve(&self, version: &McVersion) -> Result<VersionInfo> {
+        let list = self.list_versions().await?;
+        let summary = list
+            .into_iter()
+            .find(|v| v.id == version.0)
+            .ok_or_else(|| EasyMcError::Missing(format!("version {}", version.0)))?;
+        let info: VersionInfo = self
+            .client
+            .get(&summary.url)
+            .send()
+            .await
+            .map_err(|e| EasyMcError::Http(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| EasyMcError::Http(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| EasyMcError::Http(e.to_string()))?;
+        Ok(info)
+    }
+}
+
+/// Kept for tests / offline demos.
 pub struct StubMetaProvider;
 
 #[async_trait]
 impl MetaProvider for StubMetaProvider {
-    async fn list_versions(&self) -> Result<Vec<McVersion>> {
+    async fn list_versions(&self) -> Result<Vec<VersionSummary>> {
         Ok(vec![
-            McVersion("1.21.1".into()),
-            McVersion("1.20.1".into()),
+            VersionSummary {
+                id: "1.21.1".into(),
+                version_type: "release".into(),
+                url: String::new(),
+                sha1: None,
+            },
+            VersionSummary {
+                id: "1.20.1".into(),
+                version_type: "release".into(),
+                url: String::new(),
+                sha1: None,
+            },
         ])
     }
 
-    async fn resolve(&self, version: &McVersion) -> Result<VersionMeta> {
-        Ok(VersionMeta {
-            id: version.clone(),
-            release_type: "release".into(),
-        })
+    async fn resolve(&self, version: &McVersion) -> Result<VersionInfo> {
+        Err(EasyMcError::msg(format!(
+            "StubMetaProvider cannot resolve {version}; use PistonMetaProvider"
+        )))
     }
-}
-
-/// Real Mojang / Prism-meta clients land in M1.
-pub async fn download_client(_version: &McVersion) -> Result<()> {
-    Err(EasyMcError::NotImplemented("client download"))
 }
