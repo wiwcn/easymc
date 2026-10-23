@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Account, EasyMcError, Instance, Paths, Result, create_offline_account};
+use crate::{Account, EasyMcError, Instance, McVersion, Paths, Result, create_offline_account};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct InstanceStore {
@@ -147,4 +147,76 @@ pub fn get_account<'a>(store: &'a AccountStore, id: &str) -> Result<&'a Account>
         .iter()
         .find(|a| a.id == id)
         .ok_or_else(|| EasyMcError::Missing(format!("account {id}")))
+}
+
+/// Slugify a display name into a filesystem-safe instance id fragment.
+fn slugify_name(name: &str) -> String {
+    let s: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else if c.is_whitespace() || c == '-' || c == '_' {
+                '-'
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let s = s.trim_matches('-').to_string();
+    if s.is_empty() {
+        "inst".into()
+    } else {
+        s.chars().take(32).collect()
+    }
+}
+
+/// Create a new named instance bound to `version`. Does not download the version.
+/// Sets `version_ready` from the caller-provided flag (meta crate checks disk).
+pub fn create_named_instance(
+    paths: &Paths,
+    name: impl Into<String>,
+    version: McVersion,
+    version_ready: bool,
+) -> Result<Instance> {
+    paths.ensure()?;
+    let name = name.into();
+    let name = if name.trim().is_empty() {
+        format!("Instance {}", version)
+    } else {
+        name.trim().to_string()
+    };
+    let slug = slugify_name(&name);
+    let id = format!(
+        "{}-{}",
+        slug,
+        &uuid::Uuid::new_v4().to_string()[..8]
+    );
+    let game_dir = paths.instance_game_dir(&id);
+    fs::create_dir_all(&game_dir)?;
+    let accounts = load_accounts(paths)?;
+    let mut inst = Instance::new(
+        id.clone(),
+        name,
+        version,
+        game_dir.to_string_lossy().into_owned(),
+    );
+    inst.account_id = accounts.active_id;
+    inst.version_ready = version_ready;
+    inst.description = Some("用户创建的实例".into());
+
+    let mut store = load_instances(paths)?;
+    store.active_id = Some(id);
+    store.instances.push(inst.clone());
+    save_instances(paths, &store)?;
+    Ok(inst)
+}
+
+/// Mark `id` as the active / default instance.
+pub fn set_active_instance(paths: &Paths, id: &str) -> Result<InstanceStore> {
+    let mut store = load_instances(paths)?;
+    get_instance(&store, id)?;
+    store.active_id = Some(id.to_string());
+    save_instances(paths, &store)?;
+    Ok(store)
 }
