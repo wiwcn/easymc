@@ -17,3 +17,5 @@ futures-util = { workspace = true }
 sha1 = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
+chrono = { workspace = true }
+zip = { workspace = true }

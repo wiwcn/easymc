@@ -273,12 +273,19 @@ async fn real_main() -> easymc_core::Result<()> {
             let query_text = args
                 .iter()
                 .skip(1)
-                .find(|a| !a.starts_with('-'))
-                .cloned()
+                .enumerate()
+                .find(|(i, a)| {
+                    !a.starts_with('-')
+                        && !args.get(*i).is_some_and(|p| p.starts_with("--"))
+                })
+                .map(|(_, a)| a.clone())
                 .unwrap_or_default();
             let game = flag_value(&args, "--game");
             let loader = flag_value(&args, "--loader").and_then(|s| ModLoader::parse_loose(&s));
             let q = SearchQuery {
+                project_type: flag_value(&args, "--type")
+                    .and_then(|s| easymc_mods::ProjectType::parse(&s))
+                    .unwrap_or_default(),
                 text: query_text,
                 game_version: game,
                 loader,
@@ -329,6 +336,36 @@ async fn real_main() -> easymc_core::Result<()> {
                     v.id, v.version_number, v.name
                 );
             }
+        }
+        "install-modpack" => {
+            let source = args.first().and_then(|s| ModSource::parse(s)).ok_or_else(|| {
+                easymc_core::EasyMcError::msg("usage: install-modpack <modrinth|curseforge> <project> [--version ID] [--name NAME]")
+            })?;
+            let project = args.get(1).cloned().ok_or_else(|| easymc_core::EasyMcError::msg("缺少 project"))?;
+            let res = easymc_mods::install_modpack(
+                &paths,
+                source,
+                &project,
+                flag_value(&args, "--version").as_deref(),
+                flag_value(&args, "--name").as_deref(),
+                |p| eprintln!("[{}/{} {}] {}/{} {}", p.phase, p.phase_total, p.stage_label, p.current, p.total.unwrap_or(0), p.detail),
+            )
+            .await?;
+            println!("{}", serde_json::to_string_pretty(&res).unwrap_or_default());
+        }
+        "install-content" => {
+            let usage = "usage: install-content <modrinth|curseforge> <resourcepack|shader|datapack> <project> [--world NAME] [--instance ID]";
+            let source = args.first().and_then(|s| ModSource::parse(s)).ok_or_else(|| easymc_core::EasyMcError::msg(usage))?;
+            let kind = args.get(1).and_then(|s| easymc_mods::ProjectType::parse(s)).ok_or_else(|| easymc_core::EasyMcError::msg(usage))?;
+            let project = args.get(2).cloned().ok_or_else(|| easymc_core::EasyMcError::msg(usage))?;
+            let store = load_instances(&paths)?;
+            let inst_id = flag_value(&args, "--instance")
+                .or(store.active_id.clone())
+                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例"))?;
+            let inst = store.instances.iter().find(|i| i.id == inst_id).cloned()
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
+            let res = easymc_mods::install_content(&inst, source, kind, &project, flag_value(&args, "--version").as_deref(), flag_value(&args, "--world").as_deref()).await?;
+            println!("OK {} {} → {}{}", res.project_name, res.version_number, res.path, if res.skipped { " (已存在)" } else { "" });
         }
         "install-mod" => {
             let source_s = args.first().cloned().ok_or_else(|| {
@@ -879,7 +916,9 @@ fn print_help() {
            offline [username]\n\
            create-instance [name] [version] [--loader vanilla|fabric|quilt|forge|neoforge] [--loader-version VER]\n\
            set-active <instance-id>\n\
-           search-mods <modrinth|curseforge> [query] [--game VER] [--loader …]\n\
+           install-modpack <modrinth|curseforge> <project> [--name N]\n\
+           install-content <modrinth|curseforge> <resourcepack|shader|datapack> <project> [--world W]\n\
+           search-mods <modrinth|curseforge> [query] [--type mod|modpack|resourcepack|shader|datapack] [--game VER] [--loader …]\n\
            list-mod-versions <modrinth|curseforge> <project-id> [--game VER] [--loader …]\n\
            install-mod <modrinth|curseforge> <project-id> [--version ID] [--instance ID]\n\
            list-mods [instance-id]\n\

@@ -104,13 +104,16 @@ fn map_version(v: VersionDto) -> ModVersion {
 }
 
 fn build_facets(query: &SearchQuery) -> String {
-    let mut facets: Vec<Vec<String>> = vec![vec!["project_type:mod".into()]];
+    let mut facets: Vec<Vec<String>> =
+        vec![vec![format!("project_type:{}", query.project_type.modrinth_facet())]];
     if let Some(ref gv) = query.game_version {
         if !gv.is_empty() {
             facets.push(vec![format!("versions:{gv}")]);
         }
     }
-    if let Some(loader) = query.loader.and_then(loader_filter_name) {
+    // Loader facets only make sense for jar mods (modpacks: filter client-side by deps).
+    let loader = if query.project_type == crate::types::ProjectType::Mod { query.loader } else { None };
+    if let Some(loader) = loader.and_then(loader_filter_name) {
         facets.push(vec![format!("categories:{loader}")]);
     }
     serde_json::to_string(&facets).unwrap_or_else(|_| "[[\"project_type:mod\"]]".into())

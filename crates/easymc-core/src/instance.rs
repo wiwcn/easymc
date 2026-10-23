@@ -93,6 +93,23 @@ pub struct Instance {
     #[serde(default)]
     pub version_ready: bool,
     pub created_at: DateTime<Utc>,
+    /// Player-picked icon key (e.g. `grass`, `diamond`) — UI renders built-in SVG.
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Free-form category label (生存 / 创造 / 整合包 …).
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Per-instance overrides; `None` falls back to global settings.
+    #[serde(default)]
+    pub memory_mb: Option<u32>,
+    #[serde(default)]
+    pub java_path: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    #[serde(default)]
+    pub jvm_args: Option<String>,
 }
 
 impl Instance {
@@ -109,6 +126,13 @@ impl Instance {
             account_id: None,
             version_ready: false,
             created_at: Utc::now(),
+            icon: None,
+            category: None,
+            memory_mb: None,
+            java_path: None,
+            width: None,
+            height: None,
+            jvm_args: None,
         }
     }
 }

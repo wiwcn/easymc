@@ -8,7 +8,6 @@ const BASE: &str = "https://api.curseforge.com/v1";
 /// Minecraft Java
 const GAME_ID: u32 = 432;
 /// Mods class
-const CLASS_ID_MODS: u32 = 6;
 
 pub const API_KEY_ENV: &str = "EASYMC_CURSEFORGE_API_KEY";
 pub const CONSOLE_URL: &str = "https://console.curseforge.com/";
@@ -244,7 +243,7 @@ pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
         .get(format!("{BASE}/mods/search"))
         .query(&[
             ("gameId", GAME_ID.to_string()),
-            ("classId", CLASS_ID_MODS.to_string()),
+            ("classId", query.project_type.curseforge_class_id().to_string()),
             ("pageSize", limit.to_string()),
             ("index", query.offset.to_string()),
             ("sortField", "1".into()), // Popularity
@@ -258,7 +257,7 @@ pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
             req = req.query(&[("gameVersion", gv.as_str())]);
         }
     }
-    if let Some(loader) = query.loader {
+    if let Some(loader) = query.loader.filter(|_| query.project_type == crate::types::ProjectType::Mod) {
         if let Some(t) = mod_loader_type(loader) {
             req = req.query(&[("modLoaderType", t.to_string())]);
         }

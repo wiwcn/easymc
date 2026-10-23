@@ -1,6 +1,8 @@
 //! Modrinth + CurseForge search and install into an instance `mods/` folder.
 
+mod content;
 mod curseforge;
+mod modpack;
 mod http;
 mod install;
 mod modrinth;
@@ -15,6 +17,11 @@ pub use install::{
     sanitize_mod_filename, search_mods, set_mod_disabled,
 };
 pub use types::*;
+pub use content::{
+    content_dest, delete_local, install_content, list_local, local_dir, ContentInstallResult,
+    LocalEntry,
+};
+pub use modpack::{install_modpack, ModpackInstallResult};
 
 pub use modrinth::HashLookup;
 

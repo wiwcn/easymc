@@ -98,9 +98,11 @@ pub async fn prepare_and_launch(
         .as_ref()
         .map(|j| j.major_version)
         .unwrap_or(21);
-    let preferred = settings
-        .preferred_java
+    let preferred = instance
+        .java_path
         .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(settings.preferred_java.as_ref())
         .map(PathBuf::from);
     let java = match select_java(required, preferred.as_deref()) {
         Ok(j) => j,
@@ -182,9 +184,13 @@ pub fn build_jvm_and_game_args(
     vars.insert("classpath_separator".into(), sep.into());
 
     let mut args = Vec::new();
-    args.push(format!("-Xms{}M", req.memory_mb.min(1024)));
-    args.push(format!("-Xmx{}M", req.memory_mb));
+    let mem = instance.memory_mb.filter(|m| *m >= 512).unwrap_or(req.memory_mb);
+    args.push(format!("-Xms{}M", mem.min(1024)));
+    args.push(format!("-Xmx{}M", mem));
     args.extend(req.extra_jvm_args.iter().cloned());
+    if let Some(extra) = instance.jvm_args.as_deref() {
+        args.extend(extra.split_whitespace().map(String::from));
+    }
 
     if let Some(arguments) = &info.arguments {
         for item in &arguments.jvm {
@@ -215,6 +221,11 @@ pub fn build_jvm_and_game_args(
         }
     } else {
         return Err(EasyMcError::msg("version json has no arguments"));
+    }
+    if let (Some(w), Some(h)) = (instance.width, instance.height) {
+        if w > 0 && h > 0 {
+            args.extend(["--width".into(), w.to_string(), "--height".into(), h.to_string()]);
+        }
     }
 
     Ok(args)
