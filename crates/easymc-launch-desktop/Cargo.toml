@@ -3,10 +3,17 @@ name = "easymc-launch-desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Desktop Java Edition launch stubs (no real process spawn yet)"
+description = "Java detection, runtime install, and desktop Minecraft launch"
 
 [dependencies]
 easymc-core = { workspace = true }
 easymc-meta = { workspace = true }
-async-trait = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+futures-util = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+tracing = { workspace = true }
