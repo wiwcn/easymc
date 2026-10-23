@@ -5,6 +5,7 @@ export interface InstanceDto {
   name: string;
   version: string | { 0: string };
   loader: string;
+  loader_version?: string | null;
   description?: string | null;
   last_played?: string | null;
   game_dir?: string;
@@ -40,4 +41,27 @@ export function versionId(v: InstanceDto["version"]): string {
 
 export function versionType(v: VersionSummary): string {
   return v.version_type ?? v.type ?? "release";
+}
+
+export type LoaderId = "vanilla" | "fabric" | "quilt" | "forge" | "neoforge";
+
+export interface LoaderVersionItem {
+  version: string;
+  stable: boolean;
+  intermediary: string;
+}
+
+export function loaderLabel(loader: string): string {
+  switch ((loader || "vanilla").toLowerCase()) {
+    case "fabric":
+      return "Fabric";
+    case "quilt":
+      return "Quilt";
+    case "forge":
+      return "Forge";
+    case "neoforge":
+      return "NeoForge";
+    default:
+      return "原版";
+  }
 }

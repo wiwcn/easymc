@@ -1,4 +1,4 @@
-import type { AccountDto, InstanceDto, InstancesState, VersionSummary } from "./types";
+import type { AccountDto, InstanceDto, InstancesState, LoaderVersionItem, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -63,8 +63,18 @@ export async function listInstances(): Promise<InstanceDto[]> {
   return (await listInstancesState()).instances;
 }
 
-export async function createInstance(name: string, version: string): Promise<InstanceDto> {
-  const raw = await invokeOrThrow<InstanceDto>("create_instance", { name, version });
+export async function createInstance(
+  name: string,
+  version: string,
+  loader = "vanilla",
+  loaderVersion?: string | null,
+): Promise<InstanceDto> {
+  const raw = await invokeOrThrow<InstanceDto>("create_instance", {
+    name,
+    version,
+    loader,
+    loaderVersion: loaderVersion || null,
+  });
   return mapInstance(raw);
 }
 
@@ -89,6 +99,32 @@ export async function listVersions(includeSnapshots = false): Promise<VersionSum
 
 export async function installVersion(version: string, withAssets = true): Promise<string> {
   return invokeOrThrow<string>("install_mc_version", { version, withAssets });
+}
+
+export async function listLoaderVersions(
+  loader: string,
+  gameVersion: string,
+): Promise<LoaderVersionItem[]> {
+  return (
+    (await invokeSafe<LoaderVersionItem[]>("list_loader_versions", {
+      loader,
+      gameVersion,
+    })) ?? []
+  );
+}
+
+export async function installLoaderVersion(
+  gameVersion: string,
+  loader: string,
+  loaderVersion: string | null = null,
+  withAssets = true,
+): Promise<string> {
+  return invokeOrThrow<string>("install_loader_version", {
+    gameVersion,
+    loader,
+    loaderVersion,
+    withAssets,
+  });
 }
 
 export async function launchInstance(instanceId: string): Promise<string> {

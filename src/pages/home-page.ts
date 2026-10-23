@@ -13,6 +13,8 @@ import {
   setActiveInstance,
   createInstance,
   listVersions,
+  listLoaderVersions,
+  installLoaderVersion,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import {
@@ -21,6 +23,7 @@ import {
   stageLabel,
   stagePercent,
 } from "../install-progress";
+import { loaderLabel } from "../types";
 import { showToast } from "../toast";
 
 @customElement("easymc-home-page")
@@ -42,6 +45,9 @@ export class HomePage extends LitElement {
   @state() private versionFilter = "";
   @state() private alsoInstall = true;
   @state() private withAssets = true;
+  @state() private newLoader: "vanilla" | "fabric" | "quilt" = "vanilla";
+  @state() private loaderVersions: { version: string; stable: boolean; intermediary: string }[] = [];
+  @state() private newLoaderVersion = "";
   @state() private progress: InstallProgressDto | null = null;
 
   private unLog?: () => void;
@@ -380,6 +386,50 @@ export class HomePage extends LitElement {
       gap: 8px;
       flex-wrap: wrap;
     }
+
+    .loader-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .field-label {
+      font-size: 0.85rem;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .chip.on {
+      background: #0f766e;
+      color: #fff;
+      border-color: #0f766e;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+    }
+    .field select {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface);
+    }
   `;
 
   connectedCallback() {
@@ -485,6 +535,9 @@ export class HomePage extends LitElement {
     this.showCreate = true;
     this.newName = "";
     this.newVersion = "1.21.1";
+    this.newLoader = "vanilla";
+    this.newLoaderVersion = "";
+    this.loaderVersions = [];
     this.versionFilter = "";
     this.versionsLoading = true;
     try {
@@ -505,22 +558,57 @@ export class HomePage extends LitElement {
     );
   }
 
+
+  private async refreshLoaderVersions() {
+    if (this.newLoader === "vanilla") {
+      this.loaderVersions = [];
+      this.newLoaderVersion = "";
+      return;
+    }
+    try {
+      const list = await listLoaderVersions(this.newLoader, this.newVersion);
+      this.loaderVersions = list;
+      const stable = list.find((l) => l.stable);
+      this.newLoaderVersion = (stable ?? list[0])?.version ?? "";
+    } catch (e) {
+      this.loaderVersions = [];
+      this.newLoaderVersion = "";
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(msg);
+    }
+  }
+
+  private async onLoaderChange(loader: "vanilla" | "fabric" | "quilt") {
+    this.newLoader = loader;
+    await this.refreshLoaderVersions();
+  }
+
   private async onCreate() {
     const name = this.newName.trim() || `实例 ${this.newVersion}`;
     this.busy = true;
     try {
-      const inst = await createInstance(name, this.newVersion);
+      const inst = await createInstance(name, this.newVersion, this.newLoader, this.newLoaderVersion || null);
       showToast(`已创建 ${inst.name}`);
       if (this.alsoInstall && !inst.version_ready) {
         this.showLogs = true;
         this.progress = null;
-        this.status = `正在安装 ${this.newVersion}…`;
+        const loaderTip =
+          this.newLoader === "vanilla" ? "" : ` · ${loaderLabel(this.newLoader)}`;
+        this.status = `正在安装 ${this.newVersion}${loaderTip}…`;
         await ensureJava(21);
-        const msg = await installVersion(this.newVersion, this.withAssets);
+        const msg =
+          this.newLoader === "vanilla"
+            ? await installVersion(this.newVersion, this.withAssets)
+            : await installLoaderVersion(
+                this.newVersion,
+                this.newLoader,
+                this.newLoaderVersion || null,
+                this.withAssets,
+              );
         showToast(msg);
         this.status = msg;
       } else if (this.alsoInstall && inst.version_ready) {
-        this.status = `版本 ${this.newVersion} 已在本地，跳过下载`;
+        this.status = `${loaderLabel(this.newLoader)} ${this.newVersion} 已在本地，跳过下载`;
         showToast(this.status);
       }
       this.showCreate = false;
@@ -557,7 +645,7 @@ export class HomePage extends LitElement {
           <h1>${f.name}</h1>
           <div class="tags">
             <span class="tag">${ver}</span>
-            <span class="tag accent">${f.loader}</span>
+            <span class="tag accent">${loaderLabel(f.loader)}${f.loader_version ? ` ${f.loader_version}` : ""}</span>
             ${ready
               ? html`<span class="tag">已安装</span>`
               : html`<span class="tag warn">未安装</span>`}
@@ -722,7 +810,48 @@ export class HomePage extends LitElement {
             />
             显示快照
           </label>
-          <label class="check">
+          
+          <div class="loader-row">
+            <span class="field-label">加载器</span>
+            <div class="chip-row">
+              ${(["vanilla", "fabric", "quilt"] as const).map(
+                (l) => html`
+                  <button
+                    type="button"
+                    class="chip ${this.newLoader === l ? "on" : ""}"
+                    ?disabled=${this.busy}
+                    @click=${() => this.onLoaderChange(l)}
+                  >
+                    ${loaderLabel(l)}
+                  </button>
+                `,
+              )}
+            </div>
+          </div>
+          ${this.newLoader !== "vanilla"
+            ? html`
+                <label class="field">
+                  <span>Loader 版本</span>
+                  <select
+                    .value=${this.newLoaderVersion}
+                    ?disabled=${this.busy || this.loaderVersions.length === 0}
+                    @change=${(e: Event) =>
+                      (this.newLoaderVersion = (e.target as HTMLSelectElement).value)}
+                  >
+                    ${this.loaderVersions.length === 0
+                      ? html`<option value="">加载中 / 无可用版本</option>`
+                      : this.loaderVersions.map(
+                          (l) => html`
+                            <option value=${l.version}>
+                              ${l.version}${l.stable ? "（稳定）" : ""}
+                            </option>
+                          `,
+                        )}
+                  </select>
+                </label>
+              `
+            : null}
+<label class="check">
             <input
               type="checkbox"
               .checked=${this.alsoInstall}
@@ -749,7 +878,7 @@ export class HomePage extends LitElement {
               <button
                 type="button"
                 class="ver-item ${v.id === this.newVersion ? "selected" : ""}"
-                @click=${() => (this.newVersion = v.id)}
+                @click=${() => { this.newVersion = v.id; void this.refreshLoaderVersions(); }}
               >
                 <span>${v.id}</span>
                 <span>
