@@ -11,8 +11,9 @@ use easymc_launch_desktop::{
     ProcessManager,
 };
 use easymc_meta::{
-    install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
-    list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
+    install_fabric, install_forge, install_neoforge, install_quilt, install_version,
+    is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
+    MetaProvider, PistonMetaProvider,
 };
 use easymc_mods::{
     api_key_from_env, install_mod, list_installed_mods, list_mod_versions, search_mods,
@@ -98,7 +99,14 @@ fn create_instance(
             .as_deref()
             .map(|lv| is_loader_installed(paths, LoaderKind::Quilt, &version, lv))
             .unwrap_or(false),
-        ModLoader::Forge | ModLoader::NeoForge => false,
+        ModLoader::Forge => loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Forge, &version, lv))
+            .unwrap_or(false),
+        ModLoader::NeoForge => loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::NeoForge, &version, lv))
+            .unwrap_or(false),
     };
     create_named_instance_with(
         paths,
@@ -229,7 +237,13 @@ async fn list_loader_versions(
     let kind = match loader.to_ascii_lowercase().as_str() {
         "fabric" => LoaderKind::Fabric,
         "quilt" => LoaderKind::Quilt,
-        other => return Err(format!("不支持的加载器: {other}（目前：fabric / quilt）")),
+        "forge" => LoaderKind::Forge,
+        "neoforge" | "neo" => LoaderKind::NeoForge,
+        other => {
+            return Err(format!(
+                "不支持的加载器: {other}（fabric / quilt / forge / neoforge）"
+            ))
+        }
     };
     let list = list_loaders(kind, &game_version)
         .await
@@ -258,37 +272,70 @@ async fn install_loader_version(
     let kind = match loader.to_ascii_lowercase().as_str() {
         "fabric" => LoaderKind::Fabric,
         "quilt" => LoaderKind::Quilt,
-        "forge" | "neoforge" => {
-            return Err("Forge / NeoForge 尚未实现，请先使用 Fabric 或原版".into());
-        }
+        "forge" => LoaderKind::Forge,
+        "neoforge" | "neo" => LoaderKind::NeoForge,
         other => return Err(format!("未知加载器: {other}")),
     };
     let vanilla = InstallOptions {
         assets: with_assets.unwrap_or(true),
         natives: true,
     };
-    let app2 = app.clone();
     let (profile_id, resolved) = match kind {
-        LoaderKind::Fabric => install_fabric(
-            &paths,
-            &McVersion(game_version.clone()),
-            loader_version.clone(),
-            vanilla,
-            move |p| {
-                let _ = app2.emit("install-progress", &p);
-            },
-        )
-        .await
-        .map_err(|e| e.to_string())?,
+        LoaderKind::Fabric => {
+            let app2 = app.clone();
+            install_fabric(
+                &paths,
+                &McVersion(game_version.clone()),
+                loader_version.clone(),
+                vanilla,
+                move |p| {
+                    let _ = app2.emit("install-progress", &p);
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?
+        }
         LoaderKind::Quilt => {
-            let app3 = app.clone();
+            let app2 = app.clone();
             install_quilt(
                 &paths,
                 &McVersion(game_version.clone()),
                 loader_version.clone(),
                 vanilla,
                 move |p| {
-                    let _ = app3.emit("install-progress", &p);
+                    let _ = app2.emit("install-progress", &p);
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?
+        }
+        LoaderKind::Forge => {
+            let java = ensure_java(&paths, 21, |_| {}).await.map_err(|e| e.to_string())?;
+            let app2 = app.clone();
+            install_forge(
+                &paths,
+                &McVersion(game_version.clone()),
+                loader_version.clone(),
+                &java.path,
+                vanilla,
+                move |p| {
+                    let _ = app2.emit("install-progress", &p);
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?
+        }
+        LoaderKind::NeoForge => {
+            let java = ensure_java(&paths, 21, |_| {}).await.map_err(|e| e.to_string())?;
+            let app2 = app.clone();
+            install_neoforge(
+                &paths,
+                &McVersion(game_version.clone()),
+                loader_version.clone(),
+                &java.path,
+                vanilla,
+                move |p| {
+                    let _ = app2.emit("install-progress", &p);
                 },
             )
             .await
@@ -298,6 +345,8 @@ async fn install_loader_version(
     let loader_enum = match kind {
         LoaderKind::Fabric => ModLoader::Fabric,
         LoaderKind::Quilt => ModLoader::Quilt,
+        LoaderKind::Forge => ModLoader::Forge,
+        LoaderKind::NeoForge => ModLoader::NeoForge,
     };
     let mut store = load_instances(&paths).map_err(|e| e.to_string())?;
     for inst in &mut store.instances {
@@ -362,7 +411,16 @@ async fn launch_instance(
             .as_deref()
             .map(|lv| is_loader_installed(paths, LoaderKind::Quilt, inst.version.as_str(), lv))
             .unwrap_or(false),
-        ModLoader::Forge | ModLoader::NeoForge => false,
+        ModLoader::Forge => inst
+            .loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Forge, inst.version.as_str(), lv))
+            .unwrap_or(false),
+        ModLoader::NeoForge => inst
+            .loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::NeoForge, inst.version.as_str(), lv))
+            .unwrap_or(false),
     };
     if !ready {
         return Err(format!(

@@ -9,8 +9,9 @@ use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager,
 };
 use easymc_meta::{
-    install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
-    list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
+    install_fabric, install_forge, install_neoforge, install_quilt, install_version,
+    is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
+    MetaProvider, PistonMetaProvider,
 };
 use easymc_mods::{
     install_mod, list_installed_mods, list_mod_versions, search_mods, ModSource, SearchQuery,
@@ -134,11 +135,12 @@ async fn real_main() -> easymc_core::Result<()> {
             eprintln!("OK 已安装 {id}");
             println!("installed {id}");
         }
-        "install-fabric" | "install-quilt" => {
-            let kind = if cmd == "install-quilt" {
-                LoaderKind::Quilt
-            } else {
-                LoaderKind::Fabric
+        "install-fabric" | "install-quilt" | "install-forge" | "install-neoforge" => {
+            let kind = match cmd.as_str() {
+                "install-quilt" => LoaderKind::Quilt,
+                "install-forge" => LoaderKind::Forge,
+                "install-neoforge" => LoaderKind::NeoForge,
+                _ => LoaderKind::Fabric,
             };
             let game = args
                 .first()
@@ -176,11 +178,37 @@ async fn real_main() -> easymc_core::Result<()> {
                     )
                     .await?
                 }
+                LoaderKind::Forge => {
+                    let java = ensure_java(&paths, 21, |s| eprintln!("{s}")).await?;
+                    install_forge(
+                        &paths,
+                        &McVersion(game.clone()),
+                        loader_ver.clone(),
+                        &java.path,
+                        vanilla,
+                        |p| eprintln!("{}", p.format_line()),
+                    )
+                    .await?
+                }
+                LoaderKind::NeoForge => {
+                    let java = ensure_java(&paths, 21, |s| eprintln!("{s}")).await?;
+                    install_neoforge(
+                        &paths,
+                        &McVersion(game.clone()),
+                        loader_ver.clone(),
+                        &java.path,
+                        vanilla,
+                        |p| eprintln!("{}", p.format_line()),
+                    )
+                    .await?
+                }
             };
             let mut store = load_instances(&paths)?;
             let loader_enum = match kind {
                 LoaderKind::Fabric => ModLoader::Fabric,
                 LoaderKind::Quilt => ModLoader::Quilt,
+                LoaderKind::Forge => ModLoader::Forge,
+                LoaderKind::NeoForge => ModLoader::NeoForge,
             };
             for inst in &mut store.instances {
                 if inst.version.0 == game && inst.loader == loader_enum {
@@ -444,7 +472,14 @@ async fn real_main() -> easymc_core::Result<()> {
                     .as_deref()
                     .map(|lv| is_loader_installed(&paths, LoaderKind::Quilt, &ver, lv))
                     .unwrap_or(false),
-                ModLoader::Forge | ModLoader::NeoForge => false,
+                ModLoader::Forge => loader_version
+                    .as_deref()
+                    .map(|lv| is_loader_installed(&paths, LoaderKind::Forge, &ver, lv))
+                    .unwrap_or(false),
+                ModLoader::NeoForge => loader_version
+                    .as_deref()
+                    .map(|lv| is_loader_installed(&paths, LoaderKind::NeoForge, &ver, lv))
+                    .unwrap_or(false),
             };
             let inst = create_named_instance_with(
                 &paths,
@@ -487,8 +522,10 @@ fn parse_loader_kind(s: &str) -> easymc_core::Result<LoaderKind> {
     match s.to_ascii_lowercase().as_str() {
         "fabric" => Ok(LoaderKind::Fabric),
         "quilt" => Ok(LoaderKind::Quilt),
+        "forge" => Ok(LoaderKind::Forge),
+        "neoforge" | "neo" => Ok(LoaderKind::NeoForge),
         _ => Err(easymc_core::EasyMcError::msg(
-            "loader kind must be fabric|quilt",
+            "loader kind must be fabric|quilt|forge|neoforge",
         )),
     }
 }
@@ -532,7 +569,20 @@ fn instance_launchable(paths: &Paths, inst: &easymc_core::Instance) -> bool {
                 false
             }
         }
-        ModLoader::Forge | ModLoader::NeoForge => false,
+        ModLoader::Forge => {
+            if let Some(lv) = inst.loader_version.as_deref() {
+                is_loader_installed(paths, LoaderKind::Forge, inst.version.as_str(), lv)
+            } else {
+                false
+            }
+        }
+        ModLoader::NeoForge => {
+            if let Some(lv) = inst.loader_version.as_deref() {
+                is_loader_installed(paths, LoaderKind::NeoForge, inst.version.as_str(), lv)
+            } else {
+                false
+            }
+        }
     }
 }
 
@@ -545,14 +595,16 @@ fn print_help() {
            java\n\
            ensure-java [major]\n\
            list-versions [filter|--snapshots]\n\
-           list-loaders <fabric|quilt> [game-version]\n\
+           list-loaders <fabric|quilt|forge|neoforge> [game-version]\n\
            install <version> [--no-assets]\n\
            install-fabric <game> [--loader VER] [--no-assets]\n\
            install-quilt <game> [--loader VER] [--no-assets]\n\
+           install-forge <game> [--loader VER] [--no-assets]\n\
+           install-neoforge <game> [--loader VER] [--no-assets]\n\
            instances\n\
            accounts\n\
            offline [username]\n\
-           create-instance [name] [version] [--loader vanilla|fabric|quilt] [--loader-version VER]\n\
+           create-instance [name] [version] [--loader vanilla|fabric|quilt|forge|neoforge] [--loader-version VER]\n\
            set-active <instance-id>\n\
            search-mods <modrinth|curseforge> [query] [--game VER] [--loader …]\n\
            list-mod-versions <modrinth|curseforge> <project-id> [--game VER] [--loader …]\n\

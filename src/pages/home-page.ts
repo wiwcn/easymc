@@ -45,7 +45,7 @@ export class HomePage extends LitElement {
   @state() private versionFilter = "";
   @state() private alsoInstall = true;
   @state() private withAssets = true;
-  @state() private newLoader: "vanilla" | "fabric" | "quilt" = "vanilla";
+  @state() private newLoader: "vanilla" | "fabric" | "quilt" | "forge" | "neoforge" = "vanilla";
   @state() private loaderVersions: { version: string; stable: boolean; intermediary: string }[] = [];
   @state() private newLoaderVersion = "";
   @state() private progress: InstallProgressDto | null = null;
@@ -578,7 +578,7 @@ export class HomePage extends LitElement {
     }
   }
 
-  private async onLoaderChange(loader: "vanilla" | "fabric" | "quilt") {
+  private async onLoaderChange(loader: "vanilla" | "fabric" | "quilt" | "forge" | "neoforge") {
     this.newLoader = loader;
     await this.refreshLoaderVersions();
   }
@@ -814,7 +814,7 @@ export class HomePage extends LitElement {
           <div class="loader-row">
             <span class="field-label">加载器</span>
             <div class="chip-row">
-              ${(["vanilla", "fabric", "quilt"] as const).map(
+              ${(["vanilla", "fabric", "quilt", "forge", "neoforge"] as const).map(
                 (l) => html`
                   <button
                     type="button"
