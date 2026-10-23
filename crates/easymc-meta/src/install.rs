@@ -664,9 +664,23 @@ fn load_version_resolved_inner(paths: &Paths, id: &str, depth: u8) -> Result<Ver
 /// Merge parent (vanilla) into child (loader profile). Child wins for mainClass / id / type.
 pub fn merge_version_info(parent: VersionInfo, mut child: VersionInfo) -> VersionInfo {
     let inherits = child.inherits_from.clone().or(Some(parent.id.clone()));
-    // Libraries: parent first, then child (Fabric order: vanilla then loader jars).
+    // Libraries: parent first, then child. Deduplicate by Maven name so Forge/NeoForge
+    // profiles (which re-list guava/gson/etc.) do not put the same jar on the classpath twice —
+    // BootstrapLauncher / securejarhandler reject duplicate keys.
     let mut libs = parent.libraries;
     libs.extend(child.libraries.drain(..));
+    {
+        let mut seen = std::collections::HashSet::new();
+        let mut deduped = Vec::with_capacity(libs.len());
+        // Prefer the *last* occurrence (child wins) — reverse, unique, reverse back.
+        for lib in libs.into_iter().rev() {
+            if seen.insert(lib.name.clone()) {
+                deduped.push(lib);
+            }
+        }
+        deduped.reverse();
+        libs = deduped;
+    }
     // Arguments: concatenate jvm/game (parent then child).
     let arguments = match (parent.arguments, child.arguments.take()) {
         (None, None) => None,
@@ -718,6 +732,7 @@ pub fn is_version_installed(paths: &Paths, id: &str) -> bool {
 /// Classpath entries (non-native library jars + client jar), colon/semicolon joined by caller.
 pub fn classpath_jars(paths: &Paths, info: &VersionInfo) -> Result<Vec<PathBuf>> {
     let mut jars = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for lib in &info.libraries {
         if !rules_allow(lib.rules.as_deref(), &[]) {
             continue;
@@ -731,10 +746,26 @@ pub fn classpath_jars(paths: &Paths, info: &VersionInfo) -> Result<Vec<PathBuf>>
             if lib.natives.is_some() {
                 continue;
             }
-            jars.push(paths.library_path(rel));
+            let path = paths.library_path(rel);
+            if seen.insert(path.clone()) {
+                jars.push(path);
+            }
         }
     }
-    jars.push(paths.version_jar(info.jar_id()));
+    // Modern Forge / NeoForge: mainClass is BootstrapLauncher / ForgeBootstrap.
+    // They load a patched client from libraries/ via FML and set
+    // `-DignoreList=...,${version_name}.jar`. Adding the vanilla
+    // `1.21.1.jar` (wrong filename for ignoreList) creates a duplicate
+    // `minecraft` JPMS module (`_1._21._1` vs `minecraft`) and crashes.
+    let forge_family = info.main_class.contains("bootstraplauncher")
+        || info.main_class.contains("BootstrapLauncher")
+        || info.main_class.contains("ForgeBootstrap");
+    if !forge_family {
+        let client = paths.version_jar(info.jar_id());
+        if seen.insert(client.clone()) {
+            jars.push(client);
+        }
+    }
     Ok(jars)
 }
 

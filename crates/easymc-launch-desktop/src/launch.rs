@@ -5,8 +5,8 @@ use std::sync::Arc;
 use easymc_core::{Account, AccountKind, EasyMcError, Instance, ModLoader, Paths, Result, Settings};
 use easymc_meta::rules_allow;
 use easymc_meta::{
-    classpath_jars, extract_natives, fabric_profile_id, is_version_installed, load_installed_version,
-    quilt_profile_id, VersionInfo,
+    classpath_jars, extract_natives, fabric_profile_id, forge_profile_id, is_version_installed,
+    load_installed_version, neoforge_profile_id, quilt_profile_id, VersionInfo,
 };
 use serde_json::Value;
 
@@ -44,11 +44,17 @@ pub fn resolve_launch_version(paths: &Paths, instance: &Instance) -> Result<Vers
             })?;
             quilt_profile_id(instance.version.as_str(), loader_ver)
         }
-        ModLoader::Forge | ModLoader::NeoForge => {
-            return Err(EasyMcError::NotImplemented(match instance.loader {
-                ModLoader::Forge => "Forge 启动",
-                _ => "NeoForge 启动",
-            }));
+        ModLoader::Forge => {
+            let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
+                EasyMcError::msg("Forge 实例缺少 loader_version，请重新安装 Forge")
+            })?;
+            forge_profile_id(instance.version.as_str(), loader_ver)
+        }
+        ModLoader::NeoForge => {
+            let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
+                EasyMcError::msg("NeoForge 实例缺少 loader_version，请重新安装 NeoForge")
+            })?;
+            neoforge_profile_id(loader_ver)
         }
     };
     if !is_version_installed(paths, &id) {

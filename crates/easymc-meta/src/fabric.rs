@@ -20,6 +20,8 @@ pub const QUILT_MAVEN: &str = "https://maven.quiltmc.org/repository/release/";
 pub enum LoaderKind {
     Fabric,
     Quilt,
+    Forge,
+    NeoForge,
 }
 
 impl LoaderKind {
@@ -27,6 +29,8 @@ impl LoaderKind {
         match self {
             Self::Fabric => "fabric",
             Self::Quilt => "quilt",
+            Self::Forge => "forge",
+            Self::NeoForge => "neoforge",
         }
     }
 
@@ -34,20 +38,32 @@ impl LoaderKind {
         match self {
             Self::Fabric => "Fabric",
             Self::Quilt => "Quilt",
+            Self::Forge => "Forge",
+            Self::NeoForge => "NeoForge",
         }
     }
 
-    fn meta_base(self) -> &'static str {
+    pub fn is_forge_family(self) -> bool {
+        matches!(self, Self::Forge | Self::NeoForge)
+    }
+
+    fn meta_base(self) -> Result<&'static str> {
         match self {
-            Self::Fabric => FABRIC_META,
-            Self::Quilt => QUILT_META,
+            Self::Fabric => Ok(FABRIC_META),
+            Self::Quilt => Ok(QUILT_META),
+            Self::Forge | Self::NeoForge => Err(EasyMcError::msg(
+                "Forge/NeoForge 不使用 Fabric meta API",
+            )),
         }
     }
 
-    fn default_maven(self) -> &'static str {
+    fn default_maven(self) -> Result<&'static str> {
         match self {
-            Self::Fabric => FABRIC_MAVEN,
-            Self::Quilt => QUILT_MAVEN,
+            Self::Fabric => Ok(FABRIC_MAVEN),
+            Self::Quilt => Ok(QUILT_MAVEN),
+            Self::Forge | Self::NeoForge => Err(EasyMcError::msg(
+                "Forge/NeoForge 不使用 Fabric maven",
+            )),
         }
     }
 }
@@ -86,6 +102,8 @@ pub fn profile_id(kind: LoaderKind, game: &str, loader: &str) -> String {
     match kind {
         LoaderKind::Fabric => fabric_profile_id(game, loader),
         LoaderKind::Quilt => quilt_profile_id(game, loader),
+        LoaderKind::Forge => crate::forge::forge_profile_id(game, loader),
+        LoaderKind::NeoForge => crate::forge::neoforge_profile_id(loader),
     }
 }
 
@@ -96,9 +114,14 @@ fn http_client() -> Result<reqwest::Client> {
         .map_err(|e| EasyMcError::msg(e.to_string()))
 }
 
-/// List loader builds for a game version (stable first).
+/// List loader builds for a game version (stable / newest first).
 pub async fn list_loaders(kind: LoaderKind, game: &str) -> Result<Vec<LoaderVersionInfo>> {
-    let url = format!("{}/versions/loader/{game}", kind.meta_base());
+    match kind {
+        LoaderKind::Forge => return crate::forge::list_forge_versions(game).await,
+        LoaderKind::NeoForge => return crate::forge::list_neoforge_versions(game).await,
+        LoaderKind::Fabric | LoaderKind::Quilt => {}
+    }
+    let url = format!("{}/versions/loader/{game}", kind.meta_base()?);
     let client = http_client()?;
     let list: Vec<LoaderVersionInfo> = client
         .get(&url)
@@ -121,6 +144,9 @@ pub async fn list_loaders(kind: LoaderKind, game: &str) -> Result<Vec<LoaderVers
 
 /// Pick stable loader, else newest (first entry — Fabric sorts newest first).
 pub async fn resolve_loader_version(kind: LoaderKind, game: &str, prefer: Option<&str>) -> Result<String> {
+    if kind.is_forge_family() {
+        return crate::forge::resolve_forge_family_version(kind, game, prefer).await;
+    }
     let list = list_loaders(kind, game).await?;
     if let Some(p) = prefer {
         if list.iter().any(|l| l.loader.version == p) {
@@ -140,7 +166,7 @@ pub async fn resolve_loader_version(kind: LoaderKind, game: &str, prefer: Option
 async fn fetch_profile_json(kind: LoaderKind, game: &str, loader: &str) -> Result<VersionInfo> {
     let url = format!(
         "{}/versions/loader/{game}/{loader}/profile/json",
-        kind.meta_base()
+        kind.meta_base()?
     );
     let client = http_client()?;
     let profile: VersionInfo = client
@@ -173,7 +199,7 @@ fn normalize_profile_libraries(kind: LoaderKind, profile: &mut VersionInfo) {
         let base = lib
             .url
             .clone()
-            .unwrap_or_else(|| kind.default_maven().to_string());
+            .unwrap_or_else(|| kind.default_maven().expect("fabric/quilt").to_string());
         let path = maven_path_from_name(&lib.name);
         let url = maven_url(&base, &lib.name);
         lib.downloads = Some(LibraryDownloads {
@@ -205,6 +231,11 @@ pub async fn install_loader(
     on_progress: impl Fn(InstallProgress) + Send + Sync + 'static,
 ) -> Result<(String, String)> {
     let kind = opts.kind;
+    if kind.is_forge_family() {
+        return Err(EasyMcError::msg(
+            "请使用 install_forge / install_neoforge（需传入 Java 路径）",
+        ));
+    }
     let on_progress = Arc::new(on_progress);
     let emit = {
         let on_progress = on_progress.clone();

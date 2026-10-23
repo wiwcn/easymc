@@ -5,12 +5,17 @@ mod types;
 mod install;
 mod download;
 mod fabric;
+mod forge;
 
 pub use install::*;
 pub use download::{download_file, FetchResult};
 pub use types::*;
 pub use rules::{rules_allow, current_os_name, is_native_library};
 pub use fabric::*;
+pub use forge::{
+    forge_profile_id, install_forge, install_neoforge, install_forge_family,
+    list_forge_versions, list_neoforge_versions, neoforge_profile_id,
+};
 
 use async_trait::async_trait;
 use easymc_core::{EasyMcError, McVersion, Result};
