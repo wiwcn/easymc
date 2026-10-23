@@ -1,7 +1,9 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
-import type { NavId } from "./types";
+import type { AppMode, NavId } from "./types";
+import { getSettings } from "./api";
+import "./pages/onboarding-page";
 import "./components/side-nav";
 import "./pages/home-page";
 import "./pages/library-page";
@@ -13,6 +15,9 @@ import "./pages/agent-page";
 export class EasyMcApp extends LitElement {
   @state() private route: NavId = "home";
   @state() private pageKey = 0;
+  @state() private ready = false;
+  @state() private onboarded = true;
+  @state() private mode: AppMode = "standard";
 
   static styles = css`
     :host {
@@ -105,10 +110,34 @@ export class EasyMcApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.addEventListener("nav-change", this.onNav as EventListener);
+    this.addEventListener("onboarding-done", this.onOnboarded);
+    this.addEventListener("mode-change", this.onModeChange as EventListener);
+    void this.loadSettings();
   }
+
+  private async loadSettings() {
+    const s = await getSettings();
+    this.onboarded = !!s.onboarding_complete;
+    this.mode = s.mode === "agent" ? "agent" : "standard";
+    this.ready = true;
+  }
+
+  private onOnboarded = () => {
+    void this.loadSettings().then(() => {
+      this.route = "home";
+      this.pageKey += 1;
+    });
+  };
+
+  private onModeChange = (e: Event) => {
+    const m = (e as CustomEvent<AppMode>).detail;
+    if (m) this.mode = m;
+  };
 
   disconnectedCallback() {
     this.removeEventListener("nav-change", this.onNav as EventListener);
+    this.removeEventListener("onboarding-done", this.onOnboarded);
+    this.removeEventListener("mode-change", this.onModeChange as EventListener);
     super.disconnectedCallback();
   }
 
@@ -120,15 +149,16 @@ export class EasyMcApp extends LitElement {
   };
 
   render() {
+    if (!this.ready) return html``;
+    if (!this.onboarded) return html`<easymc-onboarding></easymc-onboarding>`;
     return html`
-      <easymc-side-nav .active=${this.route}></easymc-side-nav>
+      <easymc-side-nav .active=${this.route} .mode=${this.mode}></easymc-side-nav>
       <div class="main">
         <header class="top">
           <div class="brand">
-            <button class="menu-btn" aria-label="菜单" type="button">☰</button>
-            <span>EasyMC</span>
+                        <span>EasyMC</span>
           </div>
-          <div class="avatar" title="账户（M0 占位）"></div>
+          <div class="avatar" title="账户"></div>
         </header>
         <div class="content">
           ${keyed(
@@ -153,14 +183,14 @@ export class EasyMcApp extends LitElement {
       case "share":
         return html`<easymc-placeholder-page
           title="分享"
-          subtitle="在「库」或「启动」页导出元数据 / 整合包，或导入 .json/.zip（M1.7）"
-          icon="🔗"
+          subtitle="在「启动」或「库」页把实例分享给好友，或导入好友发来的分享包"
+          icon=""
         ></easymc-placeholder-page>`;
       case "settings":
         return html`<easymc-placeholder-page
           title="设置"
-          subtitle="账户与运行时"
-          icon="⚙️"
+          subtitle="账户、模式与游戏设置"
+          icon=""
           settings
         ></easymc-placeholder-page>`;
     }

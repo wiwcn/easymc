@@ -3,7 +3,7 @@ use std::sync::Arc;
 use easymc_core::{
     begin_microsoft_login, create_named_instance_with, create_offline_account, ensure_defaults,
     load_accounts, load_instances, load_settings, save_accounts, save_instances, save_settings,
-    set_active_instance, upsert_instance, Account, CreateInstanceOpts, Instance, McVersion,
+    set_active_instance, upsert_instance, Account, AppMode, CreateInstanceOpts, Instance, McVersion,
     MicrosoftAuthConfig, ModLoader, Paths, Settings,
 };
 use easymc_launch_desktop::{
@@ -49,13 +49,16 @@ fn state_paths(state: &AppState) -> &Paths {
 
 #[tauri::command]
 fn app_info(state: State<'_, AppState>) -> serde_json::Value {
+    let settings = load_settings(state_paths(&state)).ok();
+    let msa = MicrosoftAuthConfig::resolve(settings.as_ref().and_then(|s| s.msa_client_id.as_deref()));
     serde_json::json!({
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
         "milestone": "M1.7",
         "data_dir": state.paths.root,
-        "msa_configured": MicrosoftAuthConfig::default().is_configured(),
+        "msa_configured": msa.is_configured(),
+        "msa_temporary_client": msa.using_temporary_client_id,
     })
 }
 
@@ -153,9 +156,9 @@ fn list_accounts(state: State<'_, AppState>) -> Result<Vec<Account>, String> {
 #[tauri::command]
 fn create_offline(state: State<'_, AppState>, username: String) -> Result<Account, String> {
     let paths = state_paths(&state);
-    let acc = create_offline_account(&username);
+    let acc = create_offline_account(&username).map_err(|e| e.to_string())?;
     let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
-    store.accounts.retain(|a| a.username != username);
+    store.accounts.retain(|a| a.username != acc.username);
     store.active_id = Some(acc.id.clone());
     store.accounts.push(acc.clone());
     save_accounts(paths, &store).map_err(|e| e.to_string())?;
@@ -163,10 +166,90 @@ fn create_offline(state: State<'_, AppState>, username: String) -> Result<Accoun
 }
 
 #[tauri::command]
-async fn start_microsoft_login() -> Result<Account, String> {
-    begin_microsoft_login(&MicrosoftAuthConfig::default())
+async fn start_microsoft_login(state: State<'_, AppState>) -> Result<Account, String> {
+    let settings = load_settings(state_paths(&state)).map_err(|e| e.to_string())?;
+    let cfg = MicrosoftAuthConfig::resolve(settings.msa_client_id.as_deref());
+    begin_microsoft_login(&cfg)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+struct UpdateSettingsPatch {
+    mode: Option<String>,
+    onboarding_complete: Option<bool>,
+    preferred_login: Option<String>,
+    memory_mb: Option<u32>,
+    msa_client_id: Option<String>,
+    clear_msa_client_id: Option<bool>,
+}
+
+#[tauri::command]
+fn update_settings_cmd(
+    state: State<'_, AppState>,
+    patch: UpdateSettingsPatch,
+) -> Result<Settings, String> {
+    let paths = state_paths(&state);
+    let mut settings = load_settings(paths).map_err(|e| e.to_string())?;
+    if let Some(mode) = patch.mode.as_deref() {
+        settings.mode = AppMode::parse(mode).ok_or_else(|| format!("未知模式: {mode}"))?;
+    }
+    if let Some(done) = patch.onboarding_complete {
+        settings.onboarding_complete = done;
+    }
+    if let Some(login) = patch.preferred_login {
+        let t = login.trim().to_string();
+        settings.preferred_login = if t.is_empty() { None } else { Some(t) };
+    }
+    if let Some(mb) = patch.memory_mb {
+        settings.memory_mb = mb.clamp(512, 32768);
+    }
+    if patch.clear_msa_client_id.unwrap_or(false) {
+        settings.msa_client_id = None;
+    } else if let Some(id) = patch.msa_client_id {
+        let t = id.trim().to_string();
+        settings.msa_client_id = if t.is_empty() { None } else { Some(t) };
+    }
+    save_settings(paths, &settings).map_err(|e| e.to_string())?;
+    Ok(settings)
+}
+
+/// Persist first-run choices and mark the onboarding gate complete.
+#[tauri::command]
+fn complete_onboarding_cmd(
+    state: State<'_, AppState>,
+    mode: String,
+    preferred_login: Option<String>,
+) -> Result<Settings, String> {
+    let paths = state_paths(&state);
+    let accounts = load_accounts(paths).map_err(|e| e.to_string())?;
+    if accounts.accounts.is_empty() {
+        return Err("请先添加至少一个账户再进入主页".into());
+    }
+    let mut settings = load_settings(paths).map_err(|e| e.to_string())?;
+    settings.mode = AppMode::parse(&mode).ok_or_else(|| format!("未知模式: {mode}"))?;
+    settings.preferred_login = preferred_login
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    settings.onboarding_complete = true;
+    save_settings(paths, &settings).map_err(|e| e.to_string())?;
+    Ok(settings)
+}
+
+#[tauri::command]
+fn msa_status_cmd(state: State<'_, AppState>) -> serde_json::Value {
+    let settings = load_settings(state_paths(&state)).ok();
+    let cfg = MicrosoftAuthConfig::resolve(settings.as_ref().and_then(|s| s.msa_client_id.as_deref()));
+    serde_json::json!({
+        "configured": cfg.is_configured(),
+        "using_temporary_client_id": cfg.using_temporary_client_id,
+        "oauth_ready": false,
+        "message_zh": if cfg.is_configured() {
+            "正版登录即将可用（已配置登录客户端）"
+        } else {
+            "正版登录即将可用，可先离线游玩"
+        },
+    })
 }
 
 #[tauri::command]
@@ -523,10 +606,10 @@ fn curseforge_configured(state: State<'_, AppState>) -> serde_json::Value {
         "console_url": CONSOLE_URL,
         "key_len": key_len,
         "hint": if configured {
-            format!("CurseForge API Key 已配置（来源: {source_str}）")
+            "CurseForge 密钥已保存".to_string()
         } else {
             format!(
-                "未配置 CurseForge API Key。请在「设置」中粘贴，或访问 {CONSOLE_URL} 申请。也可设置环境变量 {API_KEY_ENV}。Modrinth 无需 Key。"
+                "浏览 CurseForge 需要密钥：在「设置 · 高级」中粘贴（可在 {CONSOLE_URL} 申请）。Modrinth 无需密钥。"
             )
         }
     })
@@ -864,6 +947,9 @@ pub fn run() {
             list_accounts,
             create_offline,
             start_microsoft_login,
+            update_settings_cmd,
+            complete_onboarding_cmd,
+            msa_status_cmd,
             list_versions,
             install_mc_version,
             list_loader_versions,

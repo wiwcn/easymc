@@ -252,10 +252,10 @@ async fn real_main() -> easymc_core::Result<()> {
         }
         "offline" => {
             let name = args.first().cloned().unwrap_or_else(|| "EasyPlayer".into());
-            let acc = create_offline_account(&name);
+            let acc = create_offline_account(&name)?;
             let mut store = load_accounts(&paths)?;
             store.active_id = Some(acc.id.clone());
-            store.accounts.retain(|a| a.username != name);
+            store.accounts.retain(|a| a.username != acc.username);
             println!("created {} {}", acc.username, acc.uuid);
             store.accounts.push(acc);
             save_accounts(&paths, &store)?;

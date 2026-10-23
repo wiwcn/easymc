@@ -173,3 +173,25 @@ export interface ImportResultDto {
   message_zh: string;
   path_loaded: string;
 }
+
+
+export type AppMode = "agent" | "standard";
+
+export type PreferredLogin = "microsoft" | "offline" | "skin_station";
+
+export interface SettingsDto {
+  msa_client_id?: string | null;
+  preferred_java?: string | null;
+  memory_mb: number;
+  curseforge_api_key?: string | null;
+  mode: AppMode;
+  onboarding_complete: boolean;
+  preferred_login?: PreferredLogin | string | null;
+}
+
+export interface MsaStatusDto {
+  configured: boolean;
+  using_temporary_client_id: boolean;
+  oauth_ready: boolean;
+  message_zh: string;
+}

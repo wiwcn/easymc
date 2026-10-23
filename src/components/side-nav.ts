@@ -1,19 +1,27 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import type { NavId } from "../types";
+import type { AppMode, NavId } from "../types";
 
-const ITEMS: { id: NavId; label: string; icon: string }[] = [
-  { id: "home", label: "启动", icon: "⌂" },
-  { id: "library", label: "库", icon: "☰" },
-  { id: "store", label: "商店", icon: "👜" },
-  { id: "agent", label: "Agent", icon: "◎" },
-  { id: "share", label: "分享", icon: "⑂" },
-  { id: "settings", label: "设置", icon: "⚙" },
+type Item = { id: NavId; label: string };
+const BASE: Item[] = [
+  { id: "home", label: "启动" },
+  { id: "library", label: "库" },
+  { id: "store", label: "商店" },
+  { id: "share", label: "分享" },
+  { id: "settings", label: "设置" },
 ];
+const AGENT: Item = { id: "agent", label: "助手" };
+
+/** Agent mode: assistant sits right after 启动 with a badge. Standard: last, de-emphasised. */
+function itemsFor(mode: AppMode): Item[] {
+  if (mode === "agent") return [BASE[0], AGENT, ...BASE.slice(1)];
+  return [...BASE, AGENT];
+}
 
 @customElement("easymc-side-nav")
 export class SideNav extends LitElement {
   @property({ type: String }) active: NavId = "home";
+  @property({ type: String }) mode: AppMode = "standard";
 
   static styles = css`
     :host {
@@ -62,12 +70,17 @@ export class SideNav extends LitElement {
     button.item:focus-visible {
       box-shadow: var(--easymc-focus-ring);
     }
-    .icon {
-      width: 1.25rem;
-      text-align: center;
-      font-size: 1.1rem;
-      line-height: 1;
-      opacity: 0.9;
+    .pill {
+      margin-left: auto;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+    button.item.quiet {
+      font-size: 0.88rem;
+      opacity: 0.8;
     }
     .promo {
       margin-top: auto;
@@ -94,23 +107,23 @@ export class SideNav extends LitElement {
   render() {
     return html`
       <nav aria-label="主导航">
-        ${ITEMS.map(
+        ${itemsFor(this.mode).map(
           (it) => html`
             <button
-              class="item ${this.active === it.id ? "active" : ""}"
+              class="item ${this.active === it.id ? "active" : ""} ${it.id === "agent" && this.mode === "standard" ? "quiet" : ""}"
               type="button"
               aria-current=${this.active === it.id ? "page" : "false"}
               @click=${() => this.select(it.id)}
             >
-              <span class="icon" aria-hidden="true">${it.icon}</span>
               <span>${it.label}</span>
+              ${it.id === "agent" && this.mode === "agent" ? html`<span class="pill">已开启</span>` : null}
             </button>
           `,
         )}
       </nav>
       <div class="promo">
-        <strong>1.21.1 就绪</strong>
-        多实例、模组与分享包
+        <strong>${this.mode === "agent" ? "助手已就绪" : "准备好了就开始"}</strong>
+        ${this.mode === "agent" ? "游戏出问题时，打开助手帮你看看" : "多实例、模组，一键分享给好友"}
       </div>
     `;
   }

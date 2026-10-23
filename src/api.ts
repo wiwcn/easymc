@@ -1,4 +1,4 @@
-import type { AccountDto, AgentAskResponse, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
+import type { AccountDto, AgentAskResponse, AppMode, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -352,4 +352,55 @@ export async function importInstance(
     applyMemory: opts?.applyMemory ?? false,
     offline: opts?.offline ?? false,
   });
+}
+
+
+export async function getSettings(): Promise<SettingsDto> {
+  return (
+    (await invokeSafe<SettingsDto>("get_settings")) ?? {
+      memory_mb: 2048,
+      mode: "standard",
+      onboarding_complete: false,
+    }
+  );
+}
+
+export async function updateSettings(patch: {
+  mode?: AppMode | string;
+  onboarding_complete?: boolean;
+  preferred_login?: PreferredLogin | string | null;
+  memory_mb?: number;
+  msa_client_id?: string | null;
+  clear_msa_client_id?: boolean;
+}): Promise<SettingsDto> {
+  return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
+}
+
+export async function completeOnboarding(
+  mode: AppMode | string,
+  preferredLogin?: PreferredLogin | string | null,
+): Promise<SettingsDto> {
+  return invokeOrThrow<SettingsDto>("complete_onboarding_cmd", {
+    mode,
+    preferredLogin: preferredLogin ?? null,
+  });
+}
+
+export async function msaStatus(): Promise<MsaStatusDto> {
+  return (
+    (await invokeSafe<MsaStatusDto>("msa_status_cmd")) ?? {
+      configured: false,
+      using_temporary_client_id: false,
+      oauth_ready: false,
+      message_zh: "正版登录即将可用",
+    }
+  );
+}
+
+export async function createOfflineOrThrow(username: string): Promise<AccountDto> {
+  return invokeOrThrow<AccountDto>("create_offline", { username });
+}
+
+export async function startMicrosoftLogin(): Promise<AccountDto> {
+  return invokeOrThrow<AccountDto>("start_microsoft_login");
 }

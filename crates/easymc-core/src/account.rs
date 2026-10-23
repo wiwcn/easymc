@@ -36,9 +36,38 @@ pub fn offline_player_uuid(name: &str) -> Uuid {
     Uuid::from_bytes(bytes.into())
 }
 
-pub fn create_offline_account(username: &str) -> Account {
+/// Player-facing offline username checks (aligned with PCL Legacy naming tips).
+/// Allows Unicode (e.g. Chinese) for offline; classic Mojang ASCII gets a soft tip via `is_classic_mojang_name`.
+pub fn validate_offline_username(username: &str) -> crate::Result<()> {
+    let name = username.trim();
+    if name.is_empty() {
+        return Err(crate::EasyMcError::msg("请输入游戏里显示的名字"));
+    }
+    let len = name.chars().count();
+    if len < 2 {
+        return Err(crate::EasyMcError::msg("名字至少 2 个字符"));
+    }
+    if len > 16 {
+        return Err(crate::EasyMcError::msg("名字最多 16 个字符"));
+    }
+    if name.chars().any(|c| c.is_control() || c == '\n' || c == '\r' || c == '\t') {
+        return Err(crate::EasyMcError::msg("名字不能包含控制字符或换行"));
+    }
+    Ok(())
+}
+
+/// Classic Mojang-style name: 3–16 chars of `[A-Za-z0-9_]`. Offline allows more; UI may tip.
+pub fn is_classic_mojang_name(username: &str) -> bool {
+    let name = username.trim();
+    let len = name.chars().count();
+    (3..=16).contains(&len) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+pub fn create_offline_account(username: &str) -> crate::Result<Account> {
+    validate_offline_username(username)?;
+    let username = username.trim();
     let uuid = offline_player_uuid(username);
-    Account {
+    Ok(Account {
         id: format!("offline-{uuid}"),
         kind: AccountKind::Offline,
         username: username.to_string(),
@@ -47,36 +76,58 @@ pub fn create_offline_account(username: &str) -> Account {
         refresh_token: None,
         expires_at: None,
         created_at: Utc::now(),
-    }
+    })
 }
+
 
 /// Microsoft auth scaffolding. Needs an Azure AD application (public client)
 /// registered for Minecraft launcher-style OAuth before this can complete.
 ///
-/// TODO (user / maintainer):
-/// 1. Register an Azure app: https://portal.azure.com → App registrations
-/// 2. Set public client redirect (e.g. `http://127.0.0.1:PORT/callback`) or device code
-/// 3. Put client id in env `EASYMC_MSA_CLIENT_ID` or settings
-/// 4. Implement device-code or localhost redirect + Xbox Live + XSTS + MC services
+/// Resolution order for client id:
+/// 1. Env `EASYMC_MSA_CLIENT_ID`
+/// 2. `settings.msa_client_id`
 ///
-/// Until then, offline accounts remain the supported play path.
+/// No fallback id is bundled: DESIGN §2.4 forbids inventing / borrowing an unverified UUID.
+/// Until one is configured, MSA login reports 「正版登录即将可用」.
+///
+/// Production: register own Azure public client + Mojang Minecraft API whitelist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MicrosoftAuthConfig {
     /// Azure application (client) id. None → MSA login disabled.
     pub client_id: Option<String>,
     pub redirect_uri: String,
+    /// Reserved: true if a temporary public client id is ever used (currently never).
+    #[serde(default)]
+    pub using_temporary_client_id: bool,
 }
 
 impl Default for MicrosoftAuthConfig {
     fn default() -> Self {
-        Self {
-            client_id: std::env::var("EASYMC_MSA_CLIENT_ID").ok().filter(|s| !s.is_empty()),
-            redirect_uri: "http://127.0.0.1:0/callback".into(),
-        }
+        Self::resolve(None)
     }
 }
 
 impl MicrosoftAuthConfig {
+    pub fn resolve(settings_client_id: Option<&str>) -> Self {
+        let from_env = std::env::var("EASYMC_MSA_CLIENT_ID")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let from_settings = settings_client_id
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let (client_id, using_temporary_client_id) = if let Some(id) = from_env.or(from_settings) {
+            (Some(id), false)
+        } else {
+            (None, false)
+        };
+        Self {
+            client_id,
+            redirect_uri: "http://127.0.0.1:0/callback".into(),
+            using_temporary_client_id,
+        }
+    }
+
     pub fn is_configured(&self) -> bool {
         self.client_id.as_ref().is_some_and(|c| !c.is_empty())
     }
@@ -86,10 +137,12 @@ impl MicrosoftAuthConfig {
 pub async fn begin_microsoft_login(cfg: &MicrosoftAuthConfig) -> crate::Result<Account> {
     if !cfg.is_configured() {
         return Err(crate::EasyMcError::msg(
-            "Microsoft 登录未配置：请设置 EASYMC_MSA_CLIENT_ID（Azure 应用客户端 ID），或使用离线账户",
+            "正版登录即将可用，可先离线游玩。",
         ));
     }
-    Err(crate::EasyMcError::NotImplemented(
-        "Microsoft OAuth + Xbox Live + Minecraft services token exchange",
+    // Client id present (env / settings), but Device Code →
+    // Xbox Live → XSTS → Minecraft Services exchange is not wired yet.
+    Err(crate::EasyMcError::msg(
+        "正版登录即将可用。微软登录流程尚未接通，请先用离线名字游玩，或稍后再试。",
     ))
 }

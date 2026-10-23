@@ -17,6 +17,37 @@ pub struct AccountStore {
     pub active_id: Option<String>,
 }
 
+/// Launcher UX mode chosen at first-run (or later in Settings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AppMode {
+    /// Agent / diagnose assistant is more prominent.
+    Agent,
+    /// Classic launcher layout; Agent still reachable but less primary.
+    #[default]
+    Standard,
+}
+
+impl AppMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Agent => "agent",
+            Self::Standard => "standard",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "agent" => Some(Self::Agent),
+            "standard" => Some(Self::Standard),
+            _ => None,
+        }
+    }
+}
+
+/// Preferred login path from onboarding / settings (`microsoft` | `offline` | `skin_station`).
+pub type PreferredLogin = String;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub msa_client_id: Option<String>,
@@ -26,6 +57,15 @@ pub struct Settings {
     /// Stored only under the local data dir — never commit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub curseforge_api_key: Option<String>,
+    /// First-run mode: `agent` | `standard`.
+    #[serde(default)]
+    pub mode: AppMode,
+    /// When false, UI shows the first-run onboarding gate (mode + ≥1 account).
+    #[serde(default)]
+    pub onboarding_complete: bool,
+    /// Last chosen login style: microsoft / offline / skin_station.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preferred_login: Option<PreferredLogin>,
 }
 
 impl Default for Settings {
@@ -35,6 +75,9 @@ impl Default for Settings {
             preferred_java: None,
             memory_mb: 2048,
             curseforge_api_key: None,
+            mode: AppMode::Standard,
+            onboarding_complete: false,
+            preferred_login: None,
         }
     }
 }
@@ -85,15 +128,36 @@ pub fn save_settings(paths: &Paths, settings: &Settings) -> Result<()> {
     write_json(&paths.settings_file(), settings)
 }
 
-/// Ensure default offline account + a starter vanilla instance exist.
+/// Ensure starter vanilla instance exists; seed offline account only after onboarding
+/// (or for upgrades that already have accounts). First-run leaves accounts empty so the
+/// UI gate can collect mode + login.
 pub fn ensure_defaults(paths: &Paths) -> Result<(InstanceStore, AccountStore)> {
     paths.ensure()?;
+
+    let mut settings = if paths.settings_file().exists() {
+        load_settings(paths)?
+    } else {
+        let s = Settings::default();
+        save_settings(paths, &s)?;
+        s
+    };
+
     let mut accounts = load_accounts(paths)?;
+
+    // Upgrade path: installs that already have accounts skip the first-run gate.
+    if !settings.onboarding_complete && !accounts.accounts.is_empty() {
+        settings.onboarding_complete = true;
+        save_settings(paths, &settings)?;
+    }
+
     if accounts.accounts.is_empty() {
-        let acc = create_offline_account("EasyPlayer");
-        accounts.active_id = Some(acc.id.clone());
-        accounts.accounts.push(acc);
-        save_accounts(paths, &accounts)?;
+        // Do not auto-create during first-run onboarding; after onboarding, keep a fallback.
+        if settings.onboarding_complete {
+            let acc = create_offline_account("EasyPlayer")?;
+            accounts.active_id = Some(acc.id.clone());
+            accounts.accounts.push(acc);
+            save_accounts(paths, &accounts)?;
+        }
     } else if accounts.active_id.is_none() {
         accounts.active_id = accounts.accounts.first().map(|a| a.id.clone());
         save_accounts(paths, &accounts)?;
@@ -110,7 +174,7 @@ pub fn ensure_defaults(paths: &Paths) -> Result<(InstanceStore, AccountStore)> {
             crate::McVersion("1.21.1".into()),
             game_dir.to_string_lossy().into_owned(),
         );
-        inst.description = Some("默认实例 · 安装版本后即可启动".into());
+        inst.description = Some("准备好了就开始；需要正版服时再登录微软账户".into());
         inst.account_id = accounts.active_id.clone();
         instances.active_id = Some(id);
         instances.instances.push(inst);
@@ -118,10 +182,6 @@ pub fn ensure_defaults(paths: &Paths) -> Result<(InstanceStore, AccountStore)> {
     } else if instances.active_id.is_none() {
         instances.active_id = instances.instances.first().map(|i| i.id.clone());
         save_instances(paths, &instances)?;
-    }
-
-    if !paths.settings_file().exists() {
-        save_settings(paths, &Settings::default())?;
     }
 
     Ok((instances, accounts))

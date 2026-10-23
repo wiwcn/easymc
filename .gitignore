@@ -54,3 +54,4 @@ coverage/
 # Local LLM secrets (never commit)
 **/llm.env
 .env.llm
+.agents/
