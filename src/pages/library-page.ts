@@ -11,6 +11,13 @@ import {
   ensureJava,
   listenInstallProgress,
 } from "../api";
+import type { InstallProgressDto } from "../install-progress";
+import {
+  formatProgressLine,
+  overallPercent,
+  stageLabel,
+  stagePercent,
+} from "../install-progress";
 import { showToast } from "../toast";
 
 @customElement("easymc-library-page")
@@ -29,6 +36,8 @@ export class LibraryPage extends LitElement {
   @state() private versionsLoading = false;
   @state() private versionFilter = "";
   @state() private alsoInstall = true;
+  @state() private withAssets = true;
+  @state() private progress: InstallProgressDto | null = null;
 
   private unProg?: () => void;
 
@@ -233,14 +242,61 @@ export class LibraryPage extends LitElement {
       text-align: center;
       color: var(--md-sys-color-on-surface-variant);
     }
+    .progress-card {
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+    .progress-card.error {
+      border: 1px solid #ef9a9a;
+      background: #ffebee;
+    }
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .progress-head .muted {
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 0.8rem;
+    }
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--md-sys-color-surface-container-highest);
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #4db6ac, #0f766e);
+      border-radius: 999px;
+      transition: width 160ms ease;
+    }
+    .bar.error > i {
+      background: #c62828;
+    }
+    .progress-detail {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--md-sys-color-on-surface-variant);
+      word-break: break-all;
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
     void listenInstallProgress((p) => {
-      const tot = p.total != null ? `/${p.total}` : "";
-      this.status = `[${p.stage}] ${p.current}${tot} ${p.detail}`;
+      this.progress = p;
+      this.status = formatProgressLine(p);
     }).then((u) => (this.unProg = u));
   }
 
@@ -300,11 +356,14 @@ export class LibraryPage extends LitElement {
       const inst = await createInstance(name, version);
       showToast(`已创建 ${inst.name}`);
       if (this.alsoInstall && !inst.version_ready) {
+        this.progress = null;
         this.status = `正在安装 ${version}…`;
         await ensureJava(21);
-        const msg = await installVersion(version, true);
+        const msg = await installVersion(version, this.withAssets);
         showToast(msg);
         this.status = msg;
+      } else if (this.alsoInstall && inst.version_ready) {
+        this.status = `已创建 · 版本 ${versionId(inst.version)} 已在本地，跳过下载`;
       } else {
         this.status = `已创建 · ${versionId(inst.version)}`;
       }
@@ -330,13 +389,15 @@ export class LibraryPage extends LitElement {
     }
   }
 
-  private async onInstall(inst: InstanceDto) {
+  private async onInstall(inst: InstanceDto, withAssets = this.withAssets) {
     const ver = versionId(inst.version);
     this.busy = true;
-    this.status = `正在安装 ${ver}…`;
+    this.progress = null;
+    const mode = withAssets ? "含完整资源" : "跳过资源";
+    this.status = `正在安装 ${ver}（${mode}）…`;
     try {
       await ensureJava(21);
-      const msg = await installVersion(ver, true);
+      const msg = await installVersion(ver, withAssets);
       showToast(msg);
       this.status = msg;
       await this.load();
@@ -363,6 +424,7 @@ export class LibraryPage extends LitElement {
       </div>
 
       <p class="status">${this.status}</p>
+      ${this.renderProgress()}
 
       ${this.showCreate ? this.renderCreate() : null}
 
@@ -371,6 +433,37 @@ export class LibraryPage extends LitElement {
         ${this.instances.length === 0
           ? html`<div class="empty">还没有实例，点击「新建实例」开始。</div>`
           : null}
+      </div>
+    `;
+  }
+
+  private renderProgress() {
+    const p = this.progress;
+    if (!p) return null;
+    if (!this.busy && p.stage !== "error" && p.stage !== "done") return null;
+    const overall = overallPercent(p);
+    const local = stagePercent(p);
+    const width = overall ?? local ?? 0;
+    const isErr = p.stage === "error";
+    const counts =
+      (p.skipped ?? 0) > 0 || (p.downloaded ?? 0) > 0
+        ? `新下 ${p.downloaded ?? 0} · 跳过 ${p.skipped ?? 0}`
+        : "";
+    return html`
+      <div class="progress-card ${isErr ? "error" : ""}">
+        <div class="progress-head">
+          <span
+            >${p.phase != null && p.phase_total != null
+              ? html`${p.phase}/${p.phase_total} · `
+              : null}${stageLabel(p)}</span
+          >
+          <span class="muted"
+            >${overall != null ? `${overall.toFixed(0)}% 总进度` : local != null ? `${local.toFixed(0)}%` : ""}
+            ${counts ? ` · ${counts}` : ""}</span
+          >
+        </div>
+        <div class="bar ${isErr ? "error" : ""}"><i style="width:${width}%"></i></div>
+        <div class="progress-detail">${p.detail}</div>
       </div>
     `;
   }
@@ -417,6 +510,14 @@ export class LibraryPage extends LitElement {
               @change=${(e: Event) => (this.alsoInstall = (e.target as HTMLInputElement).checked)}
             />
             创建后立即安装
+          </label>
+          <label class="check">
+            <input
+              type="checkbox"
+              .checked=${this.withAssets}
+              @change=${(e: Event) => (this.withAssets = (e.target as HTMLInputElement).checked)}
+            />
+            下载游戏资源
           </label>
         </div>
         <div>
@@ -477,15 +578,25 @@ export class LibraryPage extends LitElement {
               </button>`
             : null}
           ${!inst.version_ready
-            ? html`<button
-                class="btn primary sm"
-                type="button"
-                ?disabled=${this.busy}
-                @click=${() => this.onInstall(inst)}
-              >
-                安装 ${ver}
-              </button>`
-            : null}
+            ? html`
+                <button
+                  class="btn primary sm"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => this.onInstall(inst, true)}
+                >
+                  安装 ${ver}
+                </button>
+                <button
+                  class="btn ghost sm"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => this.onInstall(inst, false)}
+                >
+                  快速（无资源）
+                </button>
+              `
+            : html`<span class="badge ok">本地已有版本文件</span>`}
         </div>
       </article>
     `;

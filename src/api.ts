@@ -1,5 +1,7 @@
 import type { AccountDto, InstanceDto, InstancesState, VersionSummary } from "./types";
 import { versionId } from "./types";
+import type { InstallProgressDto } from "./install-progress";
+export type { InstallProgressDto } from "./install-progress";
 
 async function invokeSafe<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   try {
@@ -125,16 +127,14 @@ export async function listenLogs(handler: (line: string) => void): Promise<() =>
 }
 
 export async function listenInstallProgress(
-  handler: (p: { stage: string; current: number; total: number | null; detail: string }) => void,
+  handler: (p: InstallProgressDto) => void,
 ): Promise<() => void> {
   try {
     const { listen } = await import("@tauri-apps/api/event");
-    const un = await listen<{ stage: string; current: number; total: number | null; detail: string }>(
-      "install-progress",
-      (e) => handler(e.payload),
-    );
+    const un = await listen<InstallProgressDto>("install-progress", (e) => handler(e.payload));
     return () => un();
   } catch {
     return () => undefined;
   }
 }
+

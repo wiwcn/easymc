@@ -14,6 +14,13 @@ import {
   createInstance,
   listVersions,
 } from "../api";
+import type { InstallProgressDto } from "../install-progress";
+import {
+  formatProgressLine,
+  overallPercent,
+  stageLabel,
+  stagePercent,
+} from "../install-progress";
 import { showToast } from "../toast";
 
 @customElement("easymc-home-page")
@@ -34,6 +41,8 @@ export class HomePage extends LitElement {
   @state() private versionsLoading = false;
   @state() private versionFilter = "";
   @state() private alsoInstall = true;
+  @state() private withAssets = true;
+  @state() private progress: InstallProgressDto | null = null;
 
   private unLog?: () => void;
   private unProg?: () => void;
@@ -244,6 +253,53 @@ export class HomePage extends LitElement {
     .logs-empty {
       opacity: 0.6;
     }
+    .progress-card {
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+    .progress-card.error {
+      border: 1px solid #ef9a9a;
+      background: #ffebee;
+    }
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .progress-head .muted {
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 0.8rem;
+    }
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--md-sys-color-surface-container-highest);
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #4db6ac, #0f766e);
+      border-radius: 999px;
+      transition: width 160ms ease;
+    }
+    .bar.error > i {
+      background: #c62828;
+    }
+    .progress-detail {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--md-sys-color-on-surface-variant);
+      word-break: break-all;
+    }
     .panel {
       margin-bottom: 20px;
       padding: 20px;
@@ -334,8 +390,12 @@ export class HomePage extends LitElement {
       this.showLogs = true;
     }).then((u) => (this.unLog = u));
     void listenInstallProgress((p) => {
-      const tot = p.total != null ? `/${p.total}` : "";
-      this.status = `[${p.stage}] ${p.current}${tot} ${p.detail}`;
+      this.progress = p;
+      this.status = formatProgressLine(p);
+      if (p.stage === "error") {
+        this.logs = [...this.logs.slice(-400), formatProgressLine(p)];
+        this.showLogs = true;
+      }
     }).then((u) => (this.unProg = u));
   }
 
@@ -359,19 +419,22 @@ export class HomePage extends LitElement {
     );
   }
 
-  private async onInstall(id: string, version: string) {
+  private async onInstall(id: string, version: string, withAssets = this.withAssets) {
     this.busy = true;
     this.showLogs = true;
-    this.status = `正在安装 ${version}（含资源，可能较久）…`;
+    this.progress = null;
+    const mode = withAssets ? "含完整资源，可能较久" : "跳过资源（--no-assets）";
+    this.status = `正在安装 ${version}（${mode}）…`;
     try {
       await ensureJava(21);
-      const msg = await installVersion(version, true);
+      const msg = await installVersion(version, withAssets);
       showToast(msg);
       this.status = msg;
       await this.load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.status = msg;
+      this.logs = [...this.logs, msg];
       showToast(msg);
     } finally {
       this.busy = false;
@@ -450,11 +513,15 @@ export class HomePage extends LitElement {
       showToast(`已创建 ${inst.name}`);
       if (this.alsoInstall && !inst.version_ready) {
         this.showLogs = true;
+        this.progress = null;
         this.status = `正在安装 ${this.newVersion}…`;
         await ensureJava(21);
-        const msg = await installVersion(this.newVersion, true);
+        const msg = await installVersion(this.newVersion, this.withAssets);
         showToast(msg);
         this.status = msg;
+      } else if (this.alsoInstall && inst.version_ready) {
+        this.status = `版本 ${this.newVersion} 已在本地，跳过下载`;
+        showToast(this.status);
       }
       this.showCreate = false;
       await this.load();
@@ -510,14 +577,24 @@ export class HomePage extends LitElement {
             ▶ ${ready ? "启动" : "安装并启动"}
           </button>
           ${!ready
-            ? html`<button
-                class="secondary"
-                type="button"
-                ?disabled=${this.busy}
-                @click=${() => this.onInstall(f.id, ver)}
-              >
-                仅安装 ${ver}
-              </button>`
+            ? html`
+                <button
+                  class="secondary"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => this.onInstall(f.id, ver, true)}
+                >
+                  仅安装 ${ver}
+                </button>
+                <button
+                  class="secondary"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => this.onInstall(f.id, ver, false)}
+                >
+                  快速安装（无资源）
+                </button>
+              `
             : html`<button class="secondary" type="button" @click=${() => this.onStop()}>
                 停止
               </button>`}
@@ -531,6 +608,7 @@ export class HomePage extends LitElement {
       </section>
 
       <p class="status">${this.status}</p>
+      ${this.renderProgress()}
 
       ${this.showCreate ? this.renderCreate() : null}
 
@@ -572,6 +650,37 @@ export class HomePage extends LitElement {
             </button>
           `,
         )}
+      </div>
+    `;
+  }
+
+  private renderProgress() {
+    const p = this.progress;
+    if (!p) return null;
+    if (!this.busy && p.stage !== "error" && p.stage !== "done") return null;
+    const overall = overallPercent(p);
+    const local = stagePercent(p);
+    const width = overall ?? local ?? 0;
+    const isErr = p.stage === "error";
+    const counts =
+      (p.skipped ?? 0) > 0 || (p.downloaded ?? 0) > 0
+        ? `新下 ${p.downloaded ?? 0} · 跳过 ${p.skipped ?? 0}`
+        : "";
+    return html`
+      <div class="progress-card ${isErr ? "error" : ""}">
+        <div class="progress-head">
+          <span
+            >${p.phase != null && p.phase_total != null
+              ? html`${p.phase}/${p.phase_total} · `
+              : null}${stageLabel(p)}</span
+          >
+          <span class="muted"
+            >${overall != null ? `${overall.toFixed(0)}% 总进度` : local != null ? `${local.toFixed(0)}%` : ""}
+            ${counts ? ` · ${counts}` : ""}</span
+          >
+        </div>
+        <div class="bar ${isErr ? "error" : ""}"><i style="width:${width}%"></i></div>
+        <div class="progress-detail">${p.detail}</div>
       </div>
     `;
   }
@@ -620,6 +729,14 @@ export class HomePage extends LitElement {
               @change=${(e: Event) => (this.alsoInstall = (e.target as HTMLInputElement).checked)}
             />
             创建后安装
+          </label>
+          <label class="check">
+            <input
+              type="checkbox"
+              .checked=${this.withAssets}
+              @change=${(e: Event) => (this.withAssets = (e.target as HTMLInputElement).checked)}
+            />
+            下载游戏资源
           </label>
         </div>
         <div class="ver">
