@@ -33,6 +33,45 @@ impl Default for ModLoader {
     }
 }
 
+impl ModLoader {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Vanilla => "vanilla",
+            Self::Fabric => "fabric",
+            Self::Quilt => "quilt",
+            Self::Forge => "forge",
+            Self::NeoForge => "neoforge",
+        }
+    }
+
+    pub fn label_zh(self) -> &'static str {
+        match self {
+            Self::Vanilla => "原版",
+            Self::Fabric => "Fabric",
+            Self::Quilt => "Quilt",
+            Self::Forge => "Forge",
+            Self::NeoForge => "NeoForge",
+        }
+    }
+
+    pub fn parse_loose(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "vanilla" | "原版" | "" => Some(Self::Vanilla),
+            "fabric" => Some(Self::Fabric),
+            "quilt" => Some(Self::Quilt),
+            "forge" => Some(Self::Forge),
+            "neoforge" | "neo" => Some(Self::NeoForge),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ModLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A playable instance (Java Edition).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {
@@ -41,13 +80,16 @@ pub struct Instance {
     pub version: McVersion,
     #[serde(default)]
     pub loader: ModLoader,
+    /// Loader build id (e.g. Fabric `0.20.1`). `None` means pick stable/latest at install.
+    #[serde(default)]
+    pub loader_version: Option<String>,
     pub description: Option<String>,
     pub last_played: Option<DateTime<Utc>>,
     /// Absolute path to the instance game directory (saves, options…).
     pub game_dir: String,
     /// Bound account id (offline or MSA).
     pub account_id: Option<String>,
-    /// Whether client jar + libraries for `version` are present.
+    /// Whether client jar + libraries (and loader profile if any) are present.
     #[serde(default)]
     pub version_ready: bool,
     pub created_at: DateTime<Utc>,
@@ -60,6 +102,7 @@ impl Instance {
             name: name.into(),
             version,
             loader: ModLoader::Vanilla,
+            loader_version: None,
             description: None,
             last_played: None,
             game_dir,

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Account, EasyMcError, Instance, McVersion, Paths, Result, create_offline_account};
+use crate::{Account, EasyMcError, Instance, McVersion, ModLoader, Paths, Result, create_offline_account};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct InstanceStore {
@@ -171,20 +171,51 @@ fn slugify_name(name: &str) -> String {
     }
 }
 
-/// Create a new named instance bound to `version`. Does not download the version.
-/// Sets `version_ready` from the caller-provided flag (meta crate checks disk).
+/// Options when creating a named instance (no download).
+#[derive(Debug, Clone)]
+pub struct CreateInstanceOpts {
+    pub name: String,
+    pub version: McVersion,
+    pub loader: ModLoader,
+    pub loader_version: Option<String>,
+    pub version_ready: bool,
+}
+
+impl CreateInstanceOpts {
+    pub fn vanilla(name: impl Into<String>, version: McVersion, version_ready: bool) -> Self {
+        Self {
+            name: name.into(),
+            version,
+            loader: ModLoader::Vanilla,
+            loader_version: None,
+            version_ready,
+        }
+    }
+}
+
+/// Create a new named instance bound to `version` (+ optional mod loader). Does not download.
 pub fn create_named_instance(
     paths: &Paths,
     name: impl Into<String>,
     version: McVersion,
     version_ready: bool,
 ) -> Result<Instance> {
+    create_named_instance_with(
+        paths,
+        CreateInstanceOpts::vanilla(name, version, version_ready),
+    )
+}
+
+pub fn create_named_instance_with(paths: &Paths, opts: CreateInstanceOpts) -> Result<Instance> {
     paths.ensure()?;
-    let name = name.into();
-    let name = if name.trim().is_empty() {
-        format!("Instance {}", version)
+    let name = if opts.name.trim().is_empty() {
+        let loader_bit = match opts.loader {
+            ModLoader::Vanilla => String::new(),
+            other => format!(" ({})", other.label_zh()),
+        };
+        format!("Instance {}{loader_bit}", opts.version)
     } else {
-        name.trim().to_string()
+        opts.name.trim().to_string()
     };
     let slug = slugify_name(&name);
     let id = format!(
@@ -198,12 +229,17 @@ pub fn create_named_instance(
     let mut inst = Instance::new(
         id.clone(),
         name,
-        version,
+        opts.version,
         game_dir.to_string_lossy().into_owned(),
     );
+    inst.loader = opts.loader;
+    inst.loader_version = opts.loader_version.filter(|s| !s.trim().is_empty());
     inst.account_id = accounts.active_id;
-    inst.version_ready = version_ready;
-    inst.description = Some("用户创建的实例".into());
+    inst.version_ready = opts.version_ready;
+    inst.description = Some(match opts.loader {
+        ModLoader::Vanilla => "用户创建的实例".into(),
+        other => format!("用户创建 · {}", other.label_zh()),
+    });
 
     let mut store = load_instances(paths)?;
     store.active_id = Some(id);
