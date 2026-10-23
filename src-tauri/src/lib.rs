@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use easymc_core::{
-    begin_microsoft_login, create_named_instance_with, create_offline_account, ensure_defaults,
-    load_accounts, load_instances, load_settings, save_accounts, save_instances, save_settings,
-    set_active_instance, upsert_instance, Account, AppMode, CreateInstanceOpts, Instance, McVersion,
-    MicrosoftAuthConfig, ModLoader, Paths, Settings,
+    begin_microsoft_login, create_named_instance_with, create_offline_account, duplicate_instance,
+    ensure_defaults, load_accounts, load_instances, load_settings, remove_instance, save_accounts,
+    save_instances, save_settings, set_active_instance, update_instance_fields, upsert_instance,
+    Account, AppMode, CreateInstanceOpts, Instance, McVersion, MicrosoftAuthConfig, ModLoader,
+    Paths, Settings,
 };
 use easymc_launch_desktop::{
-    detect_java, ensure_java, prepare_and_launch, JavaInstall, LaunchRequest, LaunchStatus,
-    ProcessManager,
+    detect_java, ensure_java, prepare_and_launch, write_launch_script, JavaInstall, LaunchRequest,
+    LaunchStatus, ProcessManager,
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt, install_version,
@@ -24,9 +25,11 @@ use easymc_agent::{
     write_diagnostic_bundle, AskRequest, AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
 };
 use easymc_mods::{
-    api_key, api_key_source, install_mod, list_installed_mods, list_mod_versions, remove_mod,
-    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ModInstallResult,
-    ModProject, ModSource, ModVersion, SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
+    list_installed_mods, list_local, list_mod_versions, local_dir, remove_mod, search_mods,
+    set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ContentInstallResult, LocalEntry,
+    ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult, ProjectType,
+    SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -591,7 +594,7 @@ async fn launch_instance(
         &acc,
         &settings,
         &LaunchRequest {
-            memory_mb: settings.memory_mb,
+            memory_mb: inst.memory_mb.unwrap_or(settings.memory_mb),
             extra_jvm_args: vec![],
         },
         procs,
@@ -744,6 +747,7 @@ async fn search_mods_cmd(
     let source = parse_mod_source(&source)?;
     let loader = loader.and_then(|s| ModLoader::parse_loose(&s));
     let q = SearchQuery {
+                project_type: Default::default(),
         text: query.unwrap_or_default(),
         game_version,
         loader,
@@ -972,6 +976,179 @@ async fn import_instance_cmd(
 }
 
 
+#[derive(serde::Deserialize)]
+struct InstancePatch {
+    name: Option<String>,
+    icon: Option<String>,
+    category: Option<String>,
+    description: Option<String>,
+    memory_mb: Option<u32>,
+    clear_memory: Option<bool>,
+    java_path: Option<String>,
+    clear_java: Option<bool>,
+    width: Option<u32>,
+    height: Option<u32>,
+    clear_resolution: Option<bool>,
+    jvm_args: Option<String>,
+    clear_jvm_args: Option<bool>,
+    account_id: Option<String>,
+}
+
+#[tauri::command]
+fn update_instance_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+    patch: InstancePatch,
+) -> Result<Instance, String> {
+    let paths = state_paths(&state);
+    update_instance_fields(paths, &instance_id, |inst| {
+        if let Some(n) = &patch.name {
+            let t = n.trim();
+            if !t.is_empty() { inst.name = t.to_string(); }
+        }
+        if let Some(i) = &patch.icon { inst.icon = if i.is_empty() { None } else { Some(i.clone()) }; }
+        if let Some(c) = &patch.category { inst.category = if c.is_empty() { None } else { Some(c.clone()) }; }
+        if let Some(d) = &patch.description { inst.description = if d.is_empty() { None } else { Some(d.clone()) }; }
+        if patch.clear_memory == Some(true) { inst.memory_mb = None; }
+        else if let Some(m) = patch.memory_mb { inst.memory_mb = Some(m.max(512)); }
+        if patch.clear_java == Some(true) { inst.java_path = None; }
+        else if let Some(j) = &patch.java_path { inst.java_path = if j.trim().is_empty() { None } else { Some(j.clone()) }; }
+        if patch.clear_resolution == Some(true) { inst.width = None; inst.height = None; }
+        else {
+            if let Some(w) = patch.width { inst.width = Some(w); }
+            if let Some(h) = patch.height { inst.height = Some(h); }
+        }
+        if patch.clear_jvm_args == Some(true) { inst.jvm_args = None; }
+        else if let Some(a) = &patch.jvm_args { inst.jvm_args = if a.trim().is_empty() { None } else { Some(a.clone()) }; }
+        if let Some(a) = &patch.account_id { inst.account_id = if a.is_empty() { None } else { Some(a.clone()) }; }
+    }).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn rename_instance_cmd(state: State<'_, AppState>, instance_id: String, name: String) -> Result<Instance, String> {
+    update_instance_cmd(state, instance_id, InstancePatch {
+        name: Some(name), icon: None, category: None, description: None,
+        memory_mb: None, clear_memory: None, java_path: None, clear_java: None,
+        width: None, height: None, clear_resolution: None, jvm_args: None, clear_jvm_args: None,
+        account_id: None,
+    })
+}
+
+#[tauri::command]
+fn duplicate_instance_cmd(state: State<'_, AppState>, instance_id: String, name: Option<String>) -> Result<Instance, String> {
+    duplicate_instance(state_paths(&state), &instance_id, name.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_instance_cmd(state: State<'_, AppState>, instance_id: String, delete_files: Option<bool>) -> Result<(), String> {
+    remove_instance(state_paths(&state), &instance_id, delete_files.unwrap_or(true)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_instance_folder_cmd(state: State<'_, AppState>, instance_id: String, kind: Option<String>) -> Result<String, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let dir = match kind.as_deref().unwrap_or("root") {
+        "root" | "game" => std::path::PathBuf::from(&inst.game_dir),
+        k => local_dir(inst, k).map_err(|e| e.to_string())?,
+    };
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    open::that(&dir).map_err(|e| format!("无法打开文件夹: {e}"))?;
+    Ok(dir.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn write_launch_script_cmd(state: State<'_, AppState>, instance_id: String) -> Result<serde_json::Value, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let accounts = load_accounts(paths).map_err(|e| e.to_string())?;
+    let settings = load_settings(paths).map_err(|e| e.to_string())?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let acc_id = inst.account_id.clone().or(accounts.active_id.clone()).ok_or_else(|| "请先添加一个账户".to_string())?;
+    let acc = accounts.accounts.iter().find(|a| a.id == acc_id).ok_or_else(|| "账户不存在".to_string())?;
+    let mem = inst.memory_mb.unwrap_or(settings.memory_mb);
+    let path = write_launch_script(paths, inst, acc, &settings, &LaunchRequest { memory_mb: mem, extra_jvm_args: vec![] }).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "path": path, "message_zh": format!("已生成启动脚本（令牌已脱敏）\\n{}", path.display()) }))
+}
+
+#[tauri::command]
+fn list_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String) -> Result<Vec<LocalEntry>, String> {
+    let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    list_local(inst, &kind).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String, name: String) -> Result<String, String> {
+    let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    delete_local(inst, &kind, &name).map_err(|e| e.to_string())
+}
+
+fn parse_project_type(s: &str) -> Result<ProjectType, String> {
+    ProjectType::parse(s).ok_or_else(|| format!("未知类型: {s}"))
+}
+
+#[tauri::command]
+async fn search_content_cmd(
+    source: String,
+    project_type: String,
+    query: Option<String>,
+    game_version: Option<String>,
+    loader: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<ModProject>, String> {
+    let source = parse_mod_source(&source)?;
+    let pt = parse_project_type(&project_type)?;
+    let q = SearchQuery {
+        project_type: pt,
+        text: query.unwrap_or_default(),
+        game_version,
+        loader: loader.and_then(|s| ModLoader::parse_loose(&s)),
+        limit: limit.unwrap_or(20).clamp(1, 50),
+        offset: 0,
+    };
+    search_mods(source, &q).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_content_cmd(
+    state: State<'_, AppState>,
+    source: String,
+    project_type: String,
+    project_id: String,
+    version_id: Option<String>,
+    instance_id: Option<String>,
+    world: Option<String>,
+) -> Result<ContentInstallResult, String> {
+    let source = parse_mod_source(&source)?;
+    let pt = parse_project_type(&project_type)?;
+    let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
+    let id = instance_id.or(store.active_id.clone()).ok_or_else(|| "请先选择一个版本".to_string())?;
+    let inst = store.instances.iter().find(|i| i.id == id).ok_or_else(|| format!("找不到版本: {id}"))?.clone();
+    install_content(&inst, source, pt, &project_id, version_id.as_deref(), world.as_deref()).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_modpack_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    source: String,
+    project_id: String,
+    version_id: Option<String>,
+    name: Option<String>,
+) -> Result<ModpackInstallResult, String> {
+    let source = parse_mod_source(&source)?;
+    let paths = state_paths(&state).clone();
+    let app2 = app.clone();
+    install_modpack(&paths, source, &project_id, version_id.as_deref(), name.as_deref(), move |p| {
+        let _ = app2.emit("install-progress", &p);
+    }).await.map_err(|e| e.to_string())
+}
+
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let paths = Paths::discover().expect("data dir");
@@ -1027,6 +1204,17 @@ pub fn run() {
             agent_export_diagnostics,
             export_instance_cmd,
             import_instance_cmd,
+            update_instance_cmd,
+            rename_instance_cmd,
+            duplicate_instance_cmd,
+            delete_instance_cmd,
+            open_instance_folder_cmd,
+            write_launch_script_cmd,
+            list_local_content_cmd,
+            delete_local_content_cmd,
+            search_content_cmd,
+            install_content_cmd,
+            install_modpack_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

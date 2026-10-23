@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -320,4 +320,95 @@ pub fn set_active_instance(paths: &Paths, id: &str) -> Result<InstanceStore> {
     store.active_id = Some(id.to_string());
     save_instances(paths, &store)?;
     Ok(store)
+}
+
+
+/// Patch mutable player-facing fields on an instance.
+pub fn update_instance_fields(
+    paths: &Paths,
+    id: &str,
+    mut patch: impl FnMut(&mut Instance),
+) -> Result<Instance> {
+    let mut store = load_instances(paths)?;
+    let inst = store
+        .instances
+        .iter_mut()
+        .find(|i| i.id == id)
+        .ok_or_else(|| EasyMcError::Missing(format!("instance {id}")))?;
+    patch(inst);
+    let out = inst.clone();
+    save_instances(paths, &store)?;
+    Ok(out)
+}
+
+pub fn remove_instance(paths: &Paths, id: &str, delete_files: bool) -> Result<()> {
+    let mut store = load_instances(paths)?;
+    let Some(pos) = store.instances.iter().position(|i| i.id == id) else {
+        return Err(EasyMcError::Missing(format!("instance {id}")));
+    };
+    let removed = store.instances.remove(pos);
+    if store.active_id.as_deref() == Some(id) {
+        store.active_id = store.instances.first().map(|i| i.id.clone());
+    }
+    save_instances(paths, &store)?;
+    if delete_files {
+        let dir = PathBuf::from(&removed.game_dir);
+        // game_dir is usually .../instances/<id>/.minecraft — remove the instance folder.
+        let root = dir.parent().filter(|p| p.file_name().is_some()).unwrap_or(dir.as_path());
+        if root.exists() {
+            let _ = fs::remove_dir_all(root);
+        }
+    }
+    Ok(())
+}
+
+pub fn duplicate_instance(paths: &Paths, id: &str, new_name: Option<&str>) -> Result<Instance> {
+    let store = load_instances(paths)?;
+    let src = get_instance(&store, id)?.clone();
+    let name = new_name
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("{}（副本）", src.name));
+    let mut copy = create_named_instance_with(
+        paths,
+        CreateInstanceOpts {
+            name,
+            version: src.version.clone(),
+            loader: src.loader,
+            loader_version: src.loader_version.clone(),
+            version_ready: src.version_ready,
+        },
+    )?;
+    copy.icon = src.icon.clone();
+    copy.category = src.category.clone();
+    copy.memory_mb = src.memory_mb;
+    copy.java_path = src.java_path.clone();
+    copy.width = src.width;
+    copy.height = src.height;
+    copy.jvm_args = src.jvm_args.clone();
+    copy.description = Some(format!("由「{}」复制", src.name));
+    // Best-effort copy of mods / resourcepacks / shaderpacks / config (not saves — those are huge).
+    for sub in ["mods", "resourcepacks", "shaderpacks", "config", "datapacks"] {
+        let from = PathBuf::from(&src.game_dir).join(sub);
+        let to = PathBuf::from(&copy.game_dir).join(sub);
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        }
+    }
+    upsert_instance(paths, copy.clone())?;
+    Ok(copy)
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
+    fs::create_dir_all(dst)?;
+    for ent in fs::read_dir(src)? {
+        let ent = ent?;
+        let t = dst.join(ent.file_name());
+        if ent.file_type()?.is_dir() {
+            copy_dir_recursive(&ent.path(), &t)?;
+        } else {
+            fs::copy(ent.path(), t)?;
+        }
+    }
+    Ok(())
 }

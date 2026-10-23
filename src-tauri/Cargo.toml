@@ -30,3 +30,4 @@ tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tokio = { workspace = true }
 chrono = { workspace = true }
+open = "5"

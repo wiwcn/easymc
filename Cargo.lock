@@ -793,6 +793,7 @@ dependencies = [
  "easymc-meta",
  "easymc-mods",
  "easymc-share",
+ "open",
  "serde",
  "serde_json",
  "tauri",
@@ -870,6 +871,7 @@ name = "easymc-mods"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "easymc-core",
  "easymc-meta",
  "futures-util",
@@ -880,6 +882,7 @@ dependencies = [
  "sha1",
  "tokio",
  "tracing",
+ "zip",
 ]
 
 [[package]]

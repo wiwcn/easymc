@@ -272,3 +272,58 @@ fn substitute(template: &str, vars: &HashMap<String, String>) -> String {
     }
     out
 }
+
+/// HMCL-style 「生成启动脚本」: write a shell / batch script that launches this instance
+/// without the launcher. The access token is redacted (offline-style "0") so the file never
+/// carries a secret; 正版 servers need launching from EasyMC.
+pub fn write_launch_script(
+    paths: &Paths,
+    instance: &Instance,
+    account: &Account,
+    settings: &Settings,
+    req: &LaunchRequest,
+) -> Result<PathBuf> {
+    let info = resolve_launch_version(paths, instance)?;
+    let required = info.java_version.as_ref().map(|j| j.major_version).unwrap_or(21);
+    let preferred = instance
+        .java_path
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(settings.preferred_java.as_ref())
+        .map(PathBuf::from);
+    let java = select_java(required, preferred.as_deref())
+        .map_err(|_| EasyMcError::msg(format!("还没有 Java {required}，先启动一次游戏让 EasyMC 自动准备")))?;
+    let mut safe = account.clone();
+    safe.access_token = "0".into();
+    let args = build_jvm_and_game_args(paths, &info, instance, &safe, &java, req)?;
+    let win = cfg!(windows);
+    let quote = |s: &str| {
+        if win {
+            format!("\"{}\"", s.replace('"', "\\\""))
+        } else {
+            format!("'{}'", s.replace('\'', "'\\''"))
+        }
+    };
+    let mut body = String::new();
+    if win {
+        body.push_str("@echo off\r\n");
+        body.push_str(&format!("cd /d {}\r\n", quote(&instance.game_dir)));
+    } else {
+        body.push_str("#!/bin/sh\n# EasyMC 生成的启动脚本\n");
+        body.push_str(&format!("cd {} || exit 1\n", quote(&instance.game_dir)));
+    }
+    body.push_str(&quote(&java.path.to_string_lossy()));
+    for a in &args {
+        body.push(' ');
+        body.push_str(&quote(a));
+    }
+    body.push_str(if win { "\r\n" } else { "\n" });
+    let out = PathBuf::from(&instance.game_dir).join(if win { "launch.bat" } else { "launch.sh" });
+    std::fs::write(&out, body)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&out, std::fs::Permissions::from_mode(0o755));
+    }
+    Ok(out)
+}
