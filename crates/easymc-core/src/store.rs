@@ -22,6 +22,10 @@ pub struct Settings {
     pub msa_client_id: Option<String>,
     pub preferred_java: Option<String>,
     pub memory_mb: u32,
+    /// CurseForge API key (player-pasted). Env `EASYMC_CURSEFORGE_API_KEY` overrides when set.
+    /// Stored only under the local data dir — never commit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub curseforge_api_key: Option<String>,
 }
 
 impl Default for Settings {
@@ -30,6 +34,7 @@ impl Default for Settings {
             msa_client_id: None,
             preferred_java: None,
             memory_mb: 2048,
+            curseforge_api_key: None,
         }
     }
 }

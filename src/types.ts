@@ -107,6 +107,9 @@ export interface CurseForgeStatusDto {
   configured: boolean;
   env: string;
   hint: string;
+  source?: "env" | "settings" | "none" | string;
+  console_url?: string;
+  key_len?: number;
 }
 
 export interface LlmStatusDto {

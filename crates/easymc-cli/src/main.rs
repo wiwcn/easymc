@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use easymc_core::{
     create_named_instance_with, create_offline_account, ensure_defaults, load_accounts,
-    load_instances, load_settings, save_accounts, save_instances, set_active_instance,
-    CreateInstanceOpts, McVersion, ModLoader, Paths,
+    load_instances, load_settings, save_accounts, save_instances, save_settings,
+    set_active_instance, CreateInstanceOpts, McVersion, ModLoader, Paths,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager,
@@ -16,8 +16,9 @@ use easymc_meta::{
 use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRequest};
 use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
 use easymc_mods::{
-    install_mod, list_installed_mods, list_mod_versions, search_mods, ModSource, SearchQuery,
-    API_KEY_ENV,
+    api_key, api_key_source, install_mod, list_installed_mods, list_mod_versions, remove_mod,
+    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ModSource,
+    SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 
 #[tokio::main]
@@ -38,6 +39,10 @@ async fn real_main() -> easymc_core::Result<()> {
     let paths = Paths::discover()?;
     paths.ensure()?;
     ensure_defaults(&paths)?;
+    {
+        let settings = load_settings(&paths)?;
+        sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+    }
 
     match cmd.as_str() {
         "help" | "-h" | "--help" => print_help(),
@@ -375,7 +380,8 @@ async fn real_main() -> easymc_core::Result<()> {
         "list-mods" => {
             let store = load_instances(&paths)?;
             let inst_id = args
-                .first()
+                .iter()
+                .find(|a| !a.starts_with('-'))
                 .cloned()
                 .or(flag_value(&args, "--instance"))
                 .or(store.active_id.clone())
@@ -394,15 +400,107 @@ async fn real_main() -> easymc_core::Result<()> {
                 }
             }
         }
+        "remove-mod" | "uninstall-mod" => {
+            let filename = args
+                .iter()
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .ok_or_else(|| {
+                    easymc_core::EasyMcError::msg(
+                        "usage: remove-mod <filename.jar> [--instance id]",
+                    )
+                })?;
+            let store = load_instances(&paths)?;
+            let inst_id = flag_value(&args, "--instance")
+                .or(store.active_id.clone())
+                .ok_or_else(|| {
+                    easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active")
+                })?;
+            let inst = store
+                .instances
+                .iter()
+                .find(|i| i.id == inst_id)
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
+            let removed = remove_mod(inst, &filename)?;
+            println!("OK removed {removed}");
+        }
+        "disable-mod" | "enable-mod" => {
+            let disabled = cmd == "disable-mod";
+            let filename = args
+                .iter()
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .ok_or_else(|| {
+                    easymc_core::EasyMcError::msg(
+                        "usage: disable-mod|enable-mod <filename.jar> [--instance id]",
+                    )
+                })?;
+            let store = load_instances(&paths)?;
+            let inst_id = flag_value(&args, "--instance")
+                .or(store.active_id.clone())
+                .ok_or_else(|| {
+                    easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active")
+                })?;
+            let inst = store
+                .instances
+                .iter()
+                .find(|i| i.id == inst_id)
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
+            let new_name = set_mod_disabled(inst, &filename, disabled)?;
+            println!(
+                "OK {} → {new_name}",
+                if disabled { "disabled" } else { "enabled" }
+            );
+        }
         "curseforge-key" => {
-            match std::env::var(API_KEY_ENV) {
-                Ok(k) if !k.trim().is_empty() => {
-                    println!("已配置 {API_KEY_ENV}（长度 {}）", k.trim().len());
+            let sub = args.first().map(|s| s.as_str()).unwrap_or("status");
+            match sub {
+                "status" | "--status" => {
+                    match api_key_source() {
+                        ApiKeySource::Env => {
+                            let k = api_key().unwrap();
+                            println!("已配置（环境变量 {API_KEY_ENV}，长度 {}）", k.len());
+                        }
+                        ApiKeySource::Settings => {
+                            let k = api_key().unwrap();
+                            println!("已配置（settings.json，长度 {}）", k.len());
+                        }
+                        ApiKeySource::None => {
+                            println!("未配置 CurseForge API Key");
+                            println!("申请: {CONSOLE_URL}");
+                            println!("设置: curseforge-key set <key>  或在「设置」页粘贴");
+                            println!("也可 export {API_KEY_ENV}=...");
+                            println!("Modrinth 无需此 Key。");
+                        }
+                    }
                 }
-                _ => {
-                    println!("未配置 {API_KEY_ENV}");
-                    println!("申请: https://console.curseforge.com/ → 设置环境变量后即可搜索/安装 CurseForge 模组。");
-                    println!("Modrinth 无需此 Key。");
+                "set" => {
+                    let key = args.get(1).cloned().ok_or_else(|| {
+                        easymc_core::EasyMcError::msg("usage: curseforge-key set <api-key>")
+                    })?;
+                    let mut settings = load_settings(&paths)?;
+                    settings.curseforge_api_key = Some(key.clone());
+                    save_settings(&paths, &settings)?;
+                    sync_api_key_from_settings(Some(&key));
+                    println!("OK 已写入 settings.json（长度 {}）", key.trim().len());
+                    if std::env::var(API_KEY_ENV).ok().filter(|s| !s.trim().is_empty()).is_some() {
+                        println!("注意: 环境变量 {API_KEY_ENV} 仍优先于 settings。");
+                    }
+                }
+                "clear" | "unset" => {
+                    let mut settings = load_settings(&paths)?;
+                    settings.curseforge_api_key = None;
+                    save_settings(&paths, &settings)?;
+                    sync_api_key_from_settings(None);
+                    println!("OK 已清除 settings.json 中的 CurseForge Key");
+                    if std::env::var(API_KEY_ENV).ok().filter(|s| !s.trim().is_empty()).is_some() {
+                        println!("环境变量 {API_KEY_ENV} 仍在生效。");
+                    }
+                }
+                other => {
+                    return Err(easymc_core::EasyMcError::msg(format!(
+                        "未知子命令: {other}（status|set|clear）"
+                    )));
                 }
             }
         }
@@ -785,12 +883,15 @@ fn print_help() {
            list-mod-versions <modrinth|curseforge> <project-id> [--game VER] [--loader …]\n\
            install-mod <modrinth|curseforge> <project-id> [--version ID] [--instance ID]\n\
            list-mods [instance-id]\n\
-           curseforge-key\n\
+           remove-mod <filename.jar> [--instance id]\n\
+           disable-mod <filename.jar> [--instance id]\n\
+           enable-mod <filename.jar> [--instance id]\n\
+           curseforge-key [status|set <key>|clear]\n\
            launch [instance-id]\n\
            export-instance <id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]\n\
            import-instance <file.json|zip> [--name NAME] [--apply-memory] [--offline]\n\
 \n\
-         CurseForge 需要环境变量 EASYMC_CURSEFORGE_API_KEY（https://console.curseforge.com/）。\n\
+         CurseForge：设置页粘贴 Key，或 curseforge-key set <key>，或环境变量 EASYMC_CURSEFORGE_API_KEY（https://console.curseforge.com/）。\n\
          Modrinth 无需 Key。\n\
          分享包：元数据 JSON 或含 mods/*.jar 的 zip；默认写入 $EASYMC_DATA_DIR/shares/。\n"
     );

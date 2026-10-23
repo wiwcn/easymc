@@ -180,9 +180,22 @@ export async function curseforgeConfigured(): Promise<CurseForgeStatusDto> {
     (await invokeSafe<CurseForgeStatusDto>("curseforge_configured")) ?? {
       configured: false,
       env: "EASYMC_CURSEFORGE_API_KEY",
+      source: "none",
+      console_url: "https://console.curseforge.com/",
+      key_len: 0,
       hint: "未配置 CurseForge API Key（浏览器预览）",
     }
   );
+}
+
+export async function setCurseforgeKey(key: string | null): Promise<{
+  ok: boolean;
+  configured: boolean;
+  source: string;
+  key_len: number;
+  message: string;
+}> {
+  return invokeOrThrow("set_curseforge_key_cmd", { key });
 }
 
 export async function searchMods(
@@ -239,6 +252,28 @@ export async function listInstalledMods(instanceId?: string | null): Promise<str
       instanceId: instanceId || null,
     })) ?? []
   );
+}
+
+export async function removeMod(
+  filename: string,
+  instanceId?: string | null,
+): Promise<string> {
+  return invokeOrThrow<string>("remove_mod_cmd", {
+    filename,
+    instanceId: instanceId || null,
+  });
+}
+
+export async function setModDisabled(
+  filename: string,
+  disabled: boolean,
+  instanceId?: string | null,
+): Promise<string> {
+  return invokeOrThrow<string>("set_mod_disabled_cmd", {
+    filename,
+    disabled,
+    instanceId: instanceId || null,
+  });
 }
 
 

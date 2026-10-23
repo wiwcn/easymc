@@ -19,7 +19,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - Install progress: phase labels (元数据/客户端/依赖库/本地库/游戏资源) + counts/%; CLI stderr lines; Tauri `install-progress` events → Home/库 progress bar
 - Skip-if-present clarity (新下 / 跳过); `--no-assets` + UI「下载游戏资源」/「快速安装（无资源）」; mid-fail drops `.part` and surfaces stage-scoped errors
 - Mod loaders: **Fabric** / **Quilt** (meta profile JSON) + **Forge** / **NeoForge** (official installer JAR `--installClient`, processors run under Temurin). `inheritsFrom` merge; launch resolves profile mainClass/libraries. UI create chips: 原版 | Fabric | Quilt | Forge | NeoForge
-- Mod store: **Modrinth + CurseForge** search / version list / install jar into instance `mods/`. CLI + 商店 UI. CurseForge needs `EASYMC_CURSEFORGE_API_KEY`; Modrinth works without a key
+- Mod store: **Modrinth + CurseForge** search / version list / install / **uninstall** jar in instance `mods/` (optional disable via `.jar.disabled`). CLI + 商店 UI. CurseForge API Key: paste in **设置** / Store (saved to local `settings.json`) or `EASYMC_CURSEFORGE_API_KEY` (env overrides). Modrinth needs no key
 - **Share (M1.7):** export/import instance configs — metadata JSON or pack zip with `mods/*.jar`. Resolves missing mods via Modrinth/CF ids when known. CLI `export-instance` / `import-instance`; UI on 库 / 启动
 - Microsoft auth: structure + clear TODO (`EASYMC_MSA_CLIENT_ID`); offline play works without it
 - Headless CLI: `cargo run -p easymc-cli -- <cmd>`
@@ -51,7 +51,11 @@ cargo run -p easymc-cli -- install-neoforge 1.21.1 --no-assets
 cargo run -p easymc-cli -- create-instance "NeoForge" 1.21.1 --loader neoforge --loader-version 21.1.264
 cargo run -p easymc-cli -- search-mods modrinth sodium --game 1.21.1 --loader fabric
 cargo run -p easymc-cli -- install-mod modrinth AANobbMI --instance <fabric-instance-id>
-# CurseForge (needs key):
+cargo run -p easymc-cli -- list-mods
+cargo run -p easymc-cli -- remove-mod sodium-fabric-....jar --instance <fabric-instance-id>
+# CurseForge key (Settings UI, or CLI, or env — env wins):
+# cargo run -p easymc-cli -- curseforge-key set <your-key>
+# cargo run -p easymc-cli -- curseforge-key status
 # export EASYMC_CURSEFORGE_API_KEY=...
 # cargo run -p easymc-cli -- search-mods curseforge sodium --game 1.21.1 --loader fabric
 cargo run -p easymc-cli -- curseforge-key
@@ -73,7 +77,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. 库: same + per-card export. **商店**: Modrinth/CurseForge. **Agent**: diagnose + optional LLM. Settings: offline accounts. Toggle **下载游戏资源** or **快速安装（无资源）**.
+Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. 库: same + per-card export. **商店**: Modrinth/CurseForge + 已安装列表（卸载/禁用）. **Agent**: diagnose + optional LLM. Settings: offline accounts + **CurseForge API Key**. Toggle **下载游戏资源** or **快速安装（无资源）**.
 
 
 ## Agent (M1.6)

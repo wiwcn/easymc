@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use easymc_core::{
     begin_microsoft_login, create_named_instance_with, create_offline_account, ensure_defaults,
-    load_accounts, load_instances, load_settings, save_accounts, save_instances, set_active_instance,
-    upsert_instance, Account, CreateInstanceOpts, Instance, McVersion, MicrosoftAuthConfig,
-    ModLoader, Paths, Settings,
+    load_accounts, load_instances, load_settings, save_accounts, save_instances, save_settings,
+    set_active_instance, upsert_instance, Account, CreateInstanceOpts, Instance, McVersion,
+    MicrosoftAuthConfig, ModLoader, Paths, Settings,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, JavaInstall, LaunchRequest, LaunchStatus,
@@ -24,8 +24,9 @@ use easymc_agent::{
     write_diagnostic_bundle, AskRequest, AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
 };
 use easymc_mods::{
-    api_key_from_env, install_mod, list_installed_mods, list_mod_versions, search_mods,
-    ModInstallResult, ModProject, ModSource, ModVersion, SearchQuery, API_KEY_ENV,
+    api_key, api_key_source, install_mod, list_installed_mods, list_mod_versions, remove_mod,
+    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ModInstallResult,
+    ModProject, ModSource, ModVersion, SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -502,17 +503,103 @@ fn parse_mod_source(s: &str) -> Result<ModSource, String> {
 }
 
 #[tauri::command]
-fn curseforge_configured() -> serde_json::Value {
-    let set = api_key_from_env().is_some();
+fn curseforge_configured(state: State<'_, AppState>) -> serde_json::Value {
+    // Refresh from settings in case file changed externally
+    if let Ok(settings) = load_settings(state_paths(&state)) {
+        sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+    }
+    let source = api_key_source();
+    let configured = source != ApiKeySource::None;
+    let source_str = match source {
+        ApiKeySource::Env => "env",
+        ApiKeySource::Settings => "settings",
+        ApiKeySource::None => "none",
+    };
+    let key_len = api_key().map(|k| k.len()).unwrap_or(0);
     serde_json::json!({
-        "configured": set,
+        "configured": configured,
+        "source": source_str,
         "env": API_KEY_ENV,
-        "hint": if set {
-            "CurseForge API Key 已配置"
+        "console_url": CONSOLE_URL,
+        "key_len": key_len,
+        "hint": if configured {
+            format!("CurseForge API Key 已配置（来源: {source_str}）")
         } else {
-            "未配置 EASYMC_CURSEFORGE_API_KEY。可在 https://console.curseforge.com/ 申请；Modrinth 无需 Key。"
+            format!(
+                "未配置 CurseForge API Key。请在「设置」中粘贴，或访问 {CONSOLE_URL} 申请。也可设置环境变量 {API_KEY_ENV}。Modrinth 无需 Key。"
+            )
         }
     })
+}
+
+#[tauri::command]
+fn set_curseforge_key_cmd(
+    state: State<'_, AppState>,
+    key: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let paths = state_paths(&state);
+    let mut settings = load_settings(paths).map_err(|e| e.to_string())?;
+    let cleaned = key
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    settings.curseforge_api_key = cleaned.clone();
+    save_settings(paths, &settings).map_err(|e| e.to_string())?;
+    sync_api_key_from_settings(cleaned.as_deref());
+    let source = api_key_source();
+    Ok(serde_json::json!({
+        "ok": true,
+        "configured": source != ApiKeySource::None,
+        "source": match source {
+            ApiKeySource::Env => "env",
+            ApiKeySource::Settings => "settings",
+            ApiKeySource::None => "none",
+        },
+        "key_len": api_key().map(|k| k.len()).unwrap_or(0),
+        "message": if cleaned.is_some() {
+            "已保存 CurseForge API Key 到本地设置"
+        } else {
+            "已清除本地 CurseForge API Key"
+        }
+    }))
+}
+
+#[tauri::command]
+fn remove_mod_cmd(
+    state: State<'_, AppState>,
+    filename: String,
+    instance_id: Option<String>,
+) -> Result<String, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?;
+    remove_mod(inst, &filename).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_mod_disabled_cmd(
+    state: State<'_, AppState>,
+    filename: String,
+    disabled: bool,
+    instance_id: Option<String>,
+) -> Result<String, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?;
+    set_mod_disabled(inst, &filename, disabled).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -759,6 +846,9 @@ pub fn run() {
     let paths = Paths::discover().expect("data dir");
     paths.ensure().expect("create data dir");
     let _ = ensure_defaults(&paths);
+    if let Ok(settings) = load_settings(&paths) {
+        sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -786,10 +876,13 @@ pub fn run() {
             get_settings,
             version_installed,
             curseforge_configured,
+            set_curseforge_key_cmd,
             search_mods_cmd,
             list_mod_versions_cmd,
             install_mod_cmd,
             list_installed_mods_cmd,
+            remove_mod_cmd,
+            set_mod_disabled_cmd,
             agent_llm_status,
             agent_diagnose,
             agent_ask,

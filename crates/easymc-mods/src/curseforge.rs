@@ -11,6 +11,10 @@ const GAME_ID: u32 = 432;
 const CLASS_ID_MODS: u32 = 6;
 
 pub const API_KEY_ENV: &str = "EASYMC_CURSEFORGE_API_KEY";
+pub const CONSOLE_URL: &str = "https://console.curseforge.com/";
+
+/// Key pasted in Settings / saved to local settings.json (not env).
+static STORED_API_KEY: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
 
 pub fn api_key_from_env() -> Option<String> {
     std::env::var(API_KEY_ENV)
@@ -19,13 +23,52 @@ pub fn api_key_from_env() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Install / refresh the settings-file key used when env is unset.
+pub fn set_stored_api_key(key: Option<String>) {
+    let cleaned = key
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Ok(mut g) = STORED_API_KEY.write() {
+        *g = cleaned;
+    }
+}
+
+pub fn stored_api_key() -> Option<String> {
+    STORED_API_KEY.read().ok().and_then(|g| g.clone())
+}
+
+/// Resolve key: env overrides settings-file / in-memory stored key.
+pub fn api_key() -> Option<String> {
+    api_key_from_env().or_else(stored_api_key)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApiKeySource {
+    Env,
+    Settings,
+    None,
+}
+
+pub fn api_key_source() -> ApiKeySource {
+    if api_key_from_env().is_some() {
+        ApiKeySource::Env
+    } else if stored_api_key().is_some() {
+        ApiKeySource::Settings
+    } else {
+        ApiKeySource::None
+    }
+}
+
 pub fn require_api_key() -> Result<String> {
-    api_key_from_env().ok_or_else(|| {
+    api_key().ok_or_else(|| {
         EasyMcError::msg(format!(
-            "未配置 CurseForge API Key。请设置环境变量 {API_KEY_ENV}（在 https://console.curseforge.com/ 申请），\
-             Modrinth 搜索/安装无需此 Key。"
+            "未配置 CurseForge API Key。请在「设置」中粘贴 Key，或设置环境变量 {API_KEY_ENV}（申请: {CONSOLE_URL}）。Modrinth 搜索/安装无需此 Key。"
         ))
     })
+}
+
+pub fn sync_api_key_from_settings(settings_key: Option<&str>) {
+    set_stored_api_key(settings_key.map(|s| s.to_string()));
 }
 
 fn mod_loader_type(loader: ModLoader) -> Option<u32> {

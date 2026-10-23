@@ -282,3 +282,265 @@ fn write_mod_index_entry(
     std::fs::write(path, serde_json::to_string_pretty(&root)?)?;
     Ok(())
 }
+
+/// Reject path traversal / non-basename filenames. Allows `*.jar` and `*.jar.disabled`.
+pub fn sanitize_mod_filename(filename: &str) -> Result<String> {
+    let name = filename.trim();
+    if name.is_empty() {
+        return Err(EasyMcError::msg("模组文件名为空"));
+    }
+    if name.contains('/') || name.contains('\\') || name.contains('\0') {
+        return Err(EasyMcError::msg("模组文件名不能包含路径分隔符"));
+    }
+    if name == "." || name == ".." || name.contains("..") {
+        return Err(EasyMcError::msg("非法模组文件名"));
+    }
+    // Basename only — Path::file_name should equal the whole string.
+    let as_path = std::path::Path::new(name);
+    if as_path.components().count() != 1
+        || as_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            != Some(name)
+    {
+        return Err(EasyMcError::msg("模组文件名必须是纯文件名（basename）"));
+    }
+    let lower = name.to_ascii_lowercase();
+    if !(lower.ends_with(".jar") || lower.ends_with(".jar.disabled")) {
+        return Err(EasyMcError::msg("只能卸载 .jar / .jar.disabled 文件"));
+    }
+    Ok(name.to_string())
+}
+
+fn resolve_mod_jar(instance: &Instance, filename: &str) -> Result<PathBuf> {
+    let safe = sanitize_mod_filename(filename)?;
+    let dir = mods_dir(instance);
+    let primary = dir.join(&safe);
+    if primary.is_file() {
+        return Ok(primary);
+    }
+    // Accept either form: foo.jar ↔ foo.jar.disabled
+    let alt = if safe.ends_with(".jar.disabled") {
+        let base = safe.trim_end_matches(".disabled");
+        dir.join(base)
+    } else if safe.ends_with(".jar") {
+        dir.join(format!("{safe}.disabled"))
+    } else {
+        primary
+    };
+    if alt.is_file() {
+        return Ok(alt);
+    }
+    Err(EasyMcError::msg(format!(
+        "未找到模组文件: {safe}（目录 {}）",
+        dir.display()
+    )))
+}
+
+fn remove_mod_index_entry(instance: &Instance, filename: &str) -> Result<()> {
+    use serde_json::{json, Value};
+    let path = mods_dir(instance).join(".easymc-mods.json");
+    if !path.is_file() {
+        return Ok(());
+    }
+    let mut root: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default())
+        .unwrap_or_else(|_| json!({ "mods": [] }));
+    let stem = filename
+        .strip_suffix(".disabled")
+        .unwrap_or(filename);
+    if let Some(arr) = root
+        .as_object_mut()
+        .and_then(|o| o.get_mut("mods"))
+        .and_then(|m| m.as_array_mut())
+    {
+        arr.retain(|m| {
+            let f = m.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+            let f_stem = f.strip_suffix(".disabled").unwrap_or(f);
+            f != filename && f != stem && f_stem != stem
+        });
+    }
+    std::fs::write(path, serde_json::to_string_pretty(&root)?)?;
+    Ok(())
+}
+
+/// Delete an installed mod jar under `instance.game_dir/mods/` by basename.
+///
+/// Rejects path traversal. Accepts `name.jar` or `name.jar.disabled` (resolves either).
+pub fn remove_mod(instance: &Instance, filename: &str) -> Result<String> {
+    let path = resolve_mod_jar(instance, filename)?;
+    let removed_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(filename)
+        .to_string();
+    std::fs::remove_file(&path)?;
+    let _ = remove_mod_index_entry(instance, &removed_name);
+    Ok(removed_name)
+}
+
+/// Disable (`true`) or enable (`false`) a mod by renaming `.jar` ↔ `.jar.disabled`.
+pub fn set_mod_disabled(instance: &Instance, filename: &str, disabled: bool) -> Result<String> {
+    let path = resolve_mod_jar(instance, filename)?;
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| EasyMcError::msg("无效文件名"))?
+        .to_string();
+    let currently_disabled = name.ends_with(".jar.disabled");
+    if currently_disabled == disabled {
+        return Ok(name);
+    }
+    let new_name = if disabled {
+        format!("{name}.disabled")
+    } else {
+        name.strip_suffix(".disabled")
+            .unwrap_or(&name)
+            .to_string()
+    };
+    let dest = mods_dir(instance).join(&new_name);
+    if dest.exists() {
+        return Err(EasyMcError::msg(format!(
+            "目标已存在，无法重命名: {new_name}"
+        )));
+    }
+    std::fs::rename(&path, &dest)?;
+    // Best-effort index update
+    let _ = write_mod_index_disabled(instance, &name, &new_name, disabled);
+    Ok(new_name)
+}
+
+fn write_mod_index_disabled(
+    instance: &Instance,
+    old_filename: &str,
+    new_filename: &str,
+    disabled: bool,
+) -> Result<()> {
+    use serde_json::{json, Value};
+    let path = mods_dir(instance).join(".easymc-mods.json");
+    if !path.is_file() {
+        return Ok(());
+    }
+    let mut root: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default())
+        .unwrap_or_else(|_| json!({ "mods": [] }));
+    let stem_old = old_filename
+        .strip_suffix(".disabled")
+        .unwrap_or(old_filename);
+    if let Some(arr) = root
+        .as_object_mut()
+        .and_then(|o| o.get_mut("mods"))
+        .and_then(|m| m.as_array_mut())
+    {
+        for m in arr.iter_mut() {
+            let f = m.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+            let f_stem = f.strip_suffix(".disabled").unwrap_or(f);
+            if f == old_filename || f_stem == stem_old {
+                if let Some(obj) = m.as_object_mut() {
+                    obj.insert("filename".into(), json!(new_filename.strip_suffix(".disabled").unwrap_or(new_filename)));
+                    obj.insert("disabled".into(), json!(disabled));
+                }
+            }
+        }
+    }
+    std::fs::write(path, serde_json::to_string_pretty(&root)?)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use easymc_core::McVersion;
+    use std::fs;
+
+    fn tmp_instance(prefix: &str) -> (tempfile_dir::Tmp, Instance) {
+        let dir = tempfile_dir::Tmp::new(prefix);
+        let game = dir.path().join("game");
+        fs::create_dir_all(game.join("mods")).unwrap();
+        let inst = Instance::new("test", "Test", McVersion("1.21.1".into()), game.to_string_lossy().into());
+        (dir, inst)
+    }
+
+    // Minimal temp dir helper without adding tempfile dep.
+    mod tempfile_dir {
+        use std::path::{Path, PathBuf};
+        pub struct Tmp(PathBuf);
+        impl Tmp {
+            pub fn new(prefix: &str) -> Self {
+                let p = std::env::temp_dir().join(format!(
+                    "easymc-mods-{}-{}-{}",
+                    prefix,
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(0)
+                ));
+                let _ = std::fs::remove_dir_all(&p);
+                std::fs::create_dir_all(&p).unwrap();
+                Self(p)
+            }
+            pub fn path(&self) -> &Path {
+                &self.0
+            }
+        }
+        impl Drop for Tmp {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+    }
+
+    #[test]
+    fn sanitize_rejects_traversal() {
+        assert!(sanitize_mod_filename("../evil.jar").is_err());
+        assert!(sanitize_mod_filename("foo/bar.jar").is_err());
+        assert!(sanitize_mod_filename("foo\\bar.jar").is_err());
+        assert!(sanitize_mod_filename("..").is_err());
+        assert!(sanitize_mod_filename("notajar.txt").is_err());
+        assert!(sanitize_mod_filename("ok.jar").is_ok());
+        assert!(sanitize_mod_filename("ok.jar.disabled").is_ok());
+    }
+
+    #[test]
+    fn remove_mod_deletes_jar() {
+        let (_tmp, inst) = tmp_instance("rm");
+        let jar = mods_dir(&inst).join("sodium.jar");
+        fs::write(&jar, b"fake").unwrap();
+        assert!(jar.is_file());
+        let removed = remove_mod(&inst, "sodium.jar").unwrap();
+        assert_eq!(removed, "sodium.jar");
+        assert!(!jar.exists());
+        assert!(list_installed_mods(&inst).unwrap().is_empty());
+    }
+
+    #[test]
+    fn remove_mod_finds_disabled_variant() {
+        let (_tmp, inst) = tmp_instance("rm-dis");
+        let jar = mods_dir(&inst).join("iris.jar.disabled");
+        fs::write(&jar, b"fake").unwrap();
+        let removed = remove_mod(&inst, "iris.jar").unwrap();
+        assert_eq!(removed, "iris.jar.disabled");
+        assert!(!jar.exists());
+    }
+
+    #[test]
+    fn set_mod_disabled_renames() {
+        let (_tmp, inst) = tmp_instance("dis");
+        let jar = mods_dir(&inst).join("lithium.jar");
+        fs::write(&jar, b"fake").unwrap();
+        let n = set_mod_disabled(&inst, "lithium.jar", true).unwrap();
+        assert_eq!(n, "lithium.jar.disabled");
+        assert!(!jar.exists());
+        assert!(mods_dir(&inst).join("lithium.jar.disabled").is_file());
+        let listed = list_installed_mods(&inst).unwrap();
+        assert_eq!(listed, vec!["lithium.jar.disabled".to_string()]);
+        let n2 = set_mod_disabled(&inst, "lithium.jar.disabled", false).unwrap();
+        assert_eq!(n2, "lithium.jar");
+        assert!(list_installed_mods(&inst).unwrap() == vec!["lithium.jar".to_string()]);
+    }
+
+    #[test]
+    fn remove_rejects_missing() {
+        let (_tmp, inst) = tmp_instance("miss");
+        assert!(remove_mod(&inst, "nope.jar").is_err());
+    }
+}

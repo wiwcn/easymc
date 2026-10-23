@@ -1,8 +1,13 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { createOffline, listAccounts } from "../api";
+import {
+  createOffline,
+  curseforgeConfigured,
+  listAccounts,
+  setCurseforgeKey,
+} from "../api";
 import { showToast } from "../toast";
-import type { AccountDto } from "../types";
+import type { AccountDto, CurseForgeStatusDto } from "../types";
 
 @customElement("easymc-placeholder-page")
 export class PlaceholderPage extends LitElement {
@@ -13,6 +18,8 @@ export class PlaceholderPage extends LitElement {
 
   @state() private accounts: AccountDto[] = [];
   @state() private name = "EasyPlayer";
+  @state() private cf: CurseForgeStatusDto | null = null;
+  @state() private cfKeyDraft = "";
 
   static styles = css`
     :host {
@@ -100,15 +107,49 @@ export class PlaceholderPage extends LitElement {
       padding: 2px 6px;
       border-radius: 4px;
     }
+    a {
+      color: var(--md-sys-color-primary);
+    }
+    .muted {
+      font-size: 0.85rem;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 8px;
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
-    if (this.settings) void this.refreshAccounts();
+    if (this.settings) void this.refreshSettings();
+  }
+
+  private async refreshSettings() {
+    this.accounts = await listAccounts();
+    this.cf = await curseforgeConfigured();
   }
 
   private async refreshAccounts() {
     this.accounts = await listAccounts();
+  }
+
+  private async onSaveCfKey() {
+    try {
+      const res = await setCurseforgeKey(this.cfKeyDraft.trim() || null);
+      showToast(res.message);
+      this.cfKeyDraft = "";
+      this.cf = await curseforgeConfigured();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  private async onClearCfKey() {
+    try {
+      const res = await setCurseforgeKey(null);
+      showToast(res.message);
+      this.cf = await curseforgeConfigured();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
   }
 
   private async onCreateOffline() {
@@ -152,10 +193,37 @@ export class PlaceholderPage extends LitElement {
             </ul>
           </div>
           <div class="card">
+            <h2>CurseForge API Key</h2>
+            <p>
+              商店搜索/安装 CurseForge 模组需要 API Key。在
+              <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer">console.curseforge.com</a>
+              申请后粘贴保存到本地 <code>settings.json</code>（不会进 git）。环境变量
+              <code>EASYMC_CURSEFORGE_API_KEY</code> 若已设置则优先。Modrinth 无需 Key。
+            </p>
+            <div class="muted">
+              状态：
+              ${this.cf?.configured
+                ? html`已配置（来源 ${this.cf.source ?? "?"} · 长度 ${this.cf.key_len ?? "?"}）`
+                : html`未配置 — CurseForge 搜索将不可用`}
+            </div>
+            <div class="row">
+              <input
+                type="password"
+                autocomplete="off"
+                placeholder="粘贴 CurseForge API Key…"
+                .value=${this.cfKeyDraft}
+                @input=${(e: Event) => (this.cfKeyDraft = (e.target as HTMLInputElement).value)}
+              />
+              <button type="button" @click=${() => this.onSaveCfKey()}>保存</button>
+              <button class="ghost" type="button" @click=${() => this.onClearCfKey()}>清除</button>
+            </div>
+          </div>
+          <div class="card">
             <h2>Microsoft 账户</h2>
             <p>
               需自备 Azure 应用客户端 ID，设置环境变量
               <code>EASYMC_MSA_CLIENT_ID</code>。完整 OAuth → Xbox → Minecraft 换票流程已预留接口，尚未接通。
+              <!-- TODO(MSA): wire Azure client ID + full OAuth; do not invent IDs. -->
             </p>
             <div class="row">
               <button class="ghost" type="button" @click=${() => this.onMsa()}>尝试登录（会提示 TODO）</button>

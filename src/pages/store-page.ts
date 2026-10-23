@@ -7,7 +7,10 @@ import {
   listInstancesState,
   listModVersions,
   listenInstallProgress,
+  removeMod,
   searchMods,
+  setCurseforgeKey,
+  setModDisabled,
 } from "../api";
 import {
   formatProgressLine,
@@ -37,9 +40,11 @@ export class StorePage extends LitElement {
   @state() private installed: string[] = [];
   @state() private progress: InstallProgressDto | null = null;
   @state() private installingId: string | null = null;
+  @state() private busyMod: string | null = null;
   @state() private expandedId: string | null = null;
   @state() private versions: ModVersionDto[] = [];
   @state() private versionsLoading = false;
+  @state() private cfKeyDraft = "";
 
   private unlistenProgress: (() => void) | null = null;
 
@@ -222,11 +227,88 @@ export class StorePage extends LitElement {
       margin: 0 0 8px;
       font-size: 1rem;
     }
-    .side ul {
+    .side-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .side-head h2 {
       margin: 0;
-      padding-left: 18px;
-      color: var(--md-sys-color-on-surface-variant);
+    }
+    .mod-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0 0 10px;
+    }
+    .mod-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface-container-lowest);
       font-size: 0.9rem;
+    }
+    .mod-row .name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+    }
+    .mod-row .badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #fff3e0;
+      color: #e65100;
+      flex-shrink: 0;
+    }
+    .mod-row button.danger {
+      padding: 6px 12px;
+      border: none;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: #c62828;
+      color: #fff;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .mod-row button.danger:disabled,
+    .mod-row button.ghost:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .cf-box {
+      padding: 12px 14px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      margin-bottom: 12px;
+      line-height: 1.45;
+    }
+    .cf-box a {
+      color: #e65100;
+    }
+    .cf-box .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .cf-box input {
+      flex: 1;
+      min-width: 180px;
+      padding: 8px 12px;
+      border-radius: var(--md-sys-shape-corner-full);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      font: inherit;
     }
     code {
       font-size: 0.85em;
@@ -268,6 +350,68 @@ export class StorePage extends LitElement {
   private async refreshInstalled() {
     const id = this.active?.id;
     this.installed = await listInstalledMods(id ?? null);
+  }
+
+  private async onUninstall(filename: string) {
+    if (!this.active) {
+      showToast("请先在「库」中设置活动实例");
+      return;
+    }
+    if (!window.confirm(`卸载模组？\n${filename}`)) return;
+    this.busyMod = filename;
+    try {
+      const removed = await removeMod(filename, this.active.id);
+      showToast(`已卸载 ${removed}`);
+      await this.refreshInstalled();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(msg);
+    } finally {
+      this.busyMod = null;
+    }
+  }
+
+  private async onToggleDisabled(filename: string) {
+    if (!this.active) {
+      showToast("请先在「库」中设置活动实例");
+      return;
+    }
+    const disabled = !filename.endsWith(".jar.disabled");
+    this.busyMod = filename;
+    try {
+      const next = await setModDisabled(filename, disabled, this.active.id);
+      showToast(disabled ? `已禁用 ${next}` : `已启用 ${next}`);
+      await this.refreshInstalled();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.busyMod = null;
+    }
+  }
+
+  private async onSaveCfKey() {
+    try {
+      const res = await setCurseforgeKey(this.cfKeyDraft.trim() || null);
+      showToast(res.message);
+      this.cf = await curseforgeConfigured();
+      this.cfKeyDraft = "";
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  private async onClearCfKey() {
+    try {
+      const res = await setCurseforgeKey(null);
+      showToast(res.message);
+      this.cf = await curseforgeConfigured();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  private isDisabledJar(name: string): boolean {
+    return name.endsWith(".jar.disabled");
   }
 
   private async onSearch() {
@@ -408,8 +552,33 @@ export class StorePage extends LitElement {
       </div>
 
       ${this.source === "curseforge" && this.cf && !this.cf.configured
-        ? html`<div class="warn">${this.cf.hint}</div>`
-        : null}
+        ? html`<div class="cf-box">
+            <strong>需要 CurseForge API Key</strong>
+            <p style="margin:6px 0 0">
+              在
+              <a href=${this.cf.console_url || "https://console.curseforge.com/"} target="_blank" rel="noreferrer"
+                >CurseForge Console</a
+              >
+              申请后粘贴到下方（保存在本地设置，不会提交到 git）。也可设置环境变量
+              <code>${this.cf.env}</code>。Modrinth 无需 Key。
+            </p>
+            <div class="row">
+              <input
+                type="password"
+                autocomplete="off"
+                placeholder="粘贴 CurseForge API Key…"
+                .value=${this.cfKeyDraft}
+                @input=${(e: Event) => (this.cfKeyDraft = (e.target as HTMLInputElement).value)}
+              />
+              <button class="primary" type="button" @click=${() => this.onSaveCfKey()}>保存 Key</button>
+            </div>
+          </div>`
+        : this.source === "curseforge" && this.cf?.configured
+          ? html`<div class="meta">
+              CurseForge Key 已配置（来源 ${this.cf.source ?? "?"}
+              ${this.cf.key_len ? html` · 长度 ${this.cf.key_len}` : null}）
+            </div>`
+          : null}
 
       ${this.error ? html`<div class="err">${this.error}</div>` : null}
 
@@ -425,13 +594,38 @@ export class StorePage extends LitElement {
       </div>
 
       <div class="side">
-        <h2>已安装（当前实例 mods/）</h2>
+        <div class="side-head">
+          <h2>已安装（当前实例 mods/）</h2>
+          <button class="ghost" type="button" @click=${() => this.refreshInstalled()}>刷新</button>
+        </div>
         ${this.installed.length
-          ? html`<ul>
-              ${this.installed.map((m) => html`<li>${m}</li>`)}
-            </ul>`
-          : html`<p class="meta">暂无 jar</p>`}
-        <button class="ghost" type="button" @click=${() => this.refreshInstalled()}>刷新列表</button>
+          ? html`<div class="mod-rows">
+              ${this.installed.map((m) => {
+                const busy = this.busyMod === m;
+                const disabled = this.isDisabledJar(m);
+                return html`<div class="mod-row">
+                  <span class="name" title=${m}>${m}</span>
+                  ${disabled ? html`<span class="badge">已禁用</span>` : null}
+                  <button
+                    class="ghost"
+                    type="button"
+                    ?disabled=${busy}
+                    @click=${() => this.onToggleDisabled(m)}
+                  >
+                    ${disabled ? "启用" : "禁用"}
+                  </button>
+                  <button
+                    class="danger"
+                    type="button"
+                    ?disabled=${busy}
+                    @click=${() => this.onUninstall(m)}
+                  >
+                    ${busy ? "…" : "卸载"}
+                  </button>
+                </div>`;
+              })}
+            </div>`
+          : html`<p class="meta">暂无 jar — 搜索并安装后会出现在这里</p>`}
       </div>
     `;
   }
