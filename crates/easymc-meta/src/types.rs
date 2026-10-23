@@ -29,10 +29,14 @@ pub struct VersionInfo {
     pub version_type: String,
     #[serde(rename = "mainClass")]
     pub main_class: String,
-    pub assets: String,
-    #[serde(rename = "assetIndex")]
-    pub asset_index: AssetIndexRef,
-    pub downloads: VersionDownloads,
+    /// Present on vanilla profiles; inherited profiles omit and fill via `inheritsFrom`.
+    #[serde(default)]
+    pub assets: Option<String>,
+    #[serde(rename = "assetIndex", default)]
+    pub asset_index: Option<AssetIndexRef>,
+    #[serde(default)]
+    pub downloads: Option<VersionDownloads>,
+    #[serde(default)]
     pub libraries: Vec<Library>,
     pub arguments: Option<Arguments>,
     /// Legacy ≤1.12 style
@@ -40,6 +44,35 @@ pub struct VersionInfo {
     pub minecraft_arguments: Option<String>,
     #[serde(rename = "javaVersion")]
     pub java_version: Option<JavaVersionReq>,
+    /// Fabric/Quilt/Forge intermediate profiles inherit vanilla (or another) version.
+    #[serde(rename = "inheritsFrom", default)]
+    pub inherits_from: Option<String>,
+}
+
+impl VersionInfo {
+    pub fn assets_id(&self) -> Result<&str, String> {
+        self.assets
+            .as_deref()
+            .ok_or_else(|| format!("version {} missing assets (inheritsFrom not resolved?)", self.id))
+    }
+
+    pub fn asset_index_ref(&self) -> Result<&AssetIndexRef, String> {
+        self.asset_index
+            .as_ref()
+            .ok_or_else(|| format!("version {} missing assetIndex", self.id))
+    }
+
+    pub fn client_download(&self) -> Result<&Artifact, String> {
+        self.downloads
+            .as_ref()
+            .map(|d| &d.client)
+            .ok_or_else(|| format!("version {} missing client download", self.id))
+    }
+
+    /// Version id whose client jar / natives should be used (parent if inherited).
+    pub fn jar_id(&self) -> &str {
+        self.inherits_from.as_deref().unwrap_or(&self.id)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,8 +110,15 @@ pub struct Artifact {
 pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
+    /// Maven base URL (Fabric/Quilt profiles often omit `downloads` and only set this).
+    #[serde(default)]
+    pub url: Option<String>,
     pub rules: Option<Vec<Rule>>,
     pub natives: Option<std::collections::HashMap<String, String>>,
+    #[serde(default)]
+    pub sha1: Option<String>,
+    #[serde(default)]
+    pub size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

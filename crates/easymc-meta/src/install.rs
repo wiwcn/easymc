@@ -188,7 +188,10 @@ pub async fn install_version(
 
     // —— client ——
     phase += 1;
-    let client = &info.downloads.client;
+    let client = info
+        .client_download()
+        .map_err(EasyMcError::msg)?
+        .clone();
     let jar_path = paths.version_jar(&info.id);
     on_progress(InstallProgress::new(
         "client",
@@ -404,7 +407,11 @@ async fn install_assets(
     phase_total: u32,
     on_progress: &(impl Fn(InstallProgress) + Send + Sync),
 ) -> Result<()> {
-    let idx_ref = &info.asset_index;
+    let idx_ref = info
+        .asset_index_ref()
+        .map_err(EasyMcError::msg)?
+        .clone();
+    let idx_ref = &idx_ref;
     let idx_path = paths
         .assets_indexes_dir()
         .join(format!("{}.json", idx_ref.id));
@@ -523,7 +530,7 @@ async fn install_assets(
 }
 
 pub fn extract_natives(paths: &Paths, info: &VersionInfo) -> Result<()> {
-    let out = paths.natives_for_version(&info.id);
+    let out = paths.natives_for_version(info.jar_id());
     std::fs::create_dir_all(&out)?;
     for lib in &info.libraries {
         if !rules_allow(lib.rules.as_deref(), &[]) {
@@ -627,14 +634,85 @@ pub fn maven_path_from_name(name: &str) -> String {
 }
 
 pub fn load_installed_version(paths: &Paths, id: &str) -> Result<VersionInfo> {
+    load_version_resolved(paths, id)
+}
+
+fn load_version_json_raw(paths: &Paths, id: &str) -> Result<VersionInfo> {
     let p = paths.version_json(id);
     let raw = std::fs::read_to_string(&p)
         .map_err(|_| EasyMcError::Missing(format!("version json {}", p.display())))?;
     Ok(serde_json::from_str(&raw)?)
 }
 
+/// Load a version JSON and merge `inheritsFrom` parents (Fabric/Quilt profiles).
+pub fn load_version_resolved(paths: &Paths, id: &str) -> Result<VersionInfo> {
+    load_version_resolved_inner(paths, id, 0)
+}
+
+fn load_version_resolved_inner(paths: &Paths, id: &str, depth: u8) -> Result<VersionInfo> {
+    if depth > 8 {
+        return Err(EasyMcError::msg(format!("inheritsFrom 过深: {id}")));
+    }
+    let child = load_version_json_raw(paths, id)?;
+    let Some(parent_id) = child.inherits_from.clone() else {
+        return Ok(child);
+    };
+    let parent = load_version_resolved_inner(paths, &parent_id, depth + 1)?;
+    Ok(merge_version_info(parent, child))
+}
+
+/// Merge parent (vanilla) into child (loader profile). Child wins for mainClass / id / type.
+pub fn merge_version_info(parent: VersionInfo, mut child: VersionInfo) -> VersionInfo {
+    let inherits = child.inherits_from.clone().or(Some(parent.id.clone()));
+    // Libraries: parent first, then child (Fabric order: vanilla then loader jars).
+    let mut libs = parent.libraries;
+    libs.extend(child.libraries.drain(..));
+    // Arguments: concatenate jvm/game (parent then child).
+    let arguments = match (parent.arguments, child.arguments.take()) {
+        (None, None) => None,
+        (Some(p), None) => Some(p),
+        (None, Some(c)) => Some(c),
+        (Some(mut p), Some(c)) => {
+            p.jvm.extend(c.jvm);
+            p.game.extend(c.game);
+            Some(p)
+        }
+    };
+    VersionInfo {
+        id: child.id,
+        version_type: if child.version_type.is_empty() {
+            parent.version_type
+        } else {
+            child.version_type
+        },
+        main_class: if child.main_class.is_empty() {
+            parent.main_class
+        } else {
+            child.main_class
+        },
+        assets: child.assets.or(parent.assets),
+        asset_index: child.asset_index.or(parent.asset_index),
+        downloads: child.downloads.or(parent.downloads),
+        libraries: libs,
+        arguments,
+        minecraft_arguments: child.minecraft_arguments.or(parent.minecraft_arguments),
+        java_version: child.java_version.or(parent.java_version),
+        inherits_from: inherits,
+    }
+}
+
+/// Vanilla: jar+json. Inherited profile: profile json + parent jar.
 pub fn is_version_installed(paths: &Paths, id: &str) -> bool {
-    paths.version_jar(id).exists() && paths.version_json(id).exists()
+    if !paths.version_json(id).exists() {
+        return false;
+    }
+    match load_version_json_raw(paths, id) {
+        Ok(info) => {
+            let jar_id = info.jar_id();
+            paths.version_jar(jar_id).exists() && paths.version_json(jar_id).exists()
+        }
+        Err(_) => paths.version_jar(id).exists(),
+    }
 }
 
 /// Classpath entries (non-native library jars + client jar), colon/semicolon joined by caller.
@@ -644,17 +722,38 @@ pub fn classpath_jars(paths: &Paths, info: &VersionInfo) -> Result<Vec<PathBuf>>
         if !rules_allow(lib.rules.as_deref(), &[]) {
             continue;
         }
-        if let Some(artifact) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) {
-            let rel = artifact
-                .path
-                .clone()
-                .unwrap_or_else(|| maven_path_from_name(&lib.name));
+        let rel = library_relative_path(lib);
+        if let Some(rel) = rel {
             if is_native_library(&lib.name, Some(&rel)) {
+                continue;
+            }
+            // Skip natives classifiers even when only maven name is present
+            if lib.natives.is_some() {
                 continue;
             }
             jars.push(paths.library_path(rel));
         }
     }
-    jars.push(paths.version_jar(&info.id));
+    jars.push(paths.version_jar(info.jar_id()));
     Ok(jars)
+}
+
+/// Relative path under `libraries/` for a library entry (downloads.artifact or maven name).
+pub fn library_relative_path(lib: &Library) -> Option<String> {
+    if let Some(artifact) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) {
+        return Some(
+            artifact
+                .path
+                .clone()
+                .unwrap_or_else(|| maven_path_from_name(&lib.name)),
+        );
+    }
+    if lib.url.is_some() || lib.sha1.is_some() {
+        return Some(maven_path_from_name(&lib.name));
+    }
+    // Still allow pure maven-name entries (resolved URL constructed by installer).
+    if lib.name.split(':').count() >= 3 {
+        return Some(maven_path_from_name(&lib.name));
+    }
+    None
 }
