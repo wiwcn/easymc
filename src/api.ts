@@ -1,4 +1,4 @@
-import type { AccountDto, AgentAskResponse, CurseForgeStatusDto, DiagnoseReportDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
+import type { AccountDto, AgentAskResponse, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -291,5 +291,30 @@ export async function agentExportDiagnostics(
 ): Promise<{ ok: boolean; path?: string; message: string }> {
   return invokeOrThrow("agent_export_diagnostics", {
     instanceId: instanceId || null,
+  });
+}
+
+
+export async function exportInstance(
+  instanceId: string,
+  pack = false,
+  notes?: string | null,
+): Promise<ExportResultDto> {
+  return invokeOrThrow<ExportResultDto>("export_instance_cmd", {
+    instanceId,
+    pack,
+    notes: notes || null,
+  });
+}
+
+export async function importInstance(
+  path: string,
+  opts?: { name?: string | null; applyMemory?: boolean; offline?: boolean },
+): Promise<ImportResultDto> {
+  return invokeOrThrow<ImportResultDto>("import_instance_cmd", {
+    path,
+    name: opts?.name || null,
+    applyMemory: opts?.applyMemory ?? false,
+    offline: opts?.offline ?? false,
   });
 }

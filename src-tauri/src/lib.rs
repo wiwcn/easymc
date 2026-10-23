@@ -15,6 +15,10 @@ use easymc_meta::{
     is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
     MetaProvider, PistonMetaProvider,
 };
+use easymc_share::{
+    export_instance, import_instance, ExportOptions, ExportResult, ImportOptions, ImportResult,
+    ShareMode,
+};
 use easymc_agent::{
     ask, bump_memory, llm_status, run_diagnose, show_data_dir, try_load_dotenv_llm,
     write_diagnostic_bundle, AskRequest, AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
@@ -48,7 +52,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1.6",
+        "milestone": "M1.7",
         "data_dir": state.paths.root,
         "msa_configured": MicrosoftAuthConfig::default().is_configured(),
     })
@@ -694,6 +698,62 @@ async fn agent_export_diagnostics(
 }
 
 
+
+#[tauri::command]
+async fn export_instance_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+    pack: Option<bool>,
+    notes: Option<String>,
+) -> Result<ExportResult, String> {
+    let store = load_instances(&state.paths).map_err(|e| e.to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == instance_id)
+        .ok_or_else(|| format!("实例不存在: {instance_id}"))?
+        .clone();
+    let mode = if pack.unwrap_or(false) {
+        ShareMode::Pack
+    } else {
+        ShareMode::Metadata
+    };
+    export_instance(
+        &state.paths,
+        &inst,
+        ExportOptions {
+            mode,
+            notes,
+            output: None,
+            resolve_modrinth: true,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn import_instance_cmd(
+    state: State<'_, AppState>,
+    path: String,
+    name: Option<String>,
+    apply_memory: Option<bool>,
+    offline: Option<bool>,
+) -> Result<ImportResult, String> {
+    import_instance(
+        &state.paths,
+        std::path::Path::new(&path),
+        ImportOptions {
+            name,
+            apply_memory: apply_memory.unwrap_or(false),
+            offline: offline.unwrap_or(false),
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let paths = Paths::discover().expect("data dir");
@@ -736,6 +796,8 @@ pub fn run() {
             agent_data_dir,
             agent_bump_memory,
             agent_export_diagnostics,
+            export_instance_cmd,
+            import_instance_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

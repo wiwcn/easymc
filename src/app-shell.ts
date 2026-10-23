@@ -102,7 +102,7 @@ export class EasyMcApp extends LitElement {
       case "share":
         return html`<easymc-placeholder-page
           title="分享"
-          subtitle="一键导出 / 导入实例配置（M0 占位）"
+          subtitle="在「库」或「启动」页导出元数据 / 整合包，或导入 .json/.zip（M1.7）"
           icon="🔗"
         ></easymc-placeholder-page>`;
       case "settings":

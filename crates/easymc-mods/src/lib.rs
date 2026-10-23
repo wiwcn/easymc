@@ -11,3 +11,10 @@ pub use install::{
     install_mod, list_installed_mods, list_mod_versions, mods_dir, search_mods,
 };
 pub use types::*;
+
+pub use modrinth::HashLookup;
+
+pub async fn lookup_modrinth_by_sha1(sha1_hex: &str) -> easymc_core::Result<Option<HashLookup>> {
+    modrinth::lookup_by_sha1(sha1_hex).await
+}
+

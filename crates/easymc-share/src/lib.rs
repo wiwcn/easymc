@@ -1,27 +1,19 @@
-//! One-click share of instance configs / packs (stubs).
+//! EasyMC instance share: export / import metadata JSON or pack zip.
+//!
+//! Format id: `easymc.share` v1 — see README.
 
-use easymc_core::{EasyMcError, Instance, Result};
-use serde::{Deserialize, Serialize};
+mod export;
+mod format;
+mod import;
+mod index;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShareBundle {
-    pub format_version: u32,
-    pub instance: Instance,
-    pub notes: Option<String>,
-}
-
-pub fn export_bundle(instance: &Instance, notes: Option<String>) -> Result<ShareBundle> {
-    Ok(ShareBundle {
-        format_version: 1,
-        instance: instance.clone(),
-        notes,
-    })
-}
-
-pub fn import_bundle(json: &str) -> Result<ShareBundle> {
-    serde_json::from_str(json).map_err(|e| EasyMcError::Message(e.to_string()))
-}
-
-pub fn publish_remote(_bundle: &ShareBundle) -> Result<String> {
-    Err(EasyMcError::NotImplemented("remote share publish"))
-}
+pub use export::{
+    build_manifest, ensure_instance, export_instance, path_for_clipboard, shares_dir, ExportOptions,
+    ExportResult,
+};
+pub use format::{
+    InstanceSpec, JvmSpec, ModEntry, ShareManifest, ShareMode, FORMAT_ID, FORMAT_VERSION,
+    MANIFEST_NAME,
+};
+pub use import::{import_instance, read_manifest_from_path, ImportOptions, ImportResult};
+pub use index::{index_path, load_index, save_index, upsert_index_entry, ModsIndex};

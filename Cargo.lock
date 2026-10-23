@@ -811,6 +811,7 @@ dependencies = [
  "easymc-launch-desktop",
  "easymc-meta",
  "easymc-mods",
+ "easymc-share",
  "serde_json",
  "tokio",
 ]
@@ -883,9 +884,14 @@ dependencies = [
 name = "easymc-share"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "easymc-core",
+ "easymc-mods",
  "serde",
  "serde_json",
+ "sha1",
+ "tokio",
+ "zip",
 ]
 
 [[package]]

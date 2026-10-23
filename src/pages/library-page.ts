@@ -12,6 +12,8 @@ import {
   listLoaderVersions,
   ensureJava,
   listenInstallProgress,
+  exportInstance,
+  importInstance,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import {
@@ -498,6 +500,52 @@ export class LibraryPage extends LitElement {
     }
   }
 
+
+  private async onExport(inst: InstanceDto, pack: boolean) {
+    this.busy = true;
+    this.status = pack ? "正在导出整合包…" : "正在导出元数据…";
+    try {
+      const res = await exportInstance(inst.id, pack);
+      this.status = res.message_zh;
+      showToast(res.path);
+      try {
+        await navigator.clipboard.writeText(res.path);
+        showToast("路径已复制到剪贴板");
+      } catch {
+        /* clipboard may be unavailable */
+      }
+    } catch (e) {
+      this.status = String(e);
+      showToast(String(e));
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async onImport() {
+    const path = window.prompt(
+      "导入分享包路径（.json 元数据 或 .zip 整合包）",
+      "",
+    );
+    if (!path?.trim()) return;
+    const applyMem = window.confirm("是否将分享包中的内存建议写入本地 settings？");
+    this.busy = true;
+    this.status = "正在导入…";
+    try {
+      const res = await importInstance(path.trim(), { applyMemory: applyMem });
+      this.status = res.message_zh;
+      showToast(res.message_zh.slice(0, 80));
+      const st = await listInstancesState();
+      this.instances = st.instances;
+      this.activeId = st.active_id;
+    } catch (e) {
+      this.status = String(e);
+      showToast(String(e));
+    } finally {
+      this.busy = false;
+    }
+  }
+
   render() {
     if (this.loading) return html`<p>加载中…</p>`;
     return html`
@@ -506,9 +554,14 @@ export class LibraryPage extends LitElement {
           <h1>库</h1>
           <p class="sub">管理实例 · 选择版本创建新世界</p>
         </div>
-        <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
-          ＋ 新建实例
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>
+            导入分享
+          </button>
+          <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
+            ＋ 新建实例
+          </button>
+        </div>
       </div>
 
       <p class="status">${this.status}</p>
@@ -726,6 +779,22 @@ export class LibraryPage extends LitElement {
                 </button>
               `
             : html`<span class="badge ok">本地已有版本文件</span>`}
+          <button
+            class="btn ghost sm"
+            type="button"
+            ?disabled=${this.busy}
+            @click=${() => this.onExport(inst, false)}
+          >
+            导出元数据
+          </button>
+          <button
+            class="btn ghost sm"
+            type="button"
+            ?disabled=${this.busy}
+            @click=${() => this.onExport(inst, true)}
+          >
+            导出整合包
+          </button>
         </div>
       </article>
     `;

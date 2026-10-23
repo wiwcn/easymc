@@ -222,14 +222,63 @@ pub async fn install_mod(
         if skipped { 0 } else { 1 },
     );
 
-    Ok(ModInstallResult {
+    let result = ModInstallResult {
         source,
-        project_id: project.id,
+        project_id: project.id.clone(),
         project_name: project.name,
-        version_id: version.id,
+        version_id: version.id.clone(),
         version_number: version.version_number,
-        filename: file.filename,
+        filename: file.filename.clone(),
         path: dest.to_string_lossy().into_owned(),
         skipped,
-    })
+    };
+    let _ = write_mod_index_entry(
+        instance,
+        &file.filename,
+        source,
+        &project.id,
+        &version.id,
+        file.sha1.as_deref(),
+    );
+    Ok(result)
+}
+
+fn write_mod_index_entry(
+    instance: &Instance,
+    filename: &str,
+    source: ModSource,
+    project_id: &str,
+    version_id: &str,
+    sha1: Option<&str>,
+) -> Result<()> {
+    use serde_json::{json, Value};
+    let path = mods_dir(instance).join(".easymc-mods.json");
+    let mut root: Value = if path.is_file() {
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default())
+            .unwrap_or_else(|_| json!({ "mods": [] }))
+    } else {
+        json!({ "mods": [] })
+    };
+    let entry = json!({
+        "filename": filename,
+        "disabled": false,
+        "sha1": sha1,
+        "source": source.as_str(),
+        "project_id": project_id,
+        "version_id": version_id,
+    });
+    let mods = root
+        .as_object_mut()
+        .map(|o| o.entry("mods".to_string()).or_insert_with(|| json!([])))
+        .ok_or_else(|| EasyMcError::msg("index corrupt"))?;
+    if let Some(arr) = mods.as_array_mut() {
+        if let Some(slot) = arr.iter_mut().find(|m| m.get("filename").and_then(|v| v.as_str()) == Some(filename)) {
+            *slot = entry;
+        } else {
+            arr.push(entry);
+        }
+    }
+    std::fs::create_dir_all(mods_dir(instance))?;
+    std::fs::write(path, serde_json::to_string_pretty(&root)?)?;
+    Ok(())
 }

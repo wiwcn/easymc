@@ -2,7 +2,7 @@
 
 Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
-**License:** MIT · **Milestone:** M1.6 (Local Agent + optional OpenAI-compatible LLM)
+**License:** MIT · **Milestone:** M1.7 (配置一键分享 — export/import)
 
 ## What works (M1)
 
@@ -18,6 +18,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - Skip-if-present clarity (新下 / 跳过); `--no-assets` + UI「下载游戏资源」/「快速安装（无资源）」; mid-fail drops `.part` and surfaces stage-scoped errors
 - Mod loaders: **Fabric** / **Quilt** (meta profile JSON) + **Forge** / **NeoForge** (official installer JAR `--installClient`, processors run under Temurin). `inheritsFrom` merge; launch resolves profile mainClass/libraries. UI create chips: 原版 | Fabric | Quilt | Forge | NeoForge
 - Mod store: **Modrinth + CurseForge** search / version list / install jar into instance `mods/`. CLI + 商店 UI. CurseForge needs `EASYMC_CURSEFORGE_API_KEY`; Modrinth works without a key
+- **Share (M1.7):** export/import instance configs — metadata JSON or pack zip with `mods/*.jar`. Resolves missing mods via Modrinth/CF ids when known. CLI `export-instance` / `import-instance`; UI on 库 / 启动
 - Microsoft auth: structure + clear TODO (`EASYMC_MSA_CLIENT_ID`); offline play works without it
 - Headless CLI: `cargo run -p easymc-cli -- <cmd>`
 
@@ -57,6 +58,10 @@ cargo run -p easymc-cli -- list-versions          # releases
 cargo run -p easymc-cli -- create-instance "速通" 1.20.1
 cargo run -p easymc-cli -- instances
 cargo run -p easymc-cli -- set-active default
+cargo run -p easymc-cli -- export-instance <instance-id>              # metadata .json
+cargo run -p easymc-cli -- export-instance <instance-id> --pack       # zip + mods
+cargo run -p easymc-cli -- import-instance /path/to/share.json
+# cargo run -p easymc-cli -- import-instance /path/to/pack.zip --name "共享包" --apply-memory
 cargo run -p easymc-cli -- launch default
 ```
 
@@ -66,7 +71,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar. 库: same. **商店**: Modrinth/CurseForge 搜索安装到活动实例. Settings: offline accounts. Logs under the hero card. Toggle **下载游戏资源** or use **快速安装（无资源）** for faster iterate.
+Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. 库: same + per-card export. **商店**: Modrinth/CurseForge. **Agent**: diagnose + optional LLM. Settings: offline accounts. Toggle **下载游戏资源** or **快速安装（无资源）**.
 
 
 ## Agent (M1.6)
@@ -106,6 +111,36 @@ export EASYMC_LLM_MODEL=deepseek-chat   # or deepseek-reasoner, etc.
 
 UI **Agent** page: diagnose button, action chips, chat composer (LLM when configured).
 
+## Share (M1.7)
+
+Portable instance configs — **no full assets/client jars** by default.
+
+### Modes
+
+| Mode | File | Contents |
+|------|------|----------|
+| **Metadata** | `*.easymc.share.json` (or `easymc.share.json`) | Version, loader+version, JVM memory suggestion, mods list (filename + optional Modrinth/CF ids / sha1) |
+| **Pack** | `*.easymc.share.zip` | Same manifest at `easymc.share.json` + `mods/*.jar` |
+
+Format id: `easymc.share` · `format_version: 1`. Optional local index `.easymc-mods.json` under the instance caches Modrinth/CF ids after store installs.
+
+### Import behaviour
+
+1. Create (or update by name) an instance from the manifest.
+2. For each mod: if jar present in pack → copy; else if Modrinth/CF ids present → download; else record as missing.
+3. `--apply-memory` / UI confirm optionally writes `settings.memory_mb`.
+4. Does **not** download Minecraft client/assets; install the version separately.
+
+### CLI
+
+```bash
+cargo run -p easymc-cli -- export-instance <id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]
+cargo run -p easymc-cli -- import-instance <file.json|file.zip> [--name NAME] [--apply-memory] [--offline]
+```
+
+Default export dir: `$EASYMC_DATA_DIR/shares/` (or platform data dir). Path is printed and can be copied from the UI clipboard.
+
+
 ### Forge / NeoForge caveats
 
 - Install uses the **official installer** (`java -jar *-installer.jar --installClient <EASYMC_DATA_DIR>`), so binarypatcher and other processors run as upstream intends. Requires a working Temurin/Java (auto `ensure-java 21`).
@@ -135,7 +170,8 @@ Without it, Modrinth still works; CurseForge search/install returns a clear zh-C
 | `easymc-launch-desktop` | Java detect/download, arg builder, process manager |
 | `easymc-cli` | Headless install/launch |
 | `easymc-mods` | Modrinth + CurseForge search/install |
-| `easymc-agent` / `share` | M0 stubs |
+| `easymc-agent` | Local diagnose + optional OpenAI-compatible LLM |
+| `easymc-share` | Export/import share bundles (metadata JSON / pack zip) |
 | `src-tauri` (`easymc-app`) | Tauri commands + events |
 
 ## MD3 UI
@@ -164,7 +200,7 @@ Verified with `EASYMC_DATA_DIR=/workspace/easymc-data`:
 ## Remaining gaps for “actually usable”
 
 - Full MSA login (needs Azure client id + OAuth → Xbox → Minecraft services finish)
-- Full modpack zip import; mod update/remove UI polish; NeoForge 1.20.1 transitional artifact
+- Mod update/remove UI polish; NeoForge 1.20.1 transitional artifact; cloud pastebin hosting (local path share is enough)
 - Asset download progress UI polish; optional mirror CDNs
 - Windows JDK zip extract path (Linux tar.gz path works)
 - Real audio device for OpenAL (optional)

@@ -15,6 +15,8 @@ import {
   listVersions,
   listLoaderVersions,
   installLoaderVersion,
+  exportInstance,
+  importInstance,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import {
@@ -622,6 +624,54 @@ export class HomePage extends LitElement {
     }
   }
 
+
+  private async onExportShare(pack: boolean) {
+    const f = this.featured;
+    if (!f) return;
+    this.busy = true;
+    this.status = pack ? "正在导出整合包…" : "正在导出元数据…";
+    try {
+      const res = await exportInstance(f.id, pack);
+      this.status = res.message_zh;
+      showToast(res.message_zh.slice(0, 80));
+      this.logs = [...this.logs.slice(-400), res.path];
+      try {
+        await navigator.clipboard.writeText(res.path);
+        showToast("路径已复制到剪贴板");
+      } catch {
+        /* clipboard may be unavailable */
+      }
+    } catch (e) {
+      const msg = String(e);
+      this.status = msg;
+      showToast(msg);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async onImportShare() {
+    const path = window.prompt("导入分享包路径（.json / .zip）", "");
+    if (!path?.trim()) return;
+    const applyMem = window.confirm("将分享包内存建议写入 settings？");
+    this.busy = true;
+    this.status = "正在导入…";
+    try {
+      const res = await importInstance(path.trim(), { applyMemory: applyMem });
+      this.status = res.message_zh;
+      showToast(res.message_zh.slice(0, 80));
+      const st = await listInstancesState();
+      this.instances = st.instances;
+      this.activeId = st.active_id;
+    } catch (e) {
+      const msg = String(e);
+      this.status = msg;
+      showToast(msg);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private icons = ["🌲", "🛡️", "🧊", "⛏️", "🏰", "🌊"];
 
   render() {
@@ -632,7 +682,12 @@ export class HomePage extends LitElement {
     if (!f) {
       return html`
         <p>还没有实例。</p>
-        <button class="launch" type="button" @click=${() => this.openCreate()}>新建实例</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="launch" type="button" @click=${() => this.openCreate()}>新建实例</button>
+          <button class="secondary" type="button" ?disabled=${this.busy} @click=${() => this.onImportShare()}>
+            导入分享
+          </button>
+        </div>
         ${this.showCreate ? this.renderCreate() : null}
       `;
     }
@@ -688,6 +743,30 @@ export class HomePage extends LitElement {
               </button>`}
           <button class="secondary" type="button" @click=${() => this.openCreate()}>
             新建实例
+          </button>
+          <button
+            class="secondary"
+            type="button"
+            ?disabled=${this.busy}
+            @click=${() => this.onExportShare(false)}
+          >
+            导出元数据
+          </button>
+          <button
+            class="secondary"
+            type="button"
+            ?disabled=${this.busy}
+            @click=${() => this.onExportShare(true)}
+          >
+            导出整合包
+          </button>
+          <button
+            class="secondary"
+            type="button"
+            ?disabled=${this.busy}
+            @click=${() => this.onImportShare()}
+          >
+            导入分享
           </button>
           <button class="secondary" type="button" @click=${() => (this.showLogs = !this.showLogs)}>
             ${this.showLogs ? "隐藏日志" : "显示日志"}

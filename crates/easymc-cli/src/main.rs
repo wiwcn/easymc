@@ -14,6 +14,7 @@ use easymc_meta::{
     MetaProvider, PistonMetaProvider,
 };
 use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRequest};
+use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
 use easymc_mods::{
     install_mod, list_installed_mods, list_mod_versions, search_mods, ModSource, SearchQuery,
     API_KEY_ENV,
@@ -511,6 +512,72 @@ async fn real_main() -> easymc_core::Result<()> {
             println!("active={id}");
         }
 
+
+        "export-instance" => {
+            let id = args
+                .first()
+                .cloned()
+                .ok_or_else(|| easymc_core::EasyMcError::msg(
+                    "usage: export-instance <instance-id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]",
+                ))?;
+            let store = load_instances(&paths)?;
+            let inst = store
+                .instances
+                .iter()
+                .find(|i| i.id == id)
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {id}")))?;
+            let mode = if args.iter().any(|a| a == "--pack") {
+                ShareMode::Pack
+            } else {
+                ShareMode::Metadata
+            };
+            let output = flag_value(&args, "--out").map(std::path::PathBuf::from);
+            let notes = flag_value(&args, "--notes");
+            let resolve_modrinth = !args.iter().any(|a| a == "--no-resolve");
+            let res = export_instance(
+                &paths,
+                inst,
+                ExportOptions {
+                    mode,
+                    notes,
+                    output,
+                    resolve_modrinth,
+                },
+            )
+            .await?;
+            println!("{}", res.message_zh);
+            println!("path={}", res.path);
+        }
+        "import-instance" => {
+            let path = args
+                .first()
+                .cloned()
+                .ok_or_else(|| easymc_core::EasyMcError::msg(
+                    "usage: import-instance <file.json|file.zip> [--name NAME] [--apply-memory] [--offline]",
+                ))?;
+            let name = flag_value(&args, "--name");
+            let apply_memory = args.iter().any(|a| a == "--apply-memory");
+            let offline = args.iter().any(|a| a == "--offline");
+            let res = import_instance(
+                &paths,
+                std::path::Path::new(&path),
+                ImportOptions {
+                    name,
+                    apply_memory,
+                    offline,
+                },
+            )
+            .await?;
+            println!("{}", res.message_zh);
+            if !res.mods_missing.is_empty() {
+                println!("missing:");
+                for m in &res.mods_missing {
+                    println!("  - {m}");
+                }
+            }
+            println!("instance={}", res.instance_id);
+        }
+
         "agent" => {
             easymc_agent::llm::try_load_dotenv_llm();
             let sub = args.first().map(|s| s.as_str()).unwrap_or("help");
@@ -720,8 +787,11 @@ fn print_help() {
            list-mods [instance-id]\n\
            curseforge-key\n\
            launch [instance-id]\n\
+           export-instance <id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]\n\
+           import-instance <file.json|zip> [--name NAME] [--apply-memory] [--offline]\n\
 \n\
          CurseForge 需要环境变量 EASYMC_CURSEFORGE_API_KEY（https://console.curseforge.com/）。\n\
-         Modrinth 无需 Key。\n"
+         Modrinth 无需 Key。\n\
+         分享包：元数据 JSON 或含 mods/*.jar 的 zip；默认写入 $EASYMC_DATA_DIR/shares/。\n"
     );
 }

@@ -220,3 +220,46 @@ pub async fn get_version(version_id: &str) -> Result<ModVersion> {
         .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 版本失败: {e}")))?;
     Ok(map_version(v))
 }
+
+#[derive(Debug, Clone)]
+pub struct HashLookup {
+    pub project_id: String,
+    pub version_id: String,
+    pub filename: Option<String>,
+}
+
+/// Resolve a local jar SHA-1 via Modrinth `version_file` API. Returns None on 404.
+pub async fn lookup_by_sha1(sha1_hex: &str) -> Result<Option<HashLookup>> {
+    let sha1_hex = sha1_hex.trim().to_ascii_lowercase();
+    if sha1_hex.len() != 40 || !sha1_hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(None);
+    }
+    let client = modrinth_client()?;
+    let resp = client
+        .get(format!("{BASE}/version_file/{sha1_hex}"))
+        .query(&[("algorithm", "sha1")])
+        .send()
+        .await
+        .map_err(|e| EasyMcError::Http(format!("Modrinth hash 查询失败: {e}")))?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let resp = resp
+        .error_for_status()
+        .map_err(|e| EasyMcError::Http(format!("Modrinth hash HTTP: {e}")))?;
+    let v: VersionDto = resp
+        .json()
+        .await
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth hash 结果失败: {e}")))?;
+    let filename = v
+        .files
+        .iter()
+        .find(|f| f.primary)
+        .or_else(|| v.files.first())
+        .map(|f| f.filename.clone());
+    Ok(Some(HashLookup {
+        project_id: v.project_id,
+        version_id: v.id,
+        filename,
+    }))
+}

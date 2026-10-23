@@ -151,3 +151,22 @@ export interface AgentAskResponse {
   action?: AgentActionDto | null;
   llm: LlmStatusDto;
 }
+
+export interface ExportResultDto {
+  path: string;
+  mode: "metadata" | "pack" | string;
+  mod_count: number;
+  bytes: number;
+  message_zh: string;
+}
+
+export interface ImportResultDto {
+  instance_id: string;
+  instance_name: string;
+  mods_copied: number;
+  mods_downloaded: number;
+  mods_missing: string[];
+  memory_applied?: number | null;
+  message_zh: string;
+  path_loaded: string;
+}
