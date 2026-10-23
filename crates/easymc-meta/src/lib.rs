@@ -7,7 +7,7 @@ mod download;
 mod fabric;
 
 pub use install::*;
-pub use download::FetchResult;
+pub use download::{download_file, FetchResult};
 pub use types::*;
 pub use rules::{rules_allow, current_os_name, is_native_library};
 pub use fabric::*;
