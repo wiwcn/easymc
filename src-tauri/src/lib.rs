@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use easymc_core::{
-    begin_microsoft_login, create_named_instance, create_offline_account, ensure_defaults,
+    begin_microsoft_login, create_named_instance_with, create_offline_account, ensure_defaults,
     load_accounts, load_instances, load_settings, save_accounts, save_instances, set_active_instance,
-    upsert_instance, Account, Instance, McVersion, MicrosoftAuthConfig, Paths, Settings,
+    upsert_instance, Account, CreateInstanceOpts, Instance, McVersion, MicrosoftAuthConfig,
+    ModLoader, Paths, Settings,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, JavaInstall, LaunchRequest, LaunchStatus,
     ProcessManager,
 };
 use easymc_meta::{
-    install_version, is_version_installed, InstallOptions, MetaProvider, PistonMetaProvider,
+    install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
+    list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -37,7 +39,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1.1",
+        "milestone": "M1.3",
         "data_dir": state.paths.root,
         "msa_configured": MicrosoftAuthConfig::default().is_configured(),
     })
@@ -72,11 +74,39 @@ fn create_instance(
     state: State<'_, AppState>,
     name: String,
     version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
 ) -> Result<Instance, String> {
     let paths = state_paths(&state);
     ensure_defaults(paths).map_err(|e| e.to_string())?;
-    let ready = is_version_installed(paths, &version);
-    create_named_instance(paths, name, McVersion(version), ready).map_err(|e| e.to_string())
+    let loader = loader
+        .as_deref()
+        .and_then(ModLoader::parse_loose)
+        .unwrap_or(ModLoader::Vanilla);
+    let loader_version = loader_version.filter(|s| !s.trim().is_empty());
+    let ready = match loader {
+        ModLoader::Vanilla => is_version_installed(paths, &version),
+        ModLoader::Fabric => loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Fabric, &version, lv))
+            .unwrap_or(false),
+        ModLoader::Quilt => loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Quilt, &version, lv))
+            .unwrap_or(false),
+        ModLoader::Forge | ModLoader::NeoForge => false,
+    };
+    create_named_instance_with(
+        paths,
+        CreateInstanceOpts {
+            name,
+            version: McVersion(version),
+            loader,
+            loader_version,
+            version_ready: ready,
+        },
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -180,6 +210,107 @@ async fn install_mc_version(
     Ok(format!("已安装 {version}（{assets_note}）"))
 }
 
+#[derive(Serialize)]
+struct LoaderListItem {
+    version: String,
+    stable: bool,
+    intermediary: String,
+}
+
+#[tauri::command]
+async fn list_loader_versions(
+    loader: String,
+    game_version: String,
+) -> Result<Vec<LoaderListItem>, String> {
+    let kind = match loader.to_ascii_lowercase().as_str() {
+        "fabric" => LoaderKind::Fabric,
+        "quilt" => LoaderKind::Quilt,
+        other => return Err(format!("不支持的加载器: {other}（目前：fabric / quilt）")),
+    };
+    let list = list_loaders(kind, &game_version)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(list
+        .into_iter()
+        .take(30)
+        .map(|l| LoaderListItem {
+            version: l.loader.version,
+            stable: l.loader.stable,
+            intermediary: l.intermediary.version,
+        })
+        .collect())
+}
+
+#[tauri::command]
+async fn install_loader_version(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    game_version: String,
+    loader: String,
+    loader_version: Option<String>,
+    with_assets: Option<bool>,
+) -> Result<String, String> {
+    let paths = state.paths.clone();
+    let kind = match loader.to_ascii_lowercase().as_str() {
+        "fabric" => LoaderKind::Fabric,
+        "quilt" => LoaderKind::Quilt,
+        "forge" | "neoforge" => {
+            return Err("Forge / NeoForge 尚未实现，请先使用 Fabric 或原版".into());
+        }
+        other => return Err(format!("未知加载器: {other}")),
+    };
+    let vanilla = InstallOptions {
+        assets: with_assets.unwrap_or(true),
+        natives: true,
+    };
+    let app2 = app.clone();
+    let (profile_id, resolved) = match kind {
+        LoaderKind::Fabric => install_fabric(
+            &paths,
+            &McVersion(game_version.clone()),
+            loader_version.clone(),
+            vanilla,
+            move |p| {
+                let _ = app2.emit("install-progress", &p);
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())?,
+        LoaderKind::Quilt => {
+            let app3 = app.clone();
+            install_quilt(
+                &paths,
+                &McVersion(game_version.clone()),
+                loader_version.clone(),
+                vanilla,
+                move |p| {
+                    let _ = app3.emit("install-progress", &p);
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?
+        }
+    };
+    let loader_enum = match kind {
+        LoaderKind::Fabric => ModLoader::Fabric,
+        LoaderKind::Quilt => ModLoader::Quilt,
+    };
+    let mut store = load_instances(&paths).map_err(|e| e.to_string())?;
+    for inst in &mut store.instances {
+        if inst.version.0 == game_version && inst.loader == loader_enum {
+            inst.loader_version = Some(resolved.clone());
+            inst.version_ready = true;
+        }
+    }
+    save_instances(&paths, &store).map_err(|e| e.to_string())?;
+    Ok(format!(
+        "已安装 {} {} @ {}（配置 {profile_id}）",
+        kind.label_zh(),
+        resolved,
+        game_version
+    ))
+}
+
 #[tauri::command]
 fn detect_java_cmd() -> Vec<JavaInstall> {
     detect_java()
@@ -215,9 +346,24 @@ async fn launch_instance(
         .cloned()
         .ok_or_else(|| format!("unknown instance: {instance_id}"))?;
 
-    if !is_version_installed(paths, inst.version.as_str()) {
+    let ready = match inst.loader {
+        ModLoader::Vanilla => is_version_installed(paths, inst.version.as_str()),
+        ModLoader::Fabric => inst
+            .loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Fabric, inst.version.as_str(), lv))
+            .unwrap_or(false),
+        ModLoader::Quilt => inst
+            .loader_version
+            .as_deref()
+            .map(|lv| is_loader_installed(paths, LoaderKind::Quilt, inst.version.as_str(), lv))
+            .unwrap_or(false),
+        ModLoader::Forge | ModLoader::NeoForge => false,
+    };
+    if !ready {
         return Err(format!(
-            "版本 {} 未安装。请先在库/启动页安装。",
+            "{} {} 未安装。请先在库/启动页安装。",
+            inst.loader.label_zh(),
             inst.version
         ));
     }
@@ -307,6 +453,8 @@ pub fn run() {
             start_microsoft_login,
             list_versions,
             install_mc_version,
+            list_loader_versions,
+            install_loader_version,
             detect_java_cmd,
             ensure_java_cmd,
             launch_instance,

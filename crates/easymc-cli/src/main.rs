@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use easymc_core::{
-    create_named_instance, create_offline_account, ensure_defaults, load_accounts, load_instances,
-    load_settings, save_accounts, save_instances, set_active_instance, McVersion, Paths,
+    create_named_instance_with, create_offline_account, ensure_defaults, load_accounts,
+    load_instances, load_settings, save_accounts, save_instances, set_active_instance,
+    CreateInstanceOpts, McVersion, ModLoader, Paths,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager,
 };
 use easymc_meta::{
-    install_version, is_version_installed, InstallOptions, MetaProvider, PistonMetaProvider,
+    install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
+    list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
 };
 
 #[tokio::main]
@@ -84,6 +86,23 @@ async fn real_main() -> easymc_core::Result<()> {
                 );
             }
         }
+        "list-loaders" => {
+            let kind_s = args
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "fabric".into());
+            let game = args.get(1).cloned().unwrap_or_else(|| "1.21.1".into());
+            let kind = parse_loader_kind(&kind_s)?;
+            let list = list_loaders(kind, &game).await?;
+            for (i, l) in list.into_iter().take(20).enumerate() {
+                let mark = if l.loader.stable { "stable" } else { "-" };
+                let flag = if i == 0 || l.loader.stable { "*" } else { " " };
+                println!(
+                    "{flag}\t{}\t{}\tintermediary={}",
+                    l.loader.version, mark, l.intermediary.version
+                );
+            }
+        }
         "install" => {
             let id = args
                 .first()
@@ -97,14 +116,13 @@ async fn real_main() -> easymc_core::Result<()> {
                     natives: true,
                 },
                 |p| {
-                    // Progress to stderr so piping stdout stays clean; humans see live status.
                     eprintln!("{}", p.format_line());
                 },
             )
             .await?;
             let mut store = load_instances(&paths)?;
             for inst in &mut store.instances {
-                if inst.version.0 == *id {
+                if inst.version.0 == *id && inst.loader == ModLoader::Vanilla {
                     inst.version_ready = true;
                 }
             }
@@ -112,14 +130,78 @@ async fn real_main() -> easymc_core::Result<()> {
             eprintln!("OK 已安装 {id}");
             println!("installed {id}");
         }
+        "install-fabric" | "install-quilt" => {
+            let kind = if cmd == "install-quilt" {
+                LoaderKind::Quilt
+            } else {
+                LoaderKind::Fabric
+            };
+            let game = args
+                .first()
+                .cloned()
+                .ok_or_else(|| {
+                    easymc_core::EasyMcError::msg(format!(
+                        "usage: {} <game-version> [--loader VER] [--no-assets]",
+                        cmd
+                    ))
+                })?;
+            let skip_assets = args.iter().any(|a| a == "--no-assets");
+            let loader_ver = flag_value(&args, "--loader");
+            let vanilla = InstallOptions {
+                assets: !skip_assets,
+                natives: true,
+            };
+            let (profile_id, resolved_loader) = match kind {
+                LoaderKind::Fabric => {
+                    install_fabric(
+                        &paths,
+                        &McVersion(game.clone()),
+                        loader_ver.clone(),
+                        vanilla,
+                        |p| eprintln!("{}", p.format_line()),
+                    )
+                    .await?
+                }
+                LoaderKind::Quilt => {
+                    install_quilt(
+                        &paths,
+                        &McVersion(game.clone()),
+                        loader_ver.clone(),
+                        vanilla,
+                        |p| eprintln!("{}", p.format_line()),
+                    )
+                    .await?
+                }
+            };
+            let mut store = load_instances(&paths)?;
+            let loader_enum = match kind {
+                LoaderKind::Fabric => ModLoader::Fabric,
+                LoaderKind::Quilt => ModLoader::Quilt,
+            };
+            for inst in &mut store.instances {
+                if inst.version.0 == game && inst.loader == loader_enum {
+                    inst.loader_version = Some(resolved_loader.clone());
+                    inst.version_ready = true;
+                }
+            }
+            save_instances(&paths, &store)?;
+            eprintln!(
+                "OK 已安装 {} {} @ {} → {profile_id}",
+                kind.label_zh(),
+                resolved_loader,
+                game
+            );
+            println!("installed {profile_id}");
+        }
         "instances" => {
             let store = load_instances(&paths)?;
             let active = store.active_id.clone().unwrap_or_default();
             for i in store.instances {
                 let mark = if i.id == active { "*" } else { " " };
+                let lv = i.loader_version.as_deref().unwrap_or("-");
                 println!(
-                    "{mark}\t{}\t{}\t{}\tready={}\t{}",
-                    i.id, i.name, i.version, i.version_ready, i.game_dir
+                    "{mark}\t{}\t{}\t{}\t{}\tloader_ver={}\tready={}\t{}",
+                    i.id, i.name, i.version, i.loader, lv, i.version_ready, i.game_dir
                 );
             }
         }
@@ -163,8 +245,11 @@ async fn real_main() -> easymc_core::Result<()> {
                 .iter()
                 .find(|a| a.id == acc_id)
                 .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("account {acc_id}")))?;
-            if !inst.version_ready && !is_version_installed(&paths, inst.version.as_str()) {
-                eprintln!("version not installed — run: easymc install {}", inst.version);
+            if !instance_launchable(&paths, inst) {
+                eprintln!(
+                    "not installed — run install / install-fabric for {} {}",
+                    inst.loader, inst.version
+                );
                 return Err(easymc_core::EasyMcError::msg("not installed"));
             }
             let procs = Arc::new(ProcessManager::new());
@@ -187,13 +272,43 @@ async fn real_main() -> easymc_core::Result<()> {
             }
         }
         "create-instance" => {
-            let name = args.first().cloned().unwrap_or_else(|| "New Instance".into());
-            let ver = args.get(1).cloned().unwrap_or_else(|| "1.21.1".into());
-            let ready = is_version_installed(&paths, &ver);
-            let inst = create_named_instance(&paths, name, McVersion(ver), ready)?;
+            let name = positional_clean(&args, 0).unwrap_or_else(|| "New Instance".into());
+            let ver = positional_clean(&args, 1).unwrap_or_else(|| "1.21.1".into());
+            let loader = flag_value(&args, "--loader")
+                .as_deref()
+                .and_then(ModLoader::parse_loose)
+                .unwrap_or(ModLoader::Vanilla);
+            let loader_version = flag_value(&args, "--loader-version");
+            let ready = match loader {
+                ModLoader::Vanilla => is_version_installed(&paths, &ver),
+                ModLoader::Fabric => loader_version
+                    .as_deref()
+                    .map(|lv| is_loader_installed(&paths, LoaderKind::Fabric, &ver, lv))
+                    .unwrap_or(false),
+                ModLoader::Quilt => loader_version
+                    .as_deref()
+                    .map(|lv| is_loader_installed(&paths, LoaderKind::Quilt, &ver, lv))
+                    .unwrap_or(false),
+                ModLoader::Forge | ModLoader::NeoForge => false,
+            };
+            let inst = create_named_instance_with(
+                &paths,
+                CreateInstanceOpts {
+                    name,
+                    version: McVersion(ver),
+                    loader,
+                    loader_version,
+                    version_ready: ready,
+                },
+            )?;
             println!(
-                "{}\t{}\t{}\tready={}",
-                inst.id, inst.name, inst.version, inst.version_ready
+                "{}\t{}\t{}\t{}\tloader_ver={}\tready={}",
+                inst.id,
+                inst.name,
+                inst.version,
+                inst.loader,
+                inst.loader_version.as_deref().unwrap_or("-"),
+                inst.version_ready
             );
         }
         "set-active" => {
@@ -213,6 +328,59 @@ async fn real_main() -> easymc_core::Result<()> {
     Ok(())
 }
 
+fn parse_loader_kind(s: &str) -> easymc_core::Result<LoaderKind> {
+    match s.to_ascii_lowercase().as_str() {
+        "fabric" => Ok(LoaderKind::Fabric),
+        "quilt" => Ok(LoaderKind::Quilt),
+        _ => Err(easymc_core::EasyMcError::msg(
+            "loader kind must be fabric|quilt",
+        )),
+    }
+}
+
+fn flag_value(args: &[String], flag: &str) -> Option<String> {
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1).cloned())
+}
+
+fn positional_clean(args: &[String], index: usize) -> Option<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].starts_with("--") {
+            i += 2; // skip flag + value (best-effort)
+            continue;
+        }
+        out.push(args[i].clone());
+        i += 1;
+    }
+    out.get(index).cloned()
+}
+
+fn instance_launchable(paths: &Paths, inst: &easymc_core::Instance) -> bool {
+    match inst.loader {
+        ModLoader::Vanilla => {
+            inst.version_ready || is_version_installed(paths, inst.version.as_str())
+        }
+        ModLoader::Fabric => {
+            if let Some(lv) = inst.loader_version.as_deref() {
+                is_loader_installed(paths, LoaderKind::Fabric, inst.version.as_str(), lv)
+            } else {
+                false
+            }
+        }
+        ModLoader::Quilt => {
+            if let Some(lv) = inst.loader_version.as_deref() {
+                is_loader_installed(paths, LoaderKind::Quilt, inst.version.as_str(), lv)
+            } else {
+                false
+            }
+        }
+        ModLoader::Forge | ModLoader::NeoForge => false,
+    }
+}
+
 fn print_help() {
     eprintln!(
         "EasyMC CLI\n\
@@ -222,11 +390,14 @@ fn print_help() {
            java\n\
            ensure-java [major]\n\
            list-versions [filter|--snapshots]\n\
+           list-loaders <fabric|quilt> [game-version]\n\
            install <version> [--no-assets]\n\
+           install-fabric <game> [--loader VER] [--no-assets]\n\
+           install-quilt <game> [--loader VER] [--no-assets]\n\
            instances\n\
            accounts\n\
            offline [username]\n\
-           create-instance [name] [version]\n\
+           create-instance [name] [version] [--loader vanilla|fabric|quilt] [--loader-version VER]\n\
            set-active <instance-id>\n\
            launch [instance-id]\n"
     );
