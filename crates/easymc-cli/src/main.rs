@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
 use easymc_core::{
-    create_offline_account, ensure_defaults, load_accounts, load_instances, load_settings,
-    save_accounts, save_instances, upsert_instance, McVersion, Paths,
+    create_named_instance, create_offline_account, ensure_defaults, load_accounts, load_instances,
+    load_settings, save_accounts, save_instances, set_active_instance, McVersion, Paths,
 };
-use easymc_launch_desktop::{detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager};
-use easymc_meta::{install_version, is_version_installed, InstallOptions, PistonMetaProvider, MetaProvider};
+use easymc_launch_desktop::{
+    detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager,
+};
+use easymc_meta::{
+    install_version, is_version_installed, InstallOptions, MetaProvider, PistonMetaProvider,
+};
 
 #[tokio::main]
 async fn main() {
@@ -33,7 +37,13 @@ async fn real_main() -> easymc_core::Result<()> {
         }
         "java" => {
             for j in detect_java() {
-                println!("{}  major={}  ({})  {}", j.path.display(), j.major, j.source, j.version_string);
+                println!(
+                    "{}  major={}  ({})  {}",
+                    j.path.display(),
+                    j.major,
+                    j.source,
+                    j.version_string
+                );
             }
         }
         "ensure-java" => {
@@ -44,15 +54,40 @@ async fn real_main() -> easymc_core::Result<()> {
         "list-versions" => {
             let p = PistonMetaProvider::new();
             let list = p.list_versions().await?;
-            let filter = args.first().cloned();
-            for v in list.into_iter().filter(|v| {
-                filter.as_ref().map(|f| v.id.contains(f.as_str()) || v.version_type == *f).unwrap_or(v.version_type == "release")
-            }).take(40) {
-                println!("{}\t{}\t{}", v.id, v.version_type, if is_version_installed(&paths, &v.id) { "installed" } else { "-" });
+            let include_snapshots = args.iter().any(|a| a == "--snapshots" || a == "snapshot");
+            let filter = args
+                .iter()
+                .find(|a| *a != "--snapshots" && *a != "snapshot")
+                .cloned();
+            for v in list
+                .into_iter()
+                .filter(|v| {
+                    if let Some(ref f) = filter {
+                        v.id.contains(f.as_str()) || v.version_type == *f
+                    } else if include_snapshots {
+                        true
+                    } else {
+                        v.version_type == "release"
+                    }
+                })
+                .take(if include_snapshots { 80 } else { 40 })
+            {
+                println!(
+                    "{}\t{}\t{}",
+                    v.id,
+                    v.version_type,
+                    if is_version_installed(&paths, &v.id) {
+                        "installed"
+                    } else {
+                        "-"
+                    }
+                );
             }
         }
         "install" => {
-            let id = args.first().ok_or_else(|| easymc_core::EasyMcError::msg("usage: install <version>"))?;
+            let id = args
+                .first()
+                .ok_or_else(|| easymc_core::EasyMcError::msg("usage: install <version>"))?;
             let skip_assets = args.iter().any(|a| a == "--no-assets");
             install_version(
                 &paths,
@@ -66,7 +101,6 @@ async fn real_main() -> easymc_core::Result<()> {
                 },
             )
             .await?;
-            // mark instance ready if matching
             let mut store = load_instances(&paths)?;
             for inst in &mut store.instances {
                 if inst.version.0 == *id {
@@ -78,9 +112,11 @@ async fn real_main() -> easymc_core::Result<()> {
         }
         "instances" => {
             let store = load_instances(&paths)?;
+            let active = store.active_id.clone().unwrap_or_default();
             for i in store.instances {
+                let mark = if i.id == active { "*" } else { " " };
                 println!(
-                    "{}\t{}\t{}\tready={}\t{}",
+                    "{mark}\t{}\t{}\t{}\tready={}\t{}",
                     i.id, i.name, i.version, i.version_ready, i.game_dir
                 );
             }
@@ -102,8 +138,12 @@ async fn real_main() -> easymc_core::Result<()> {
             save_accounts(&paths, &store)?;
         }
         "launch" => {
-            let id = args.first().cloned().unwrap_or_else(|| "default".into());
             let store = load_instances(&paths)?;
+            let id = args
+                .first()
+                .cloned()
+                .or(store.active_id.clone())
+                .unwrap_or_else(|| "default".into());
             let accounts = load_accounts(&paths)?;
             let settings = load_settings(&paths)?;
             let inst = store
@@ -140,7 +180,6 @@ async fn real_main() -> easymc_core::Result<()> {
             )
             .await?;
             println!("{}", status.message);
-            // wait until exit
             while procs.is_running().await {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
@@ -148,18 +187,20 @@ async fn real_main() -> easymc_core::Result<()> {
         "create-instance" => {
             let name = args.first().cloned().unwrap_or_else(|| "New Instance".into());
             let ver = args.get(1).cloned().unwrap_or_else(|| "1.21.1".into());
-            let id = format!(
-                "inst-{}",
-                chrono::Utc::now().timestamp()
+            let ready = is_version_installed(&paths, &ver);
+            let inst = create_named_instance(&paths, name, McVersion(ver), ready)?;
+            println!(
+                "{}\t{}\t{}\tready={}",
+                inst.id, inst.name, inst.version, inst.version_ready
             );
-            let game_dir = paths.instance_game_dir(&id);
-            std::fs::create_dir_all(&game_dir)?;
-            let mut inst = easymc_core::Instance::new(id, name, McVersion(ver), game_dir.to_string_lossy().into());
-            let accounts = load_accounts(&paths)?;
-            inst.account_id = accounts.active_id;
-            inst.version_ready = is_version_installed(&paths, inst.version.as_str());
-            upsert_instance(&paths, inst)?;
-            println!("ok");
+        }
+        "set-active" => {
+            let id = args
+                .first()
+                .cloned()
+                .ok_or_else(|| easymc_core::EasyMcError::msg("usage: set-active <instance-id>"))?;
+            set_active_instance(&paths, &id)?;
+            println!("active={id}");
         }
         other => {
             eprintln!("unknown command: {other}");
@@ -178,12 +219,13 @@ fn print_help() {
            paths\n\
            java\n\
            ensure-java [major]\n\
-           list-versions [filter]\n\
+           list-versions [filter|--snapshots]\n\
            install <version> [--no-assets]\n\
            instances\n\
            accounts\n\
            offline [username]\n\
            create-instance [name] [version]\n\
+           set-active <instance-id>\n\
            launch [instance-id]\n"
     );
 }

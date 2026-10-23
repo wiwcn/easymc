@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use easymc_core::{
-    begin_microsoft_login, create_offline_account, ensure_defaults, load_accounts, load_instances,
-    load_settings, save_accounts, save_instances, upsert_instance, Account, Instance, McVersion,
-    MicrosoftAuthConfig, Paths, Settings,
+    begin_microsoft_login, create_named_instance, create_offline_account, ensure_defaults,
+    load_accounts, load_instances, load_settings, save_accounts, save_instances, set_active_instance,
+    upsert_instance, Account, Instance, McVersion, MicrosoftAuthConfig, Paths, Settings,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, JavaInstall, LaunchRequest, LaunchStatus,
@@ -11,7 +11,6 @@ use easymc_launch_desktop::{
 };
 use easymc_meta::{
     install_version, is_version_installed, InstallOptions, MetaProvider, PistonMetaProvider,
-    VersionSummary,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -38,16 +37,60 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1",
+        "milestone": "M1.1",
         "data_dir": state.paths.root,
         "msa_configured": MicrosoftAuthConfig::default().is_configured(),
     })
 }
 
+#[derive(Serialize)]
+struct InstancesStateDto {
+    instances: Vec<Instance>,
+    active_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct VersionListItem {
+    id: String,
+    #[serde(rename = "type")]
+    version_type: String,
+    url: String,
+    installed: bool,
+}
+
 #[tauri::command]
-fn list_instances(state: State<'_, AppState>) -> Result<Vec<Instance>, String> {
+fn list_instances(state: State<'_, AppState>) -> Result<InstancesStateDto, String> {
     let (store, _) = ensure_defaults(state_paths(&state)).map_err(|e| e.to_string())?;
-    Ok(store.instances)
+    Ok(InstancesStateDto {
+        instances: store.instances,
+        active_id: store.active_id,
+    })
+}
+
+#[tauri::command]
+fn create_instance(
+    state: State<'_, AppState>,
+    name: String,
+    version: String,
+) -> Result<Instance, String> {
+    let paths = state_paths(&state);
+    ensure_defaults(paths).map_err(|e| e.to_string())?;
+    let ready = is_version_installed(paths, &version);
+    create_named_instance(paths, name, McVersion(version), ready).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_active_instance_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<InstancesStateDto, String> {
+    let paths = state_paths(&state);
+    ensure_defaults(paths).map_err(|e| e.to_string())?;
+    let store = set_active_instance(paths, &instance_id).map_err(|e| e.to_string())?;
+    Ok(InstancesStateDto {
+        instances: store.instances,
+        active_id: store.active_id,
+    })
 }
 
 #[tauri::command]
@@ -76,12 +119,29 @@ async fn start_microsoft_login() -> Result<Account, String> {
 }
 
 #[tauri::command]
-async fn list_versions() -> Result<Vec<VersionSummary>, String> {
+async fn list_versions(
+    state: State<'_, AppState>,
+    include_snapshots: Option<bool>,
+) -> Result<Vec<VersionListItem>, String> {
+    let include_snapshots = include_snapshots.unwrap_or(false);
     let p = PistonMetaProvider::new();
     let mut list = p.list_versions().await.map_err(|e| e.to_string())?;
-    list.retain(|v| v.version_type == "release");
-    list.truncate(60);
-    Ok(list)
+    if !include_snapshots {
+        list.retain(|v| v.version_type == "release");
+    }
+    // Prefer recent entries; piston-meta is newest-first.
+    let limit = if include_snapshots { 120 } else { 80 };
+    list.truncate(limit);
+    let paths = state_paths(&state);
+    Ok(list
+        .into_iter()
+        .map(|v| VersionListItem {
+            installed: is_version_installed(paths, &v.id),
+            id: v.id,
+            version_type: v.version_type,
+            url: v.url,
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -240,6 +300,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             list_instances,
+            create_instance,
+            set_active_instance_cmd,
             list_accounts,
             create_offline,
             start_microsoft_login,
