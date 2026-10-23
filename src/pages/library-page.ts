@@ -14,6 +14,9 @@ import {
   listenInstallProgress,
   exportInstance,
   importInstance,
+  listInstalledMods,
+  removeMod,
+  setModDisabled,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import {
@@ -46,6 +49,14 @@ export class LibraryPage extends LitElement {
   @state() private loaderVersions: { version: string; stable: boolean; intermediary: string }[] = [];
   @state() private newLoaderVersion = "";
   @state() private progress: InstallProgressDto | null = null;
+
+  /** Instance whose mods panel is open (PCL-like: mods live under the instance). */
+  @state() private detailId: string | null = null;
+  @state() private mods: string[] = [];
+  @state() private modsLoading = false;
+  @state() private busyMod: string | null = null;
+  @state() private modFilter: "all" | "enabled" | "disabled" = "all";
+  @state() private removingMod: string | null = null;
 
   private unProg?: () => void;
 
@@ -341,6 +352,172 @@ export class LibraryPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface);
     }
+
+    .detail {
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
+      animation: panel-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+    }
+    .detail-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .detail-head h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+    .detail-head .meta {
+      margin-top: 4px;
+    }
+    .mod-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .mod-toolbar .spacer {
+      flex: 1;
+    }
+    .mod-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mod-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background: var(--md-sys-color-surface-container-lowest);
+      font-size: 0.9rem;
+      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+    }
+    .mod-row.leaving {
+      animation: row-out var(--easymc-dur-fast) var(--easymc-ease-in) both;
+    }
+    .mod-rows .mod-row:nth-child(1) { animation-delay: 0ms; }
+    .mod-rows .mod-row:nth-child(2) { animation-delay: 25ms; }
+    .mod-rows .mod-row:nth-child(3) { animation-delay: 50ms; }
+    .mod-rows .mod-row:nth-child(4) { animation-delay: 75ms; }
+    .mod-rows .mod-row:nth-child(5) { animation-delay: 100ms; }
+    .mod-rows .mod-row:nth-child(n+6) { animation-delay: 120ms; }
+    .mod-row .name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+    }
+    .mod-row .badge.off {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+      flex-shrink: 0;
+    }
+    .mod-row button.danger {
+      padding: 6px 12px;
+      border: none;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .mod-row button.danger:disabled,
+    .mod-row button.ghost:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .mod-empty {
+      padding: 28px 20px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.5;
+      background: var(--md-sys-color-surface-container-lowest);
+      border-radius: var(--md-sys-shape-corner-large);
+    }
+    .mod-empty p {
+      margin: 0 0 14px;
+    }
+    .card {
+      cursor: pointer;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        border-color var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .card:hover {
+      background: var(--md-sys-color-surface-container-high);
+    }
+    .card.selected {
+      border-color: var(--md-sys-color-primary);
+    }
+    .card:active {
+      transform: scale(0.99);
+    }
+    .btn {
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .btn:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+    .chip {
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        color var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .chip:active {
+      transform: scale(0.98);
+    }
+    .chip.on {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border-color: transparent;
+    }
+    .badge.ok {
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+    .badge.warn {
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+    }
+    @keyframes row-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes row-out {
+      from { opacity: 1; transform: none; }
+      to { opacity: 0; transform: translateX(12px); }
+    }
+    @keyframes panel-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .detail, .mod-row, .mod-row.leaving { animation: none; }
+      .card:active, .btn:active:not(:disabled), .chip:active { transform: none; }
+    }
   `;
 
   connectedCallback() {
@@ -363,6 +540,14 @@ export class LibraryPage extends LitElement {
     this.instances = state.instances;
     this.activeId = state.active_id;
     this.loading = false;
+    if (!this.detailId && state.active_id) {
+      await this.openDetail(state.active_id);
+    } else if (this.detailId) {
+      if (!state.instances.some((i) => i.id === this.detailId)) {
+        this.detailId = state.active_id;
+      }
+      if (this.detailId) await this.refreshMods();
+    }
   }
 
   private async openCreate() {
@@ -501,6 +686,88 @@ export class LibraryPage extends LitElement {
   }
 
 
+
+  private get detail(): InstanceDto | undefined {
+    return this.instances.find((i) => i.id === this.detailId);
+  }
+
+  private async openDetail(id: string) {
+    this.detailId = id;
+    this.modFilter = "all";
+    await this.refreshMods();
+  }
+
+  private async refreshMods() {
+    const id = this.detailId;
+    if (!id) {
+      this.mods = [];
+      return;
+    }
+    this.modsLoading = true;
+    try {
+      this.mods = await listInstalledMods(id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+      this.mods = [];
+    } finally {
+      this.modsLoading = false;
+    }
+  }
+
+  private isDisabledJar(name: string): boolean {
+    return name.endsWith(".jar.disabled");
+  }
+
+  private filteredMods(): string[] {
+    if (this.modFilter === "enabled") {
+      return this.mods.filter((m) => !this.isDisabledJar(m));
+    }
+    if (this.modFilter === "disabled") {
+      return this.mods.filter((m) => this.isDisabledJar(m));
+    }
+    return this.mods;
+  }
+
+  private goStore() {
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "store", bubbles: true, composed: true }),
+    );
+  }
+
+  private async onUninstall(filename: string) {
+    if (!this.detailId) return;
+    if (!window.confirm(`卸载模组？\n${filename}`)) return;
+    this.busyMod = filename;
+    this.removingMod = filename;
+    try {
+      const removed = await removeMod(filename, this.detailId);
+      showToast(`已卸载 ${removed}`);
+      // brief leave animation then refresh
+      await new Promise((r) => setTimeout(r, 160));
+      await this.refreshMods();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.busyMod = null;
+      this.removingMod = null;
+    }
+  }
+
+  private async onToggleDisabled(filename: string) {
+    if (!this.detailId) return;
+    const disabled = !filename.endsWith(".jar.disabled");
+    this.busyMod = filename;
+    try {
+      const next = await setModDisabled(filename, disabled, this.detailId);
+      showToast(disabled ? `已禁用 ${next}` : `已启用 ${next}`);
+      await this.refreshMods();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.busyMod = null;
+    }
+  }
+
   private async onExport(inst: InstanceDto, pack: boolean) {
     this.busy = true;
     this.status = pack ? "正在导出整合包…" : "正在导出元数据…";
@@ -552,7 +819,7 @@ export class LibraryPage extends LitElement {
       <div class="head">
         <div>
           <h1>库</h1>
-          <p class="sub">管理实例 · 选择版本创建新世界</p>
+          <p class="sub">管理实例与该版本的模组 · 商店负责发现与安装</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>
@@ -575,6 +842,103 @@ export class LibraryPage extends LitElement {
           ? html`<div class="empty">还没有实例，点击「新建实例」开始。</div>`
           : null}
       </div>
+
+      ${this.detail ? this.renderMods(this.detail) : null}
+    `;
+  }
+
+  private renderMods(inst: InstanceDto) {
+    const list = this.filteredMods();
+    const ver = versionId(inst.version);
+    return html`
+      <section class="detail" aria-label="实例模组">
+        <div class="detail-head">
+          <div>
+            <h2>模组 · ${inst.name}</h2>
+            <div class="meta">
+              ${ver} · ${loaderLabel(inst.loader)}${inst.loader_version ? ` ${inst.loader_version}` : ""}
+              · <code>${inst.id}</code>
+            </div>
+          </div>
+          <button class="btn ghost sm" type="button" @click=${() => this.goStore()}>
+            去商店下载
+          </button>
+        </div>
+
+        <div class="mod-toolbar">
+          <button
+            class="chip ${this.modFilter === "all" ? "on" : ""}"
+            type="button"
+            @click=${() => (this.modFilter = "all")}
+          >
+            全部
+          </button>
+          <button
+            class="chip ${this.modFilter === "enabled" ? "on" : ""}"
+            type="button"
+            @click=${() => (this.modFilter = "enabled")}
+          >
+            已启用
+          </button>
+          <button
+            class="chip ${this.modFilter === "disabled" ? "on" : ""}"
+            type="button"
+            @click=${() => (this.modFilter = "disabled")}
+          >
+            已禁用
+          </button>
+          <span class="spacer"></span>
+          <button
+            class="btn ghost sm"
+            type="button"
+            ?disabled=${this.modsLoading}
+            @click=${() => this.refreshMods()}
+          >
+            ${this.modsLoading ? "刷新中…" : "刷新"}
+          </button>
+        </div>
+
+        ${this.modsLoading && !this.mods.length
+          ? html`<p class="meta">加载模组列表…</p>`
+          : list.length
+            ? html`<div class="mod-rows">
+                ${list.map((m) => {
+                  const busy = this.busyMod === m;
+                  const disabled = this.isDisabledJar(m);
+                  const leaving = this.removingMod === m;
+                  return html`<div class="mod-row ${leaving ? "leaving" : ""}">
+                    <span class="name" title=${m}>${m}</span>
+                    ${disabled ? html`<span class="badge off">已禁用</span>` : null}
+                    <button
+                      class="btn ghost sm"
+                      type="button"
+                      ?disabled=${busy}
+                      @click=${() => this.onToggleDisabled(m)}
+                    >
+                      ${disabled ? "启用" : "禁用"}
+                    </button>
+                    <button
+                      class="danger"
+                      type="button"
+                      ?disabled=${busy}
+                      @click=${() => this.onUninstall(m)}
+                    >
+                      ${busy && leaving ? "…" : "卸载"}
+                    </button>
+                  </div>`;
+                })}
+              </div>`
+            : html`<div class="mod-empty">
+                <p>
+                  ${this.mods.length
+                    ? "当前筛选下没有模组。"
+                    : "此实例还没有模组。到商店搜索并安装到该实例。"}
+                </p>
+                <button class="btn primary" type="button" @click=${() => this.goStore()}>
+                  去商店下载
+                </button>
+              </div>`}
+      </section>
     `;
   }
 
@@ -742,18 +1106,23 @@ export class LibraryPage extends LitElement {
   private renderCard(inst: InstanceDto) {
     const ver = versionId(inst.version);
     const isActive = inst.id === this.activeId;
+    const selected = inst.id === this.detailId;
     return html`
-      <article class="card ${isActive ? "active" : ""}">
+      <article
+        class="card ${isActive ? "active" : ""} ${selected ? "selected" : ""}"
+        @click=${() => this.openDetail(inst.id)}
+      >
         <div>
           ${isActive ? html`<span class="badge def">默认</span>` : null}
           ${inst.version_ready
             ? html`<span class="badge ok">已安装</span>`
             : html`<span class="badge warn">未安装</span>`}
+          ${selected ? html`<span class="badge def">模组</span>` : null}
         </div>
         <h3>${inst.name}</h3>
         <div class="meta">${ver} · ${loaderLabel(inst.loader)}${inst.loader_version ? ` ${inst.loader_version}` : ""}</div>
         <div class="meta">${inst.description ?? ""}</div>
-        <div class="row">
+        <div class="row" @click=${(e: Event) => e.stopPropagation()}>
           ${!isActive
             ? html`<button class="btn ghost sm" type="button" @click=${() => this.onSetActive(inst.id)}>
                 设为默认

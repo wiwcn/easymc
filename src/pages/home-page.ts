@@ -158,9 +158,39 @@ export class HomePage extends LitElement {
       opacity: 0.55;
       cursor: not-allowed;
     }
+    .launch {
+      transition:
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out),
+        opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .launch:hover:not(:disabled) {
+      box-shadow: var(--md-sys-elevation-3);
+    }
+    .launch:active:not(:disabled) {
+      transform: scale(0.98);
+    }
     .secondary {
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface);
+      transition:
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        background var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .secondary:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+    .hero {
+      animation: hero-in var(--easymc-dur-page) var(--easymc-ease-out) both;
+    }
+    @keyframes hero-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero { animation: none; }
+      .launch:active:not(:disabled),
+      .secondary:active:not(:disabled) { transform: none; }
     }
     .status {
       margin: 0 0 16px;
@@ -215,7 +245,7 @@ export class HomePage extends LitElement {
     }
     .card.active {
       border-color: var(--md-sys-color-primary);
-      background: #e0f2f1;
+      background: var(--md-sys-color-primary-container);
     }
     .card h3 {
       margin: 0;

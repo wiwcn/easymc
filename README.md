@@ -19,7 +19,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - Install progress: phase labels (元数据/客户端/依赖库/本地库/游戏资源) + counts/%; CLI stderr lines; Tauri `install-progress` events → Home/库 progress bar
 - Skip-if-present clarity (新下 / 跳过); `--no-assets` + UI「下载游戏资源」/「快速安装（无资源）」; mid-fail drops `.part` and surfaces stage-scoped errors
 - Mod loaders: **Fabric** / **Quilt** (meta profile JSON) + **Forge** / **NeoForge** (official installer JAR `--installClient`, processors run under Temurin). `inheritsFrom` merge; launch resolves profile mainClass/libraries. UI create chips: 原版 | Fabric | Quilt | Forge | NeoForge
-- Mod store: **Modrinth + CurseForge** search / version list / install / **uninstall** jar in instance `mods/` (optional disable via `.jar.disabled`). CLI + 商店 UI. CurseForge API Key: paste in **设置** / Store (saved to local `settings.json`) or `EASYMC_CURSEFORGE_API_KEY` (env overrides). Modrinth needs no key
+- Mod store: **Modrinth + CurseForge** search / version list / install into the selected instance. **Installed mods are managed under 库/实例** (enable / disable / uninstall), not on the store page. CLI still supports list/remove. CurseForge API Key: paste in **设置** / Store (saved to local `settings.json`) or `EASYMC_CURSEFORGE_API_KEY` (env overrides). Modrinth needs no key
 - **Share (M1.7):** export/import instance configs — metadata JSON or pack zip with `mods/*.jar`. Resolves missing mods via Modrinth/CF ids when known. CLI `export-instance` / `import-instance`; UI on 库 / 启动
 - Microsoft auth: structure + clear TODO (`EASYMC_MSA_CLIENT_ID`); offline play works without it
 - Headless CLI: `cargo run -p easymc-cli -- <cmd>`
@@ -77,7 +77,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. 库: same + per-card export. **商店**: Modrinth/CurseForge + 已安装列表（卸载/禁用）. **Agent**: diagnose + optional LLM. Settings: offline accounts + **CurseForge API Key**. Toggle **下载游戏资源** or **快速安装（无资源）**.
+Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. **库**: instances + **per-instance 模组** (启用/禁用/卸载, filter 全部/已启用/已禁用) + export. **商店**: Modrinth/CurseForge discovery & install only. **Agent**: diagnose + optional LLM. Settings: offline accounts + **CurseForge API Key**. Toggle **下载游戏资源** or **快速安装（无资源）**. See `DESIGN.md` for IA + motion.
 
 
 ## Agent (M1.6)
@@ -184,7 +184,7 @@ Without it, Modrinth still works; CurseForge search/install returns a clear zh-C
 
 Thin custom CSS tokens (`src/styles/tokens.css`), soft teal seed. Avoids sole dependence on maintenance-mode `@material/web`.
 
-Nav: **启动 / 库 / 商店 / Agent / 分享 / 设置**
+Nav: **启动 / 库 / 商店 / Agent / 分享 / 设置** · 已安装模组在「库」实例下管理；商店负责发现与安装
 
 ## Microsoft auth TODO
 

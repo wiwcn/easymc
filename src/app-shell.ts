@@ -1,5 +1,6 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { keyed } from "lit/directives/keyed.js";
 import type { NavId } from "./types";
 import "./components/side-nav";
 import "./pages/home-page";
@@ -11,6 +12,7 @@ import "./pages/agent-page";
 @customElement("easymc-app")
 export class EasyMcApp extends LitElement {
   @state() private route: NavId = "home";
+  @state() private pageKey = 0;
 
   static styles = css`
     :host {
@@ -32,13 +34,16 @@ export class EasyMcApp extends LitElement {
       justify-content: space-between;
       padding: 12px 28px;
       min-height: 56px;
+      border-bottom: 1px solid
+        color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
     }
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-weight: 500;
-      font-size: 1.25rem;
+      font-weight: 600;
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
       color: var(--md-sys-color-on-surface);
     }
     .menu-btn {
@@ -50,32 +55,73 @@ export class EasyMcApp extends LitElement {
       color: var(--md-sys-color-on-surface-variant);
       cursor: pointer;
       font-size: 1.25rem;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     .menu-btn:hover {
       background: var(--md-sys-color-surface-container);
+    }
+    .menu-btn:active {
+      transform: scale(0.96);
     }
     .avatar {
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #80cbc4, #0f766e);
+      background: var(--md-sys-color-primary-container);
       border: 2px solid var(--md-sys-color-outline-variant);
+      box-shadow: inset 0 0 0 6px
+        color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
     }
     .content {
       flex: 1;
       overflow: auto;
       padding: 8px 28px 28px;
     }
+    .page {
+      animation: page-in var(--easymc-dur-page) var(--easymc-ease-out) both;
+    }
+    @keyframes page-in {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .page {
+        animation: none;
+      }
+      .menu-btn:active {
+        transform: none;
+      }
+    }
   `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener("nav-change", this.onNav as EventListener);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener("nav-change", this.onNav as EventListener);
+    super.disconnectedCallback();
+  }
 
   private onNav = (e: Event) => {
     const detail = (e as CustomEvent<NavId>).detail;
+    if (!detail || detail === this.route) return;
     this.route = detail;
+    this.pageKey += 1;
   };
 
   render() {
     return html`
-      <easymc-side-nav .active=${this.route} @nav-change=${this.onNav}></easymc-side-nav>
+      <easymc-side-nav .active=${this.route}></easymc-side-nav>
       <div class="main">
         <header class="top">
           <div class="brand">
@@ -84,7 +130,12 @@ export class EasyMcApp extends LitElement {
           </div>
           <div class="avatar" title="账户（M0 占位）"></div>
         </header>
-        <div class="content">${this.renderPage()}</div>
+        <div class="content">
+          ${keyed(
+            this.pageKey,
+            html`<div class="page">${this.renderPage()}</div>`,
+          )}
+        </div>
       </div>
     `;
   }

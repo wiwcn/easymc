@@ -44,20 +44,30 @@ export class SideNav extends LitElement {
       font-size: 0.95rem;
       font-weight: 500;
       text-align: left;
-      transition: background 120ms, color 120ms;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        color var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.item:hover {
       background: var(--md-sys-color-surface-container-high);
     }
+    button.item:active {
+      transform: scale(0.98);
+    }
     button.item.active {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
+    }
+    button.item:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
     }
     .icon {
       width: 1.25rem;
       text-align: center;
       font-size: 1.1rem;
       line-height: 1;
+      opacity: 0.9;
     }
     .promo {
       margin-top: auto;
@@ -66,22 +76,30 @@ export class SideNav extends LitElement {
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
       font-size: 0.8rem;
+      line-height: 1.4;
     }
     .promo strong {
       display: block;
       font-size: 0.9rem;
       margin-bottom: 4px;
+      letter-spacing: -0.01em;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button.item:active {
+        transform: none;
+      }
     }
   `;
 
   render() {
     return html`
-      <nav>
+      <nav aria-label="主导航">
         ${ITEMS.map(
           (it) => html`
             <button
               class="item ${this.active === it.id ? "active" : ""}"
               type="button"
+              aria-current=${this.active === it.id ? "page" : "false"}
               @click=${() => this.select(it.id)}
             >
               <span class="icon" aria-hidden="true">${it.icon}</span>
@@ -91,8 +109,8 @@ export class SideNav extends LitElement {
         )}
       </nav>
       <div class="promo">
-        <strong>✦ New in 1.21.1</strong>
-        More features, better performance
+        <strong>1.21.1 就绪</strong>
+        多实例、模组与分享包
       </div>
     `;
   }

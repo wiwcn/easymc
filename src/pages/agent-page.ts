@@ -87,6 +87,36 @@ export class AgentPage extends LitElement {
       opacity: 0.5;
       cursor: not-allowed;
     }
+    button,
+    .chip {
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button:active:not(:disabled),
+    .chip:active {
+      transform: scale(0.98);
+    }
+    .badge.on {
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+    .err {
+      color: var(--md-sys-color-error);
+    }
+    .findings .card {
+      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+    }
+    @keyframes row-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .findings .card { animation: none; }
+      button:active:not(:disabled),
+      .chip:active { transform: none; }
+    }
     select {
       padding: 8px 12px;
       border-radius: 12px;

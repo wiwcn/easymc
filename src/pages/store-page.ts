@@ -3,14 +3,11 @@ import { customElement, state } from "lit/decorators.js";
 import {
   curseforgeConfigured,
   installMod,
-  listInstalledMods,
   listInstancesState,
   listModVersions,
   listenInstallProgress,
-  removeMod,
   searchMods,
   setCurseforgeKey,
-  setModDisabled,
 } from "../api";
 import {
   formatProgressLine,
@@ -37,10 +34,8 @@ export class StorePage extends LitElement {
   @state() private instances: InstanceDto[] = [];
   @state() private activeId: string | null = null;
   @state() private cf: CurseForgeStatusDto | null = null;
-  @state() private installed: string[] = [];
   @state() private progress: InstallProgressDto | null = null;
   @state() private installingId: string | null = null;
-  @state() private busyMod: string | null = null;
   @state() private expandedId: string | null = null;
   @state() private versions: ModVersionDto[] = [];
   @state() private versionsLoading = false;
@@ -217,74 +212,6 @@ export class StorePage extends LitElement {
       font: inherit;
       margin-bottom: 8px;
     }
-    .side {
-      margin-top: 20px;
-      padding: 14px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container);
-    }
-    .side h2 {
-      margin: 0 0 8px;
-      font-size: 1rem;
-    }
-    .side-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .side-head h2 {
-      margin: 0;
-    }
-    .mod-rows {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin: 0 0 10px;
-    }
-    .mod-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: var(--md-sys-color-surface-container-lowest);
-      font-size: 0.9rem;
-    }
-    .mod-row .name {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.85rem;
-    }
-    .mod-row .badge {
-      font-size: 0.75rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #fff3e0;
-      color: #e65100;
-      flex-shrink: 0;
-    }
-    .mod-row button.danger {
-      padding: 6px 12px;
-      border: none;
-      border-radius: var(--md-sys-shape-corner-full);
-      background: #c62828;
-      color: #fff;
-      font: inherit;
-      font-size: 0.85rem;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .mod-row button.danger:disabled,
-    .mod-row button.ghost:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
     .cf-box {
       padding: 12px 14px;
       border-radius: var(--md-sys-shape-corner-large);
@@ -316,6 +243,77 @@ export class StorePage extends LitElement {
       padding: 1px 5px;
       border-radius: 4px;
     }
+
+    button.primary,
+    button.ghost,
+    .chip {
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        color var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.primary:active:not(:disabled),
+    button.ghost:active:not(:disabled),
+    .chip:active {
+      transform: scale(0.98);
+    }
+    .card {
+      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+    }
+    .list .card:nth-child(1) { animation-delay: 0ms; }
+    .list .card:nth-child(2) { animation-delay: 30ms; }
+    .list .card:nth-child(3) { animation-delay: 60ms; }
+    .list .card:nth-child(4) { animation-delay: 90ms; }
+    .list .card:nth-child(5) { animation-delay: 120ms; }
+    .list .card:nth-child(n+6) { animation-delay: 140ms; }
+    @keyframes row-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    .hint {
+      margin-top: 20px;
+      padding: 12px 14px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .hint button {
+      margin-left: 6px;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--md-sys-color-primary);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .warn {
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+    }
+    .err {
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+    .cf-box {
+      background: var(--md-sys-color-warning-container);
+      border-color: color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent);
+      color: var(--md-sys-color-on-warning-container);
+    }
+    .cf-box a {
+      color: var(--md-sys-color-warning);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card { animation: none; }
+      button.primary:active:not(:disabled),
+      button.ghost:active:not(:disabled),
+      .chip:active { transform: none; }
+    }
   `;
 
   connectedCallback() {
@@ -344,49 +342,6 @@ export class StorePage extends LitElement {
     this.instances = state.instances;
     this.activeId = state.active_id;
     this.cf = await curseforgeConfigured();
-    await this.refreshInstalled();
-  }
-
-  private async refreshInstalled() {
-    const id = this.active?.id;
-    this.installed = await listInstalledMods(id ?? null);
-  }
-
-  private async onUninstall(filename: string) {
-    if (!this.active) {
-      showToast("请先在「库」中设置活动实例");
-      return;
-    }
-    if (!window.confirm(`卸载模组？\n${filename}`)) return;
-    this.busyMod = filename;
-    try {
-      const removed = await removeMod(filename, this.active.id);
-      showToast(`已卸载 ${removed}`);
-      await this.refreshInstalled();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      showToast(msg);
-    } finally {
-      this.busyMod = null;
-    }
-  }
-
-  private async onToggleDisabled(filename: string) {
-    if (!this.active) {
-      showToast("请先在「库」中设置活动实例");
-      return;
-    }
-    const disabled = !filename.endsWith(".jar.disabled");
-    this.busyMod = filename;
-    try {
-      const next = await setModDisabled(filename, disabled, this.active.id);
-      showToast(disabled ? `已禁用 ${next}` : `已启用 ${next}`);
-      await this.refreshInstalled();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.busyMod = null;
-    }
   }
 
   private async onSaveCfKey() {
@@ -408,10 +363,6 @@ export class StorePage extends LitElement {
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  private isDisabledJar(name: string): boolean {
-    return name.endsWith(".jar.disabled");
   }
 
   private async onSearch() {
@@ -482,9 +433,8 @@ export class StorePage extends LitElement {
       showToast(
         res.skipped
           ? `已存在 ${res.filename}`
-          : `已安装 ${res.project_name} → ${res.filename}`,
+          : `已安装 ${res.project_name} → ${res.filename}（可在「库」管理）`,
       );
-      await this.refreshInstalled();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.error = msg;
@@ -492,6 +442,12 @@ export class StorePage extends LitElement {
     } finally {
       this.installingId = null;
     }
+  }
+
+  private goLibrary() {
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "library", bubbles: true, composed: true }),
+    );
   }
 
   private setSource(s: ModSourceId) {
@@ -511,7 +467,7 @@ export class StorePage extends LitElement {
     const pct = this.progress ? overallPercent(this.progress) : null;
     return html`
       <h1>商店</h1>
-      <p class="sub">从 Modrinth / CurseForge 搜索并安装模组到当前实例的 mods 目录。</p>
+      <p class="sub">搜索并安装到当前实例。安装后的启用 / 禁用 / 卸载请到「库」对应实例。</p>
 
       <div class="toolbar">
         <button
@@ -593,40 +549,10 @@ export class StorePage extends LitElement {
         ${this.results.map((p) => this.renderCard(p))}
       </div>
 
-      <div class="side">
-        <div class="side-head">
-          <h2>已安装（当前实例 mods/）</h2>
-          <button class="ghost" type="button" @click=${() => this.refreshInstalled()}>刷新</button>
-        </div>
-        ${this.installed.length
-          ? html`<div class="mod-rows">
-              ${this.installed.map((m) => {
-                const busy = this.busyMod === m;
-                const disabled = this.isDisabledJar(m);
-                return html`<div class="mod-row">
-                  <span class="name" title=${m}>${m}</span>
-                  ${disabled ? html`<span class="badge">已禁用</span>` : null}
-                  <button
-                    class="ghost"
-                    type="button"
-                    ?disabled=${busy}
-                    @click=${() => this.onToggleDisabled(m)}
-                  >
-                    ${disabled ? "启用" : "禁用"}
-                  </button>
-                  <button
-                    class="danger"
-                    type="button"
-                    ?disabled=${busy}
-                    @click=${() => this.onUninstall(m)}
-                  >
-                    ${busy ? "…" : "卸载"}
-                  </button>
-                </div>`;
-              })}
-            </div>`
-          : html`<p class="meta">暂无 jar — 搜索并安装后会出现在这里</p>`}
-      </div>
+      <p class="hint">
+        已安装模组在「库」中按实例管理（启用 / 禁用 / 卸载）。
+        <button type="button" @click=${() => this.goLibrary()}>打开库</button>
+      </p>
     `;
   }
 
@@ -637,7 +563,7 @@ export class StorePage extends LitElement {
       <div class="card">
         ${p.icon_url
           ? html`<img class="icon" src=${p.icon_url} alt="" />`
-          : html`<div class="icon placeholder">📦</div>`}
+          : html`<div class="icon placeholder" aria-hidden="true">M</div>`}
         <div>
           <p class="title">${p.name}</p>
           <p class="desc">${p.description}</p>

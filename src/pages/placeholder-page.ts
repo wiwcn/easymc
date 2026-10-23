@@ -96,6 +96,17 @@ export class PlaceholderPage extends LitElement {
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface);
     }
+    button {
+      transition:
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button:active { transform: none; }
+    }
     ul {
       margin: 8px 0 0;
       padding-left: 18px;
