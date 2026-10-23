@@ -505,7 +505,7 @@ export class HomePage extends LitElement {
     this.busy = true;
     this.showLogs = true;
     this.progress = null;
-    const mode = withAssets ? "含完整资源，可能较久" : "跳过资源（--no-assets）";
+    const mode = withAssets ? "完整安装，可能需要几分钟" : "精简：跳过部分资源";
     this.status = `正在安装 ${version}（${mode}）…`;
     try {
       await ensureJava(21);
@@ -659,7 +659,7 @@ export class HomePage extends LitElement {
     const f = this.featured;
     if (!f) return;
     this.busy = true;
-    this.status = pack ? "正在导出整合包…" : "正在导出元数据…";
+    this.status = pack ? "正在打包分享…" : "正在导出分享配置…";
     try {
       const res = await exportInstance(f.id, pack);
       this.status = res.message_zh;
@@ -681,9 +681,9 @@ export class HomePage extends LitElement {
   }
 
   private async onImportShare() {
-    const path = window.prompt("导入分享包路径（.json / .zip）", "");
+    const path = window.prompt("好友分享文件的位置（.json 或 .zip）", "");
     if (!path?.trim()) return;
-    const applyMem = window.confirm("将分享包内存建议写入 settings？");
+    const applyMem = window.confirm("使用分享包里推荐的内存设置吗？");
     this.busy = true;
     this.status = "正在导入…";
     try {
@@ -715,7 +715,7 @@ export class HomePage extends LitElement {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="launch" type="button" @click=${() => this.openCreate()}>新建实例</button>
           <button class="secondary" type="button" ?disabled=${this.busy} @click=${() => this.onImportShare()}>
-            导入分享
+            导入好友分享
           </button>
         </div>
         ${this.showCreate ? this.renderCreate() : null}
@@ -735,9 +735,9 @@ export class HomePage extends LitElement {
               ? html`<span class="tag">已安装</span>`
               : html`<span class="tag warn">未安装</span>`}
           </div>
-          <p class="desc">${f.description ?? "Java Edition · 离线账户可玩"}</p>
+          <p class="desc">${f.description ?? "准备好了就开始；需要正版服时再登录微软账户"}</p>
           <div class="meta">
-            ${f.last_played ? `上次游玩: ${f.last_played}` : "尚未启动"} · 离线模式可用
+            ${f.last_played ? `上次游玩：${f.last_played}` : "还没玩过"}
           </div>
         </div>
         <div class="actions">
@@ -747,7 +747,7 @@ export class HomePage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onLaunch(f.id, ver, ready)}
           >
-            ▶ ${ready ? "启动" : "安装并启动"}
+            ${ready ? "启动" : "安装并启动"}
           </button>
           ${!ready
             ? html`
@@ -765,7 +765,7 @@ export class HomePage extends LitElement {
                   ?disabled=${this.busy}
                   @click=${() => this.onInstall(f.id, ver, false)}
                 >
-                  快速安装（无资源）
+                  高级：精简安装
                 </button>
               `
             : html`<button class="secondary" type="button" @click=${() => this.onStop()}>
@@ -780,7 +780,7 @@ export class HomePage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onExportShare(false)}
           >
-            导出元数据
+            分享给好友（仅配置）
           </button>
           <button
             class="secondary"
@@ -788,7 +788,7 @@ export class HomePage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onExportShare(true)}
           >
-            导出整合包
+            分享给好友（含模组）
           </button>
           <button
             class="secondary"
@@ -796,7 +796,7 @@ export class HomePage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onImportShare()}
           >
-            导入分享
+            导入好友分享
           </button>
           <button class="secondary" type="button" @click=${() => (this.showLogs = !this.showLogs)}>
             ${this.showLogs ? "隐藏日志" : "显示日志"}
@@ -940,7 +940,7 @@ export class HomePage extends LitElement {
           ${this.newLoader !== "vanilla"
             ? html`
                 <label class="field">
-                  <span>Loader 版本</span>
+                  <span>加载器版本</span>
                   <select
                     .value=${this.newLoaderVersion}
                     ?disabled=${this.busy || this.loaderVersions.length === 0}

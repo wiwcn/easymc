@@ -239,8 +239,8 @@ export class AgentPage extends LitElement {
       {
         role: "assistant",
         content: st.configured
-          ? `本地规则引擎已就绪，且检测到 OpenAI 兼容 LLM（${st.model ?? "?"} @ ${st.base_url_host ?? "?"}）。可自由对话，或点「诊断上次启动」。`
-          : "本地规则引擎已就绪（未配置 LLM，完全离线）。可说「看上次报错」「确保 Java 21」「装 sodium」「内存 4G」。",
+          ? "本地助手和云端助手都已就绪。可以直接提问，或点「帮我看看上次为什么崩了」。"
+          : "本地助手已就绪，不联网也能用。可以说「看上次报错」「确保 Java 21」「装 sodium」「内存 4G」。",
         mode: st.mode,
       },
     ];
@@ -254,7 +254,7 @@ export class AgentPage extends LitElement {
       this.report = report;
       this.turns = [
         ...this.turns,
-        { role: "user", content: "诊断上次启动 / 实例日志" },
+        { role: "user", content: "帮我看看上次为什么崩了" },
         { role: "assistant", content: this.formatReport(report), mode: "rules" },
       ];
       showToast(report.summary_zh.slice(0, 80));
@@ -296,7 +296,7 @@ export class AgentPage extends LitElement {
         { role: "assistant", content: resp.reply_zh, mode: resp.mode },
       ];
       if (resp.action?.action === "ensure_java") {
-        showToast("已触发 ensure-java");
+        showToast("正在检查 Java…");
       }
     } catch (e) {
       this.error = String(e);
@@ -311,7 +311,7 @@ export class AgentPage extends LitElement {
     try {
       const msg = await ensureJava(21);
       showToast(msg);
-      this.turns = [...this.turns, { role: "assistant", content: `ensure-java：${msg}` }];
+      this.turns = [...this.turns, { role: "assistant", content: `Java 已就绪：${msg}` }];
     } catch (e) {
       this.error = String(e);
     } finally {
@@ -361,13 +361,13 @@ export class AgentPage extends LitElement {
     const llmOn = this.llm?.configured;
     return html`
       <h1>
-        Agent
+        助手
         <span class="badge ${llmOn ? "on" : ""}">
-          ${llmOn ? `LLM · ${this.llm?.model ?? ""}` : "仅本地规则"}
+          ${llmOn ? "云端助手已连接" : "本地助手已就绪"}
         </span>
       </h1>
       <p class="sub">
-        崩溃诊断与意图路由默认离线。配置 EASYMC_LLM_* 后可自由对话（OpenAI 兼容）。
+        游戏崩了、启动不了？让助手帮你看看哪里坏了。需要更聪明的问答时，可在设置里连接 AI 助手。
       </p>
 
       <div class="row">
@@ -379,19 +379,19 @@ export class AgentPage extends LitElement {
               this.instanceId = (e.target as HTMLSelectElement).value || null;
             }}
           >
-            <option value="">（活动实例）</option>
+            <option value="">当前实例</option>
             ${this.instances.map(
               (i) => html`<option value=${i.id}>${i.name} · ${i.version}</option>`,
             )}
           </select>
         </label>
         <button class="primary" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-          诊断上次启动
+          帮我看看上次为什么崩了
         </button>
-        <button ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>确保 Java 21</button>
-        <button ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 → 4096</button>
-        <button ?disabled=${this.busy} @click=${() => this.onDataDir()}>数据目录</button>
-        <button ?disabled=${this.busy} @click=${() => this.onExport()}>导出诊断包</button>
+        <button ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>修好 Java</button>
+        <button ?disabled=${this.busy} @click=${() => this.onBumpMem()}>游戏内存调到 4 GB</button>
+        <button ?disabled=${this.busy} @click=${() => this.onDataDir()}>打开游戏文件夹</button>
+        <button ?disabled=${this.busy} @click=${() => this.onExport()}>导出问题报告</button>
       </div>
 
       ${this.error ? html`<p class="err">${this.error}</p>` : null}
@@ -423,7 +423,7 @@ export class AgentPage extends LitElement {
           (t) => html`
             <div class="bubble ${t.role}">
               ${t.content}
-              ${t.mode ? html`<div class="meta">${t.mode}</div>` : null}
+              ${t.mode ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>` : null}
             </div>
           `,
         )}

@@ -502,37 +502,35 @@ export class StorePage extends LitElement {
         目标实例：
         ${inst
           ? html`<strong>${inst.name}</strong> · ${versionId(inst.version)} ·
-              ${loaderLabel(inst.loader)} · <code>${inst.id}</code>`
+              ${loaderLabel(inst.loader)}`
           : "（无实例）"}
         · 筛选会按实例版本与加载器过滤
       </div>
 
       ${this.source === "curseforge" && this.cf && !this.cf.configured
         ? html`<div class="cf-box">
-            <strong>需要 CurseForge API Key</strong>
+            <strong>浏览 CurseForge 需要密钥（可选）</strong>
             <p style="margin:6px 0 0">
               在
               <a href=${this.cf.console_url || "https://console.curseforge.com/"} target="_blank" rel="noreferrer"
                 >CurseForge Console</a
               >
-              申请后粘贴到下方（保存在本地设置，不会提交到 git）。也可设置环境变量
-              <code>${this.cf.env}</code>。Modrinth 无需 Key。
+              申请后粘贴到下方，只保存在这台电脑上。Modrinth 无需密钥。
             </p>
             <div class="row">
               <input
                 type="password"
                 autocomplete="off"
-                placeholder="粘贴 CurseForge API Key…"
+                placeholder="粘贴 CurseForge 密钥…"
                 .value=${this.cfKeyDraft}
                 @input=${(e: Event) => (this.cfKeyDraft = (e.target as HTMLInputElement).value)}
               />
-              <button class="primary" type="button" @click=${() => this.onSaveCfKey()}>保存 Key</button>
+              <button class="primary" type="button" @click=${() => this.onSaveCfKey()}>保存</button>
             </div>
           </div>`
         : this.source === "curseforge" && this.cf?.configured
           ? html`<div class="meta">
-              CurseForge Key 已配置（来源 ${this.cf.source ?? "?"}
-              ${this.cf.key_len ? html` · 长度 ${this.cf.key_len}` : null}）
+              CurseForge 已可用
             </div>`
           : null}
 

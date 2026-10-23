@@ -770,7 +770,7 @@ export class LibraryPage extends LitElement {
 
   private async onExport(inst: InstanceDto, pack: boolean) {
     this.busy = true;
-    this.status = pack ? "正在导出整合包…" : "正在导出元数据…";
+    this.status = pack ? "正在导出整合包…" : "正在导出分享配置…";
     try {
       const res = await exportInstance(inst.id, pack);
       this.status = res.message_zh;
@@ -1144,7 +1144,7 @@ export class LibraryPage extends LitElement {
                   ?disabled=${this.busy}
                   @click=${() => this.onInstall(inst, false)}
                 >
-                  快速（无资源）
+                  高级：精简安装
                 </button>
               `
             : html`<span class="badge ok">本地已有版本文件</span>`}
@@ -1154,7 +1154,7 @@ export class LibraryPage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onExport(inst, false)}
           >
-            导出元数据
+            分享给好友（仅配置）
           </button>
           <button
             class="btn ghost sm"
@@ -1162,7 +1162,7 @@ export class LibraryPage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onExport(inst, true)}
           >
-            导出整合包
+            分享给好友（含模组）
           </button>
         </div>
       </article>
