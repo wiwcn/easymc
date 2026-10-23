@@ -1,4 +1,4 @@
-import type { AccountDto, InstanceDto, VersionSummary } from "./types";
+import type { AccountDto, InstanceDto, InstancesState, VersionSummary } from "./types";
 import { versionId } from "./types";
 
 async function invokeSafe<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
@@ -24,21 +24,51 @@ function mapInstance(i: InstanceDto): InstanceDto {
   };
 }
 
-export async function listInstances(): Promise<InstanceDto[]> {
-  const raw = await invokeSafe<InstanceDto[]>("list_instances");
+function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
   if (!raw) {
-    return [
-      {
-        id: "default",
-        name: "Survival World",
-        version: "1.21.1",
-        loader: "vanilla",
-        description: "浏览器预览 · 请用 pnpm tauri dev 连接后端",
-        version_ready: false,
-      },
-    ];
+    return {
+      instances: [
+        {
+          id: "default",
+          name: "Survival World",
+          version: "1.21.1",
+          loader: "vanilla",
+          description: "浏览器预览 · 请用 pnpm tauri dev 连接后端",
+          version_ready: false,
+        },
+      ],
+      active_id: "default",
+    };
   }
-  return raw.map(mapInstance);
+  if (Array.isArray(raw)) {
+    return {
+      instances: raw.map(mapInstance),
+      active_id: raw[0]?.id ?? null,
+    };
+  }
+  return {
+    instances: (raw.instances ?? []).map(mapInstance),
+    active_id: raw.active_id ?? null,
+  };
+}
+
+export async function listInstancesState(): Promise<InstancesState> {
+  const raw = await invokeSafe<InstancesState | InstanceDto[]>("list_instances");
+  return mapState(raw);
+}
+
+export async function listInstances(): Promise<InstanceDto[]> {
+  return (await listInstancesState()).instances;
+}
+
+export async function createInstance(name: string, version: string): Promise<InstanceDto> {
+  const raw = await invokeOrThrow<InstanceDto>("create_instance", { name, version });
+  return mapInstance(raw);
+}
+
+export async function setActiveInstance(instanceId: string): Promise<InstancesState> {
+  const raw = await invokeOrThrow<InstancesState>("set_active_instance_cmd", { instanceId });
+  return mapState(raw);
 }
 
 export async function listAccounts(): Promise<AccountDto[]> {
@@ -49,8 +79,10 @@ export async function createOffline(username: string): Promise<AccountDto | null
   return invokeSafe<AccountDto>("create_offline", { username });
 }
 
-export async function listVersions(): Promise<VersionSummary[]> {
-  return (await invokeSafe<VersionSummary[]>("list_versions")) ?? [];
+export async function listVersions(includeSnapshots = false): Promise<VersionSummary[]> {
+  return (
+    (await invokeSafe<VersionSummary[]>("list_versions", { includeSnapshots })) ?? []
+  );
 }
 
 export async function installVersion(version: string, withAssets = true): Promise<string> {

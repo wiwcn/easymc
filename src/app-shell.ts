@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import type { NavId } from "./types";
 import "./components/side-nav";
 import "./pages/home-page";
+import "./pages/library-page";
 import "./pages/placeholder-page";
 
 @customElement("easymc-app")
@@ -91,11 +92,7 @@ export class EasyMcApp extends LitElement {
       case "home":
         return html`<easymc-home-page></easymc-home-page>`;
       case "library":
-        return html`<easymc-placeholder-page
-          title="库"
-          subtitle="实例与已安装内容将出现在这里（M0 占位）"
-          icon="📚"
-        ></easymc-placeholder-page>`;
+        return html`<easymc-library-page></easymc-library-page>`;
       case "store":
         return html`<easymc-placeholder-page
           title="商店"

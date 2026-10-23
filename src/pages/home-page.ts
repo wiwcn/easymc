@@ -1,25 +1,39 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { InstanceDto } from "../types";
+import type { InstanceDto, VersionSummary } from "../types";
+import { versionId, versionType } from "../types";
 import {
-  listInstances,
+  listInstancesState,
   launchInstance,
   stopInstance,
   installVersion,
   ensureJava,
   listenLogs,
   listenInstallProgress,
+  setActiveInstance,
+  createInstance,
+  listVersions,
 } from "../api";
 import { showToast } from "../toast";
 
 @customElement("easymc-home-page")
 export class HomePage extends LitElement {
   @state() private instances: InstanceDto[] = [];
+  @state() private activeId: string | null = null;
   @state() private loading = true;
   @state() private busy = false;
   @state() private status = "";
   @state() private logs: string[] = [];
   @state() private showLogs = false;
+
+  @state() private showCreate = false;
+  @state() private newName = "";
+  @state() private newVersion = "1.21.1";
+  @state() private includeSnapshots = false;
+  @state() private versions: VersionSummary[] = [];
+  @state() private versionsLoading = false;
+  @state() private versionFilter = "";
+  @state() private alsoInstall = true;
 
   private unLog?: () => void;
   private unProg?: () => void;
@@ -142,6 +156,8 @@ export class HomePage extends LitElement {
       justify-content: space-between;
       align-items: baseline;
       margin-bottom: 14px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
     .section-head h2 {
       margin: 0;
@@ -171,15 +187,18 @@ export class HomePage extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
     }
-    .card:nth-child(1) {
+    .card:hover {
+      background: var(--md-sys-color-surface-container-high);
+    }
+    .card.active {
+      border-color: var(--md-sys-color-primary);
       background: #e0f2f1;
-    }
-    .card:nth-child(2) {
-      background: #f5f0e6;
-    }
-    .card:nth-child(3) {
-      background: #e3f2fd;
     }
     .card h3 {
       margin: 0;
@@ -225,6 +244,86 @@ export class HomePage extends LitElement {
     .logs-empty {
       opacity: 0.6;
     }
+    .panel {
+      margin-bottom: 20px;
+      padding: 20px;
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .panel h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    input[type="text"] {
+      padding: 10px 14px;
+      border-radius: var(--md-sys-shape-corner-full);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      font: inherit;
+      background: var(--md-sys-color-surface);
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .check {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .ver-list {
+      max-height: 200px;
+      overflow: auto;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface);
+    }
+    .ver-item {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+    .ver-item:hover {
+      background: var(--md-sys-color-surface-container);
+    }
+    .ver-item.selected {
+      background: var(--md-sys-color-primary-container);
+    }
+    .badge {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #c8e6c9;
+      color: #1b5e20;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
   `;
 
   connectedCallback() {
@@ -248,16 +347,16 @@ export class HomePage extends LitElement {
 
   private async load() {
     this.loading = true;
-    this.instances = await listInstances();
+    const state = await listInstancesState();
+    this.instances = state.instances;
+    this.activeId = state.active_id;
     this.loading = false;
   }
 
   private get featured(): InstanceDto | undefined {
-    return this.instances[0];
-  }
-
-  private get others(): InstanceDto[] {
-    return this.instances.slice(1);
+    return (
+      this.instances.find((i) => i.id === this.activeId) ?? this.instances[0]
+    );
   }
 
   private async onInstall(id: string, version: string) {
@@ -282,12 +381,7 @@ export class HomePage extends LitElement {
   private async onLaunch(id: string, version: string, ready?: boolean) {
     if (!ready) {
       await this.onInstall(id, version);
-      // reload ready flag
       await this.load();
-      const inst = this.instances.find((i) => i.id === id);
-      if (!inst?.version_ready) {
-        // still try launch — backend checks disk
-      }
     }
     this.busy = true;
     this.showLogs = true;
@@ -314,14 +408,80 @@ export class HomePage extends LitElement {
     showToast("已停止");
   }
 
-  private icons = ["🌲", "🛡️", "🧊", "⛏️"];
+  private async onSelect(id: string) {
+    try {
+      const state = await setActiveInstance(id);
+      this.instances = state.instances;
+      this.activeId = state.active_id;
+    } catch (e) {
+      showToast(String(e));
+    }
+  }
+
+  private async openCreate() {
+    this.showCreate = true;
+    this.newName = "";
+    this.newVersion = "1.21.1";
+    this.versionFilter = "";
+    this.versionsLoading = true;
+    try {
+      this.versions = await listVersions(this.includeSnapshots);
+      if (this.versions[0] && !this.versions.find((v) => v.id === this.newVersion)) {
+        this.newVersion = this.versions[0].id;
+      }
+    } finally {
+      this.versionsLoading = false;
+    }
+  }
+
+  private filteredVersions(): VersionSummary[] {
+    const q = this.versionFilter.trim().toLowerCase();
+    if (!q) return this.versions;
+    return this.versions.filter(
+      (v) => v.id.toLowerCase().includes(q) || versionType(v).toLowerCase().includes(q),
+    );
+  }
+
+  private async onCreate() {
+    const name = this.newName.trim() || `实例 ${this.newVersion}`;
+    this.busy = true;
+    try {
+      const inst = await createInstance(name, this.newVersion);
+      showToast(`已创建 ${inst.name}`);
+      if (this.alsoInstall && !inst.version_ready) {
+        this.showLogs = true;
+        this.status = `正在安装 ${this.newVersion}…`;
+        await ensureJava(21);
+        const msg = await installVersion(this.newVersion, true);
+        showToast(msg);
+        this.status = msg;
+      }
+      this.showCreate = false;
+      await this.load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(msg);
+      this.status = msg;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private icons = ["🌲", "🛡️", "🧊", "⛏️", "🏰", "🌊"];
 
   render() {
-    const f = this.featured;
-    if (this.loading || !f) {
+    if (this.loading) {
       return html`<p>加载中…</p>`;
     }
-    const ver = typeof f.version === "string" ? f.version : String(f.version);
+    const f = this.featured;
+    if (!f) {
+      return html`
+        <p>还没有实例。</p>
+        <button class="launch" type="button" @click=${() => this.openCreate()}>新建实例</button>
+        ${this.showCreate ? this.renderCreate() : null}
+      `;
+    }
+    const ver = versionId(f.version);
     const ready = !!f.version_ready;
     return html`
       <section class="hero">
@@ -361,6 +521,9 @@ export class HomePage extends LitElement {
             : html`<button class="secondary" type="button" @click=${() => this.onStop()}>
                 停止
               </button>`}
+          <button class="secondary" type="button" @click=${() => this.openCreate()}>
+            新建实例
+          </button>
           <button class="secondary" type="button" @click=${() => (this.showLogs = !this.showLogs)}>
             ${this.showLogs ? "隐藏日志" : "显示日志"}
           </button>
@@ -368,6 +531,8 @@ export class HomePage extends LitElement {
       </section>
 
       <p class="status">${this.status}</p>
+
+      ${this.showCreate ? this.renderCreate() : null}
 
       ${this.showLogs
         ? html`<div class="logs">
@@ -378,30 +543,113 @@ export class HomePage extends LitElement {
         : null}
 
       <div class="section-head">
-        <h2>Your Instances</h2>
-        <button class="link" type="button" @click=${() => this.load()}>刷新</button>
+        <h2>你的实例</h2>
+        <div>
+          <button class="link" type="button" @click=${() => this.openCreate()}>新建</button>
+          ·
+          <button class="link" type="button" @click=${() => this.load()}>刷新</button>
+        </div>
       </div>
       <div class="grid">
-        ${this.others.map(
+        ${this.instances.map(
           (inst, i) => html`
-            <article class="card">
+            <button
+              class="card ${inst.id === this.activeId ? "active" : ""}"
+              type="button"
+              @click=${() => this.onSelect(inst.id)}
+            >
               <div class="card-icon">${this.icons[i % this.icons.length]}</div>
               <h3>${inst.name}</h3>
-              <div class="ver">${inst.version}</div>
+              <div class="ver">${versionId(inst.version)}</div>
               <div class="status-line ${inst.version_ready ? "ready" : "need"}">
                 <span class="dot"></span>
-                ${inst.version_ready ? "Ready" : "需安装"}
+                ${inst.id === this.activeId
+                  ? "当前默认"
+                  : inst.version_ready
+                    ? "就绪"
+                    : "需安装"}
               </div>
-            </article>
+            </button>
           `,
         )}
-        ${this.others.length === 0
-          ? html`<article class="card">
-              <h3>提示</h3>
-              <div class="ver">可用 CLI 创建更多实例：easymc create-instance</div>
-            </article>`
-          : null}
       </div>
+    `;
+  }
+
+  private renderCreate() {
+    const list = this.filteredVersions();
+    return html`
+      <section class="panel">
+        <h2>新建实例</h2>
+        <label>
+          名称
+          <input
+            type="text"
+            .value=${this.newName}
+            placeholder="例如：速通 1.20"
+            @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <div class="toolbar">
+          <label style="flex:1;min-width:140px">
+            筛选
+            <input
+              type="text"
+              .value=${this.versionFilter}
+              placeholder="搜索版本…"
+              @input=${(e: Event) => (this.versionFilter = (e.target as HTMLInputElement).value)}
+            />
+          </label>
+          <label class="check">
+            <input
+              type="checkbox"
+              .checked=${this.includeSnapshots}
+              @change=${async (e: Event) => {
+                this.includeSnapshots = (e.target as HTMLInputElement).checked;
+                this.versionsLoading = true;
+                this.versions = await listVersions(this.includeSnapshots);
+                this.versionsLoading = false;
+              }}
+            />
+            显示快照
+          </label>
+          <label class="check">
+            <input
+              type="checkbox"
+              .checked=${this.alsoInstall}
+              @change=${(e: Event) => (this.alsoInstall = (e.target as HTMLInputElement).checked)}
+            />
+            创建后安装
+          </label>
+        </div>
+        <div class="ver">
+          已选：<strong>${this.newVersion}</strong>
+          ${this.versionsLoading ? " · 加载中…" : ""}
+        </div>
+        <div class="ver-list">
+          ${list.map(
+            (v) => html`
+              <button
+                type="button"
+                class="ver-item ${v.id === this.newVersion ? "selected" : ""}"
+                @click=${() => (this.newVersion = v.id)}
+              >
+                <span>${v.id}</span>
+                <span>
+                  ${versionType(v)}
+                  ${v.installed ? html`<span class="badge">已安装</span>` : null}
+                </span>
+              </button>
+            `,
+          )}
+        </div>
+        <div class="row">
+          <button class="launch" type="button" ?disabled=${this.busy} @click=${() => this.onCreate()}>
+            创建
+          </button>
+          <button class="secondary" type="button" @click=${() => (this.showCreate = false)}>取消</button>
+        </div>
+      </section>
     `;
   }
 }
