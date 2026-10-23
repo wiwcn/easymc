@@ -2,7 +2,7 @@
 
 Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
-**License:** MIT · **Milestone:** M1.5 (Forge / NeoForge install + launch)
+**License:** MIT · **Milestone:** M1.6 (Local Agent + optional OpenAI-compatible LLM)
 
 ## What works (M1)
 
@@ -67,6 +67,44 @@ pnpm tauri dev
 ```
 
 Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar. 库: same. **商店**: Modrinth/CurseForge 搜索安装到活动实例. Settings: offline accounts. Logs under the hero card. Toggle **下载游戏资源** or use **快速安装（无资源）** for faster iterate.
+
+
+## Agent (M1.6)
+
+Local-first MC assistant. **Default = offline rule engine** (no network to LLM providers).
+
+### What it does
+
+1. **Diagnose** — reads process logs and/or `instances/<id>/.minecraft/logs/latest.log` (+ newest crash-report), matches common patterns (OOM, missing/wrong Java, Mixin conflict, wrong loader, OpenGL/GLFW, OpenAL, auth, duplicate module…) and prints **zh-CN** summaries + fixes.
+2. **Safe actions** — ensure Java (via existing `ensure-java`), bump `settings.memory_mb`, show data dir, export a diagnostic txt under `diagnostics/`.
+3. **Intent router** — keyword/phrase mapping for e.g. 「看上次报错」「确保 Java 21」「内存 4G」「装 sodium」「数据目录」「导出诊断包」. Not an LLM.
+4. **Optional LLM** — if `EASYMC_LLM_BASE_URL` + `EASYMC_LLM_API_KEY` are set, free-form chat and smarter log analysis go through an **OpenAI-compatible** `/v1/chat/completions` client (e.g. DeepSeek via a gateway). Secrets stay in env / `~/.config/easymc/llm.env` — never committed.
+
+Stretch: `LocalGgufBackend` trait scaffold exists but is **disabled** by default.
+
+### CLI
+
+```bash
+cargo run -p easymc-cli -- agent diagnose --instance default
+cargo run -p easymc-cli -- agent diagnose --bundle
+cargo run -p easymc-cli -- agent ask "看上次报错"
+cargo run -p easymc-cli -- agent ask "确保 Java 21"
+cargo run -p easymc-cli -- agent ask "你好，帮我看看怎么装 iris"   # needs LLM env
+cargo run -p easymc-cli -- agent ask "随便聊聊" --rules-only       # force offline
+cargo run -p easymc-cli -- agent status
+```
+
+### Optional LLM env
+
+```bash
+# recommended file (auto-loaded if present; see .env.example):
+# ~/.config/easymc/llm.env
+export EASYMC_LLM_BASE_URL=https://api.example.com/v1
+export EASYMC_LLM_API_KEY=sk-...
+export EASYMC_LLM_MODEL=deepseek-chat   # or deepseek-reasoner, etc.
+```
+
+UI **Agent** page: diagnose button, action chips, chat composer (LLM when configured).
 
 ### Forge / NeoForge caveats
 

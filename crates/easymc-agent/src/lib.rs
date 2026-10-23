@@ -1,8 +1,26 @@
-//! AI agent for crash analysis, JVM tuning, pack building.
-//! M0: trait + stub cloud provider only (no real API calls).
+//! EasyMC local Agent: rule-based crash diagnose + intent router.
+//! Optional OpenAI-compatible LLM when `EASYMC_LLM_BASE_URL` + `EASYMC_LLM_API_KEY` are set.
+//! Never calls cloud providers unless those env vars are present.
+
+mod actions;
+mod diagnose;
+mod intent;
+pub mod llm;
+mod patterns;
+mod service;
+
+pub use actions::{bump_memory, show_data_dir, write_diagnostic_bundle, ActionResult};
+pub use diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
+pub use intent::{route, Intent, IntentResult};
+pub use llm::{llm_status, try_load_dotenv_llm, LlmConfig, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY, ENV_BASE_URL, ENV_MODEL};
+pub use patterns::{scan_log, Finding, FindingSeverity};
+pub use service::{
+    ask, execute_intent, memory_suggestion, run_diagnose, AskRequest, AskResponse, DisabledGguf,
+    LocalGgufBackend,
+};
 
 use async_trait::async_trait;
-use easymc_core::{EasyMcError, Result};
+use easymc_core::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,47 +35,9 @@ pub struct AgentReply {
     pub proposed_changes: Option<serde_json::Value>,
 }
 
-/// Pluggable cloud LLM backend (OpenAI-compatible, Anthropic, etc.).
+/// Pluggable LLM backend (OpenAI-compatible HTTP, or future local GGUF).
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     fn name(&self) -> &str;
     async fn complete(&self, messages: &[ChatMessage]) -> Result<AgentReply>;
-}
-
-/// Stub that echoes a canned helpful reply — swap for real HTTP in M1+.
-pub struct StubCloudProvider {
-    pub display_name: String,
-}
-
-impl Default for StubCloudProvider {
-    fn default() -> Self {
-        Self {
-            display_name: "stub-cloud".into(),
-        }
-    }
-}
-
-#[async_trait]
-impl LlmProvider for StubCloudProvider {
-    fn name(&self) -> &str {
-        &self.display_name
-    }
-
-    async fn complete(&self, messages: &[ChatMessage]) -> Result<AgentReply> {
-        let last = messages
-            .last()
-            .map(|m| m.content.as_str())
-            .unwrap_or("");
-        Ok(AgentReply {
-            content: format!(
-                "[stub] Received: {last}\n\
-                 I can analyze crash logs, tune JVM flags, and build packs once a real LLM provider is configured."
-            ),
-            proposed_changes: None,
-        })
-    }
-}
-
-pub async fn run_tool(_name: &str) -> Result<()> {
-    Err(EasyMcError::NotImplemented("agent tools"))
 }

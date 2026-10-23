@@ -773,9 +773,13 @@ name = "easymc-agent"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "easymc-core",
+ "regex",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -802,6 +806,7 @@ name = "easymc-cli"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "easymc-agent",
  "easymc-core",
  "easymc-launch-desktop",
  "easymc-meta",

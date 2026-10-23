@@ -108,3 +108,46 @@ export interface CurseForgeStatusDto {
   env: string;
   hint: string;
 }
+
+export interface LlmStatusDto {
+  configured: boolean;
+  model?: string | null;
+  base_url_host?: string | null;
+  mode: string;
+}
+
+export interface AgentFinding {
+  id: string;
+  severity: "info" | "warn" | "error" | string;
+  title: string;
+  summary: string;
+  fixes: string[];
+  action?: string | null;
+  evidence?: string | null;
+}
+
+export interface DiagnoseReportDto {
+  ok: boolean;
+  source_label: string;
+  findings: AgentFinding[];
+  summary_zh: string;
+  log_excerpt: string;
+  log_chars: number;
+  sources: string[];
+}
+
+export interface AgentActionDto {
+  ok: boolean;
+  action: string;
+  message_zh: string;
+  path?: string | null;
+  value?: unknown;
+}
+
+export interface AgentAskResponse {
+  mode: string;
+  reply_zh: string;
+  report?: DiagnoseReportDto | null;
+  action?: AgentActionDto | null;
+  llm: LlmStatusDto;
+}

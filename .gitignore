@@ -50,3 +50,7 @@ src-tauri/WixTools/
 # Test / coverage
 coverage/
 .nyc_output/
+
+# Local LLM secrets (never commit)
+**/llm.env
+.env.llm

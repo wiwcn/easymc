@@ -13,6 +13,7 @@ use easymc_meta::{
     is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
     MetaProvider, PistonMetaProvider,
 };
+use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRequest};
 use easymc_mods::{
     install_mod, list_installed_mods, list_mod_versions, search_mods, ModSource, SearchQuery,
     API_KEY_ENV,
@@ -509,6 +510,113 @@ async fn real_main() -> easymc_core::Result<()> {
             set_active_instance(&paths, &id)?;
             println!("active={id}");
         }
+
+        "agent" => {
+            easymc_agent::llm::try_load_dotenv_llm();
+            let sub = args.first().map(|s| s.as_str()).unwrap_or("help");
+            match sub {
+                "diagnose" | "diag" => {
+                    let instance = flag_value(&args, "--instance")
+                        .or_else(|| positional_clean(&args, 1));
+                    let report = run_diagnose(&paths, instance, None);
+                    println!("{}", report.summary_zh);
+                    for f in &report.findings {
+                        println!("\n[{:?}] {}", f.severity, f.title);
+                        println!("  {}", f.summary);
+                        for fix in &f.fixes {
+                            println!("  - {fix}");
+                        }
+                        if let Some(ev) = &f.evidence {
+                            println!("  证据: {ev}");
+                        }
+                    }
+                    if args.iter().any(|a| a == "--bundle" || a == "--export") {
+                        let ar = write_diagnostic_bundle(&paths, &report)?;
+                        println!("\n{}", ar.message_zh);
+                    }
+                    if !report.sources.is_empty() {
+                        println!("\nsources:");
+                        for s in &report.sources {
+                            println!("  {s}");
+                        }
+                    }
+                }
+                "ask" => {
+                    // agent ask "…"  or agent ask -- 看上次报错
+                    let text = if let Some(i) = args.iter().position(|a| a == "--") {
+                        args[i + 1..].join(" ")
+                    } else if args.len() > 1 {
+                        // skip subcommand
+                        args[1..]
+                            .iter()
+                            .filter(|a| !a.starts_with("--") || *a == "--rules-only")
+                            .filter(|a| *a != "--rules-only")
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    } else {
+                        String::new()
+                    };
+                    let text = text.trim().trim_matches('"').to_string();
+                    if text.is_empty() {
+                        return Err(easymc_core::EasyMcError::msg(
+                            "usage: agent ask \"看上次报错\" | agent ask 确保 Java 21",
+                        ));
+                    }
+                    let rules_only = args.iter().any(|a| a == "--rules-only");
+                    let instance = flag_value(&args, "--instance");
+                    let resp = ask(
+                        &paths,
+                        AskRequest {
+                            text,
+                            instance_id: instance,
+                            process_logs: None,
+                            rules_only,
+                            history: vec![],
+                        },
+                    )
+                    .await?;
+                    println!("mode={} llm={}", resp.mode, resp.llm.mode);
+                    println!("{}", resp.reply_zh);
+                    if let Some(action) = &resp.action {
+                        if action.action == "ensure_java" {
+                            let major = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("major"))
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(21) as u32;
+                            println!("→ running ensure-java {major} …");
+                            let j = ensure_java(&paths, major, |s| println!("{s}")).await?;
+                            println!("OK {}", j.path.display());
+                        }
+                    }
+                }
+                "status" => {
+                    let st = llm_status();
+                    println!(
+                        "mode={} configured={} model={} host={}",
+                        st.mode,
+                        st.configured,
+                        st.model.as_deref().unwrap_or("-"),
+                        st.base_url_host.as_deref().unwrap_or("-")
+                    );
+                }
+                "help" | _ => {
+                    eprintln!(
+                        "agent subcommands:\n\
+                           agent diagnose [--instance ID] [--bundle]\n\
+                           agent ask \"…\" [--instance ID] [--rules-only]\n\
+                           agent status\n\
+                         \n\
+                         LLM (optional): source ~/.config/easymc/llm.env\n\
+                           EASYMC_LLM_BASE_URL  EASYMC_LLM_API_KEY  EASYMC_LLM_MODEL\n\
+                         Without LLM env, Agent stays fully offline (rules only)."
+                    );
+                }
+            }
+        }
+
         other => {
             eprintln!("unknown command: {other}");
             print_help();

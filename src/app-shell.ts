@@ -6,6 +6,7 @@ import "./pages/home-page";
 import "./pages/library-page";
 import "./pages/placeholder-page";
 import "./pages/store-page";
+import "./pages/agent-page";
 
 @customElement("easymc-app")
 export class EasyMcApp extends LitElement {
@@ -97,11 +98,7 @@ export class EasyMcApp extends LitElement {
       case "store":
         return html`<easymc-store-page></easymc-store-page>`;
       case "agent":
-        return html`<easymc-placeholder-page
-          title="Agent"
-          subtitle="云端 LLM 助手：读报错、调 JVM、生成整合包（M0 占位）"
-          icon="🤖"
-        ></easymc-placeholder-page>`;
+        return html`<easymc-agent-page></easymc-agent-page>`;
       case "share":
         return html`<easymc-placeholder-page
           title="分享"

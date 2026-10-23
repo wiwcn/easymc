@@ -1,4 +1,4 @@
-import type { AccountDto, CurseForgeStatusDto, InstanceDto, InstancesState, LoaderVersionItem, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
+import type { AccountDto, AgentAskResponse, CurseForgeStatusDto, DiagnoseReportDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -239,4 +239,57 @@ export async function listInstalledMods(instanceId?: string | null): Promise<str
       instanceId: instanceId || null,
     })) ?? []
   );
+}
+
+
+export async function agentLlmStatus(): Promise<LlmStatusDto> {
+  return (
+    (await invokeSafe<LlmStatusDto>("agent_llm_status")) ?? {
+      configured: false,
+      mode: "rules_only",
+    }
+  );
+}
+
+export async function agentDiagnose(instanceId?: string | null): Promise<DiagnoseReportDto> {
+  return invokeOrThrow<DiagnoseReportDto>("agent_diagnose", {
+    instanceId: instanceId || null,
+  });
+}
+
+export async function agentAsk(
+  text: string,
+  opts?: {
+    instanceId?: string | null;
+    rulesOnly?: boolean;
+    history?: { role: string; content: string }[];
+  },
+): Promise<AgentAskResponse> {
+  return invokeOrThrow<AgentAskResponse>("agent_ask", {
+    text,
+    instanceId: opts?.instanceId || null,
+    rulesOnly: opts?.rulesOnly ?? false,
+    history: opts?.history ?? [],
+  });
+}
+
+export async function agentDataDir(): Promise<{ path: string; message: string }> {
+  return (
+    (await invokeSafe<{ path: string; message: string }>("agent_data_dir")) ?? {
+      path: "",
+      message: "（浏览器预览）",
+    }
+  );
+}
+
+export async function agentBumpMemory(mb: number): Promise<{ ok: boolean; message: string }> {
+  return invokeOrThrow("agent_bump_memory", { mb });
+}
+
+export async function agentExportDiagnostics(
+  instanceId?: string | null,
+): Promise<{ ok: boolean; path?: string; message: string }> {
+  return invokeOrThrow("agent_export_diagnostics", {
+    instanceId: instanceId || null,
+  });
 }

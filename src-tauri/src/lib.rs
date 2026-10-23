@@ -15,6 +15,10 @@ use easymc_meta::{
     is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
     MetaProvider, PistonMetaProvider,
 };
+use easymc_agent::{
+    ask, bump_memory, llm_status, run_diagnose, show_data_dir, try_load_dotenv_llm,
+    write_diagnostic_bundle, AskRequest, AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
+};
 use easymc_mods::{
     api_key_from_env, install_mod, list_installed_mods, list_mod_versions, search_mods,
     ModInstallResult, ModProject, ModSource, ModVersion, SearchQuery, API_KEY_ENV,
@@ -44,7 +48,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1.4",
+        "milestone": "M1.6",
         "data_dir": state.paths.root,
         "msa_configured": MicrosoftAuthConfig::default().is_configured(),
     })
@@ -599,6 +603,97 @@ fn version_installed(state: State<'_, AppState>, version: String) -> bool {
     is_version_installed(state_paths(&state), &version)
 }
 
+
+#[tauri::command]
+fn agent_llm_status() -> LlmStatus {
+    try_load_dotenv_llm();
+    llm_status()
+}
+
+#[tauri::command]
+async fn agent_diagnose(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<DiagnoseReport, String> {
+    try_load_dotenv_llm();
+    let logs = state.procs.logs_snapshot().await;
+    let process_logs = if logs.is_empty() { None } else { Some(logs) };
+    Ok(run_diagnose(&state.paths, instance_id, process_logs))
+}
+
+#[tauri::command]
+async fn agent_ask(
+    state: State<'_, AppState>,
+    text: String,
+    instance_id: Option<String>,
+    rules_only: Option<bool>,
+    history: Option<Vec<ChatMessage>>,
+) -> Result<AskResponse, String> {
+    try_load_dotenv_llm();
+    let logs = state.procs.logs_snapshot().await;
+    let process_logs = if logs.is_empty() { None } else { Some(logs) };
+    let resp = ask(
+        &state.paths,
+        AskRequest {
+            text,
+            instance_id,
+            process_logs,
+            rules_only: rules_only.unwrap_or(false),
+            history: history.unwrap_or_default(),
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    // Auto-run ensure_java when suggested
+    if let Some(action) = &resp.action {
+        if action.action == "ensure_java" {
+            let major = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("major"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(21) as u32;
+            let paths = state.paths.clone();
+            let _ = ensure_java(&paths, major, |_| {}).await;
+        }
+    }
+    Ok(resp)
+}
+
+#[tauri::command]
+fn agent_data_dir(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let ar = show_data_dir(&state.paths);
+    Ok(serde_json::json!({ "path": ar.path, "message": ar.message_zh }))
+}
+
+#[tauri::command]
+fn agent_bump_memory(state: State<'_, AppState>, mb: u32) -> Result<serde_json::Value, String> {
+    let ar = bump_memory(&state.paths, mb).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "ok": ar.ok,
+        "message": ar.message_zh,
+        "value": ar.value,
+    }))
+}
+
+#[tauri::command]
+async fn agent_export_diagnostics(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let logs = state.procs.logs_snapshot().await;
+    let process_logs = if logs.is_empty() { None } else { Some(logs) };
+    let report = run_diagnose(&state.paths, instance_id, process_logs);
+    let ar = write_diagnostic_bundle(&state.paths, &report).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "ok": ar.ok,
+        "path": ar.path,
+        "message": ar.message_zh,
+        "summary": report.summary_zh,
+    }))
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let paths = Paths::discover().expect("data dir");
@@ -635,6 +730,12 @@ pub fn run() {
             list_mod_versions_cmd,
             install_mod_cmd,
             list_installed_mods_cmd,
+            agent_llm_status,
+            agent_diagnose,
+            agent_ask,
+            agent_data_dir,
+            agent_bump_memory,
+            agent_export_diagnostics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");
