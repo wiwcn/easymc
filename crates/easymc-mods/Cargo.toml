@@ -3,9 +3,17 @@ name = "easymc-mods"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Mod provider trait + Modrinth / CurseForge stubs"
+description = "Modrinth + CurseForge search and install into instance mods/"
 
 [dependencies]
 easymc-core = { workspace = true }
+easymc-meta = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 async-trait = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+futures-util = { workspace = true }
+sha1 = { workspace = true }
+hex = { workspace = true }
+tracing = { workspace = true }

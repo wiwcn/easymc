@@ -805,6 +805,7 @@ dependencies = [
  "easymc-core",
  "easymc-launch-desktop",
  "easymc-meta",
+ "easymc-mods",
  "serde_json",
  "tokio",
 ]
@@ -862,7 +863,15 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "easymc-core",
+ "easymc-meta",
+ "futures-util",
+ "hex",
+ "reqwest 0.12.28",
  "serde",
+ "serde_json",
+ "sha1",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
