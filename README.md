@@ -77,7 +77,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. **库**: instances + **per-instance 模组** (启用/禁用/卸载, filter 全部/已启用/已禁用) + export. **商店**: Modrinth/CurseForge discovery & install only. **Agent**: diagnose + optional LLM. Settings: offline accounts + **CurseForge API Key**. Toggle **下载游戏资源** or **快速安装（无资源）**. See `DESIGN.md` for IA + motion.
+Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt/Forge/NeoForge) + install progress bar + **导出元数据/整合包** / **导入分享**. **库**: instances + **per-instance 模组** (启用/禁用/卸载, filter 全部/已启用/已禁用) + export. **商店**: Modrinth/CurseForge discovery & install only. **Agent**: diagnose + optional LLM. Settings: offline accounts + **CurseForge API Key**. Toggle **下载游戏资源** or **快速安装（无资源）**. See `DESIGN.md` for the user-centric product design (IA, onboarding, copy, PCL parity checklist, impeccable visual system).
 
 
 ## Agent (M1.6)

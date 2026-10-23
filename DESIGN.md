@@ -1,36 +1,397 @@
-# EasyMC design notes
+# EasyMC 产品设计文档
 
-**Mode:** Operate (launcher app) — scanability over spectacle.  
-**Identity:** soft teal MD3 seed (青绿). Original MD3 UI — not a PCL skin; PCL is IA reference only.
+**日期：** 2026-10-24  
+**读者：** 实现者（按本文落地 IA / 文案 / 视觉 / 功能阶段）  
+**模式：** Operate（启动器产品 UI）— 可扫读、任务优先，不为 spectacle  
+**身份：** 软青绿 MD3 种子；**PCL 仅作信息架构与能力参照，不是视觉皮肤**  
+**对照源：** [PCL ↔ EasyMC 对齐对比报告](https://cursor.com/canvas/store-a60ea25d-46ef-4287-b91d-3551c81451da/03144a0d-75d9-4fdd-97bb-dd52a10dab76)（36 项能力）+ impeccable Operate / colorize / animate / polish / craft-floor
 
-## Information architecture
+---
 
-| Area | Role |
+## 1. 产品定位与原则
+
+### 1.1 为谁而做
+
+EasyMC 是开源 **Minecraft Java Edition** 启动器（Tauri 2 + Lit + Vite + Rust），面向想「装好、启动、装模组、分享配置、排错」的普通玩家，而不是开发者控制台用户。
+
+- **桌面优先**（Win / Linux / macOS）；Android 姊妹轨另见 `easymc-android`，真启动暂缓。
+- **只做 Java Edition**；不做 Bedrock。
+- **能力目标：** 与 PCL 功能 / 页面逻辑 **全面对齐**（不偷工减料）；同时保留 EasyMC 超集：`Fabric` / `Quilt` / `Forge` / `NeoForge`、`Modrinth` + `CurseForge`、Agent、配置分享包、跨平台。
+
+### 1.2 Operate 原则（impeccable）
+
+| 原则 | 落地 |
 |------|------|
-| **启动** | Launch / install the active instance |
-| **商店** | Discover & install mods (Modrinth / CurseForge) into the **selected instance** |
-| **库** | Instances + **per-instance mod management** (list / enable / disable / uninstall) |
-| **设置** | Accounts, CurseForge key, runtime |
+| 工具消失在任务里 | 熟悉导航、一致控件；不为「独特」发明怪异 affordance |
+| 扫读优先 | 固定 rem 字阶、紧凑比例（约 1.125–1.2）；密度服务于任务 |
+| 口音色克制 | Primary 只用于主操作 / 选中 / 焦点；中性面承载层级 |
+| 动效服务状态 | 反馈、连续、列表进出；禁止编排式开场动画 |
+| Craft floor | 见 §6.3；禁止 eyebrow、嵌套卡片汤、渐变字、装饰左边框、emoji 当图标体系 |
 
-Installed jars belong to the instance `mods/` folder (and thus that game version), not to the store page. Empty mod list → “去商店下载” switches nav to Store.
+### 1.3 文案铁律（玩家优先）
 
-## Tokens
+- **主页 / 主导航 / 默认设置** 只说玩家要做的事与怎么修。
+- `环境变量`、`TODO`、`API Key`、`LLM`、`crate`、协议步骤等 **只出现在「高级」或文档**。
+- 按钮命名动作；错误命名问题 + 恢复路径。
 
-- Source: `src/styles/tokens.css` + `global.css`
-- Accent (`--md-sys-color-primary`) for primary actions, selection, focus only
-- Cool teal-tinted neutrals for surfaces; semantic containers for success / warning / error
-- Focus: `--easymc-focus-ring`; selection and scrollbars themed in `global.css`
+**Before → After 示例**
 
-## Motion thesis (Operate)
+| 位置 | 现状（反例） | 目标语气 |
+|------|--------------|----------|
+| Agent 副标题 | 配置 `EASYMC_LLM_*` 后可自由对话（OpenAI 兼容） | 需要更聪明的问答时，可在设置里连接 AI 助手 |
+| Agent 徽章 | 仅本地规则 / LLM · model@host | 本地助手已就绪 / 云端助手已连接 |
+| 设置 MSA | 需自备 Azure… `EASYMC_MSA_CLIENT_ID`… 会提示 TODO | 使用微软账户登录 Minecraft（正版） |
+| 设置 CF | 粘贴 CurseForge API Key… `settings.json`… 环境变量优先 | 若要浏览 CurseForge，在此粘贴你的密钥（可选） |
+| 设置离线 | 本地测试无需 Microsoft 登录；列表展示 uuid/kind | 离线游玩：输入想在游戏里显示的名字 |
+| 启动次要操作 | 快速安装（无资源） / 导出元数据 | 高级：精简安装；分享：导出给好友 |
+| Home 描述 | Java Edition · 离线账户可玩 | 准备好了就开始；需要正版服时再登录微软账户 |
+| Toast | 需要在 Tauri 应用内操作 | 请在 EasyMC 窗口内完成此操作 |
 
-- **Feedback:** button press ~100–150ms (`--easymc-dur-press`), toast in/out
-- **Continuity:** page change opacity + slight translate (`--easymc-dur-page`, keyed remount in `app-shell`)
-- **Lists:** short row enter; uninstall leave; stagger capped (~140ms)
-- **Focal (quiet):** Home launch hero entrance only
-- **A11y:** `prefers-reduced-motion: reduce` disables spatial motion; opacity/state changes may remain
+更完整禁用词表见 **§7**。
 
-Easing: `--easymc-ease-out` = `cubic-bezier(0.16, 1, 0.3, 1)`. CSS only — no motion library.
+---
 
-## Craft floor (keep)
+## 2. 首启与登录漏斗
 
-No eyebrow kickers, nested card soup, gradient text, decorative left borders, or expanding emoji-as-icon systems. Prefer weight/size for emphasis; one elevation system (shadow or border, not both as ghost cards).
+首启为 **不可跳过的门禁**。可「稍后再说」仅适用于皮肤站细节；**模式 + 至少一种账户** 必须完成。
+
+### 2.1 步骤
+
+```
+① 选择使用模式（Agent 模式 / 标准模式）
+        ↓
+② 选择登录方式（正版微软 / 离线 / 第三方皮肤站）
+        ↓
+③ 完成账户就绪（Device Code / 用户名 / 皮肤站服务器+账号）
+        ↓
+④ 进入主页（玩家向启动首页）
+```
+
+### 2.2 模式语义
+
+| 模式 | 玩家看到什么 | 持久化 |
+|------|--------------|--------|
+| **Agent 模式** | 诊断助手默认开启；强调一键修环境、看报错；Agent 入口更显眼 | `settings.mode = agent` |
+| **标准模式** | 经典启动器布局；Agent 收入「更多」或工具条，不抢主导航 | `settings.mode = standard` |
+
+两种模式均可在设置中更改；首启只负责第一次分流。
+
+### 2.3 登录选项
+
+| 方式 | 玩家文案 | 实现要点 |
+|------|----------|----------|
+| **正版微软** | 「使用微软账户登录（正版）」 | Device Code → OAuth → XBL → XSTS → Minecraft Services；刷新令牌存 `accounts.json` |
+| **离线** | 「离线游玩：输入游戏里显示的名字」 | 现有 `createOffline`；补充命名规则 / 中文名提示（对齐 PCL Legacy） |
+| **第三方皮肤站** | 「使用皮肤站账号（Authlib / Nide8 等）」 | Authlib-Injector / Nide8 协议 + 皮肤预览；可「稍后再说」但推荐完成 |
+
+### 2.4 MSA：临时 vs 生产
+
+| 阶段 | 策略 | 风险 / 约束 |
+|------|------|-------------|
+| **MVP** | 临时借用已核实的开源启动器 **公开 Azure 公共客户端 ID**（PKCE / device code，无 secret） | 可能被原所有者轮换 / 限流；违反部分注册条款；**须在代码注释与设置「高级」标明「临时」** |
+| **生产** | 自有 Azure 公共客户端 + 向 Mojang 申请 Minecraft API 白名单 | 否则易 403 |
+
+**TBD — 禁止臆造 UUID：**  
+PCL 开源（`ModSecret.vb`）仅有 `PCL_MS_CLIENT_ID` 环境变量钩子，**无明文 ClientId**。EasyMC 钩子为 `EASYMC_MSA_CLIENT_ID`。临时借用 ID 待核实后填入；文档与实现均不得发明 UUID。
+
+---
+
+## 3. 信息架构
+
+### 3.1 主导航目标（PCL 同构 + EasyMC 特色）
+
+| 主导航 | 角色（玩家视角） |
+|--------|------------------|
+| **启动** | 选好实例 / 账户后，一键安装或进入游戏 |
+| **下载** | 发现并下载：原版、Mod、整合包、资源包、光影、数据包 |
+| **联机** | 创建 / 加入房间（Phase 4 实现；IA 先占位） |
+| **设置** | 启动、联机、个性化、其他（密钥进高级） |
+| **更多** | Agent、分享、帮助、关于、反馈、更新等 |
+
+- **Agent · 分享** = extras（更多 / 工具条），**不是**「下载 / 联机」的替代品。
+- 现状侧栏「启动 / 库 / 商店 / Agent / 分享 / 设置」→ 按上表重映射（Phase 2）。
+
+### 3.2 下载 vs 实例（硬边界）
+
+| 区域 | 职责 | 不做什么 |
+|------|------|----------|
+| **下载中心** | 浏览与安装进 **当前选中实例** | 不管理已安装 jar 的启用/禁用 |
+| **实例中心** | 管理本地实例及其内容 | 不是「全网商店」 |
+
+**已安装模组永远挂在实例下**，绝不出现在商店 / 下载「已装」伪列表。空模组列表 CTA：「去下载」→ 切到下载 · Mod。
+
+### 3.3 下载中心子页
+
+`原版` / `Mod` / `整合包` / `资源包` / `光影` / `数据包`
+
+### 3.4 实例子 IA（五栏）
+
+选中实例后：
+
+`概览` / `设置` / `修改` / `Mod 管理` / `导出`
+
+### 3.5 联机占位策略
+
+- Phase 2：主导航出现「联机」，落地页说明「即将推出」+ 简要期望能力（创建房间 / 邀请码 / 延迟）。
+- Phase 4：实现大厅与联机设置；禁止用 Agent/分享冒充联机。
+
+### 3.6 「更多」内容
+
+- Agent（诊断 / 意图 / 可选云端助手）
+- 分享（导出元数据 / 整合包；导入好友包）
+- 帮助 / 关于 / 反馈（及后续投票、百宝箱）
+- 启动器更新入口（规划）
+
+---
+
+## 4. 核心页面规格
+
+每页写清：目的、主操作、玩家语气。技术细节默认折叠。
+
+### 4.1 启动（Home / Launch）
+
+| | |
+|--|--|
+| **目的** | 让玩家尽快进入当前实例的游戏 |
+| **主操作** | 启动 / 安装并启动；切换实例；查看最近游玩 |
+| **次要** | 新建实例（可导向下载·原版）；分享导出；日志（默认折叠） |
+| **语气** | 「准备好了就开始」；进度用玩家阶段名（下载游戏 / 依赖 / 资源），不用 piston-meta 术语 |
+| **高级（折叠）** | 精简安装（无资源）、原始日志、开发诊断 |
+
+### 4.2 下载（六 Tab）
+
+| Tab | 目的 | 主操作 | 语气 |
+|-----|------|--------|------|
+| 原版 | 选 MC 版本（正式/快照）装进实例或新建 | 安装 / 创建实例 | 「选择游戏版本」 |
+| Mod | Modrinth + CurseForge 发现 | 搜索、装入当前实例 | 「为当前世界找模组」；CF 密钥提示进高级 |
+| 整合包 | 主流整合包源浏览安装 | 安装到新实例 | 「一键装好整套模组包」 |
+| 资源包 | 材质 / 资源包 | 下载到实例 | 「换皮肤材质包」口语可接受，避免「resource pack API」 |
+| 光影 | Shader packs | 下载 | 「让画面更好看」 |
+| 数据包 | Datapacks | 下载 | 「给世界加玩法」 |
+
+详情页（P1）：版本选择、依赖、截图、简介——列表级不够时再进详情。
+
+### 4.3 实例（五栏）
+
+| 栏 | 目的 | 主操作 | 语气 |
+|----|------|--------|------|
+| **概览** | 认出这个实例 | 图标、改名、分类、一键启动 | 「我的生存世界」级命名，非 id |
+| **设置** | 内存、Java、游戏目录、分辨率等 | 保存 | 「游戏用多少内存」而非 `memory_mb` |
+| **修改** | 本地存档 / 资源包 / 光影 / 文件入口 | 打开目录、启用禁用资源 | 与下载中心分离 |
+| **Mod 管理** | 已装 jar：启用 / 禁用 / 卸载 / 筛选 | 同上；空态 → 去下载 | 「已安装的模组」 |
+| **导出** | 分享给好友 | 导出元数据 / 含 mods 的包；导入 | 「发给好友」；格式名可次要展示 |
+
+### 4.4 设置（四组）
+
+| 组 | 内容（玩家层） | 高级（折叠） |
+|----|----------------|--------------|
+| **启动** | 默认账户、内存、Java 选择、启动参数简述 | JVM 原始参数、数据目录路径、`EASYMC_*` |
+| **联机** | 昵称展示、联机相关开关（随 Phase 4） | 端口 / 中继细节 |
+| **个性化** | 主题（青绿精神 + 后续主题）、语言、动效减弱跟随系统 | Token 调试 |
+| **其他** | 关于、更新检查、重置引导 | CurseForge 密钥、MSA Client 状态、LLM 连接 |
+
+### 4.5 联机
+
+| | |
+|--|--|
+| **目的** | 和朋友一起玩（大厅） |
+| **主操作（目标）** | 创建房间、加入（邀请码）、看延迟与人数 |
+| **占位期** | 诚实说明进度；收集「想要的联机方式」可选 |
+| **语气** | 「开房间 / 加入好友」；不出现内网穿透协议名于主文案 |
+
+### 4.6 Agent（更多 / 模式强化）
+
+| | |
+|--|--|
+| **目的** | 看懂报错、修环境、问答装模建议 |
+| **主操作** | 诊断上次启动、快捷意图芯片、对话 |
+| **默认** | 本地规则引擎（离线） |
+| **可选** | 设置·高级连接云端助手 |
+| **语气** | 「帮我看看哪里坏了」；禁止主界面刷 `EASYMC_LLM_*` / model@host |
+
+---
+
+## 5. 功能对齐清单
+
+对照对比报告 **36 项**，全部列入，不得删行。  
+**状态** 以 2026-10-24 桌面 M1.7 为基线；实现时更新本表。
+
+| # | 能力 | 阶段 | 优先级 | 状态 |
+|---|------|------|--------|------|
+| 1 | 首启：模式选择（Agent / 标准） | 1 | P0 | 缺口 |
+| 2 | 登录入口（正版微软 / 离线 / 第三方皮肤站） | 1 | P0 | 部分（仅离线可用） |
+| 3 | 微软账户 OAuth（Device Code → Xbox → MC） | 1 | P0 | 结构+钩子；流程未接通；ClientId TBD |
+| 4 | 离线（Legacy）登录与用户名校验 | 1 | P1 | 可用；缺首启引导与命名提示 |
+| 5 | 第三方皮肤站（Authlib-Injector / Nide8） | 3 | P0 | 缺口 |
+| 6 | 皮肤预览与换肤 | 3 | P1 | 缺口 |
+| 7 | 启动页主操作（大启动卡 / 版本选择） | 1–2 | P1 | 接近；需对齐 IA 与文案 |
+| 8 | 崩溃分析 | 1 / 持续 | P1 | EasyMC 更强（Agent）；需接到启动失败路径 |
+| 9 | 顶层「下载」与「实例」分离 | 2 | P0 | 缺口（现：商店≈Mod；库混装） |
+| 10 | 原版游戏安装（版本列表 / 快照） | 2 | P1 | 功能有；入口应归下载 |
+| 11 | Mod 发现与安装（MR + CF） | 2–3 | P2 | 基本持平；详情/依赖可加深 |
+| 12 | 整合包下载与安装 | 3 | P0 | 仅自有分享包；缺主流整合包源 |
+| 13 | 资源包下载 | 3 | P1 | 缺口 |
+| 14 | 光影包下载 | 3 | P1 | 缺口 |
+| 15 | 数据包下载 | 3 | P2 | 缺口 |
+| 16 | 资源详情页 | 3 | P1 | 列表级；无完整详情 |
+| 17 | 下载任务中心（速度/队列） | 3–4 | P2 | 仅安装进度事件 |
+| 18 | 实例子 IA：概览 / 设置 / 修改 / Mod 管理 / 导出 | 2 | P0 | 部分（列表+Mod+导出） |
+| 19 | 模组启用 / 禁用 / 卸载 | — | P2 | 已实现；保持「已装不在商店」 |
+| 20 | 加载器：Fabric / Quilt / Forge / NeoForge | — | P2 | 已通；保持 |
+| 21 | 实例导出 / 分享 | 2–3 | P1 | M1.7 已有；体验对标 / 归位导出栏 |
+| 22 | 实例个性化（图标 / 分类 / 改名） | 2–3 | P1 | 仅名称 |
+| 23 | 存档 / 资源包 / 光影本地管理 | 3 | P1 | 仅 mods/ |
+| 24 | 联机大厅（创建/加入、邀请码） | 4 | P0 | 整域空白（IA 先占位） |
+| 25 | 联机设置 | 4 | P1 | 缺口 |
+| 26 | 顶栏 IA：启动 / 下载 / 联机 / 设置 / 更多 | 2 | P0 | 需重映射 |
+| 27 | 设置：启动 / 联机 / 个性化 / 其他 | 2 | P0 | 远弱于目标 |
+| 28 | Java 管理 UI | 3 | P1 | ensure-java 有；可视列表弱 |
+| 29 | 主题 / 个性化配色 | 5（可与 1–2 重叠） | P0 | 固定青绿；待 impeccable 重做 |
+| 30 | 帮助 / 关于 / 反馈 / 投票 / 百宝箱 | 4 | P2 | 缺口 |
+| 31 | 启动器增量更新 | 4+ | P2 | 未规划实现 |
+| 32 | Agent 助手（诊断 / 意图 / 可选 LLM） | 1（入口） | P1 | 已有超集；纳入首启模式 |
+| 33 | 跨平台 / Android 姊妹轨 | 并行轨 | P2 | 超集；桌面先对齐；Android 真启动暂缓 |
+| 34 | 玩家向文案（非开发者向） | 1 并行 | P0 | 多处 env/TODO/API Key/LLM 外露 |
+| 35 | 首启 → 登录 → 主页连贯动线 | 1 | P0 | 无门禁 |
+| 36 | 前端视觉系统（impeccable） | 5（可重叠） | P0 | MD3 青绿 + 近期 motion；待系统化重做 |
+
+**汇总：** 36 项 · P0 为主路径门禁/IA/联机占位/文案/视觉 · P1 体验加深 · P2 增强与长尾。
+
+---
+
+## 6. 视觉系统（impeccable）
+
+### 6.1 Colorize 策略
+
+- **情绪温度：** 冷静可信、略带生机（青绿精神），Operate 克制剂量。
+- **种子：** 软青绿（现状约 `#0d6e67` / `#4DB6AC` 族）；**保留青绿精神**，Phase 5 用 OKLCH 重做完整角色色板，而非换品牌色相。
+- **身份参照：** 优先 **第一版更丰富的 MD3 草图**（图标稍丰富），不是精简 v2；PCL **不是**视觉皮肤。
+
+**角色（roles，非色票袋）**
+
+| 角色 | 用途 |
+|------|------|
+| `primary` / `on-primary` / `primary-container` | 主按钮、选中、关键焦点 |
+| `secondary*` | 次要容器、侧栏 promo、弱强调 |
+| `tertiary*` | 信息类点缀（克制） |
+| Surfaces：`surface` → `surface-container-highest` | 画布与抬升；侧栏略冷于内容区 |
+| `on-surface` / `on-surface-variant` | 主/次文字 |
+| `outline` / `outline-variant` | 分隔与边框 |
+| Semantic：`success` / `warning` / `error` / `info` (+ container) | 状态；勿用灰色冒充语义 |
+
+对比：正文 ≥4.5:1；大字与控件 ≥3:1。色盲不单靠颜色编码。
+
+### 6.2 Token 文件目标
+
+| 文件 | 职责 |
+|------|------|
+| `src/styles/tokens.css` | 色板、形状、elevation、motion duration/easing、间距、字族 |
+| `src/styles/global.css` | 选择、滚动条、焦点环（`--easymc-focus-ring`）、基础 reset |
+| 组件内 | 只引用 token；禁止散落硬编码品牌色（语义例外色需升 token） |
+
+Phase 5：用 OKLCH 重建 primitive → semantic 映射；暗色主题单独构图，禁止机械反色。
+
+### 6.3 Craft floor（必须保持）
+
+**禁止**
+
+- Eyebrow / kicker 小标签压在标题上  
+- 同构「图标+标题+正文」卡片铺满当页面结构；**嵌套卡片**  
+- 渐变文字；装饰性 glass/blur  
+- 卡片/列表装饰性 `border-left` > 1px  
+- 零偏移彩色光晕当阴影；硬偏移新粗野阴影（本产品未选该世界）  
+- Emoji / Unicode 充当图标体系（现状侧栏 `⌂☰👜` 等 → 换成一致 SVG/图标库）  
+- 同时用粗边框 + 宽软阴影的「幽灵卡片」；elevation **二选一**（shadow **或** border）  
+- 编排式整页入场；bounce/elastic 曲线当默认  
+
+**应当**
+
+- 强调靠字重/字号；一组 elevation  
+- 卡片圆角约 12–16px；pill 留给小控件  
+- 浏览器表面也入主题：选区、caret、滚动条、焦点环、表格数字  
+
+### 6.4 Motion thesis（Operate）
+
+| 类别 | 规格 |
+|------|------|
+| **Feedback** | 按压缩放 / 色变 ~100–150ms（`--easymc-dur-press`）；toast 进出 |
+| **Continuity** | 页切 opacity + 轻微 translate（`--easymc-dur-page`，app-shell keyed remount） |
+| **Lists** | 行进入短；卸载离开；stagger 总延迟封顶 ~140ms |
+| **Focal（安静）** | 仅 Home 启动英雄区一次入场（可选 300–500ms）；不多处重复 |
+| **A11y** | `prefers-reduced-motion: reduce` 去掉空间位移；保留有意义的透明度/状态变化 |
+
+Easing：`--easymc-ease-out` = `cubic-bezier(0.16, 1, 0.3, 1)`。**仅 CSS**——不加 motion 库。Routine 过渡 150–250ms；退出快于进入。
+
+---
+
+## 7. 文案规范
+
+### 7.1 禁用 → 玩家用语
+
+| 禁用（开发者腔） | 改用（玩家腔） |
+|------------------|----------------|
+| `EASYMC_*` / 环境变量名 | 「在高级设置中配置」或干脆不提 |
+| TODO / 尚未接通 / 预留接口 | 「即将支持」或隐藏入口 |
+| API Key（主文案标题） | 「CurseForge 密钥（可选）」放高级 |
+| LLM / OpenAI 兼容 / model@host | 「云端 AI 助手」「已连接」 |
+| uuid / kind / accounts.json | 「账户」「离线账户」 |
+| piston-meta / classpath / natives | 「下载游戏文件 / 依赖库」 |
+| Tauri / crate / Lit | 产品名 EasyMC；技术栈只在关于页小字 |
+| 快速安装（无资源）作主按钮 | 「高级：精简安装」 |
+| 导出元数据 | 「分享给好友（仅配置）」 |
+| 本地规则引擎 | 「本地助手」 |
+
+### 7.2 写作检查
+
+1. 陌生人玩家能否不查文档完成主路径？  
+2. 出错时是否告诉「发生了什么 + 点哪里修」？  
+3. 主界面是否还有英文缩写堆砌？能中文就中文；专有名词（Modrinth、Fabric）可保留。
+
+---
+
+## 8. 实施阶段
+
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| **Phase 0** | PCL ↔ EasyMC 对齐对比报告（36 项 SoT） | **已完成** |
+| **Phase 1** | 首启 onboarding（模式→登录→主页）+ 玩家向文案清理 + MSA stub（临时公共 ClientId + 风险注释；生产里程碑） | 待办 |
+| **Phase 2** | IA 重映射：主导航五段；下载中心 vs 实例五栏；联机占位；设置四组；Agent/分享进更多 | 待办 |
+| **Phase 3** | 能力填坑：皮肤站、整合包/资源包/光影/数据包、详情页、Java UI、存档与本地资源管理 | 待办 |
+| **Phase 4** | 联机实现 + 更多（帮助/关于/反馈/更新） | 待办 |
+| **Phase 5** | 全面 impeccable 配色重做（OKLCH roles）；可与 Phase 1–2 UI polish **重叠** | 待办 |
+
+**并行纪律**
+
+- 文案清理与 Phase 1 同开。  
+- 不因 MVP 从 §5 表删行；可标阶段延后，不可「砍掉」。  
+- Agent、分享、Android 轨保留为差异化，**不阻塞** PCL 对齐主线。  
+- **本阶段交付仅为本文档**；不在本文任务改产品 UI 代码。
+
+---
+
+## 9. 非目标 / 暂缓
+
+| 项 | 说明 |
+|----|------|
+| **Bedrock Edition** | 明确不做 |
+| **Android 真启动** | 姊妹轨继续存在，但 **暂停优先**；先桌面 polish 与 PCL 对齐 |
+| **臆造 MSA Client UUID** | 禁止；PCL 开源无明文 ID；记 TBD 至核实借用或自建 |
+| **抄 PCL 视觉** | IA/能力对齐 ≠ 皮肤；视觉走 MD3 青绿 + impeccable |
+| **把 Agent/分享顶替下载或联机** | 禁止；二者为更多/工具条 extras |
+| **云端强制 LLM** | Agent 默认本地；云端可选且进高级 |
+| **品牌营销页式动效** | Operate 产品，不做 spectacle 编排 |
+
+---
+
+## 附录 A — 现状速记（便于 diff）
+
+- 侧栏：启动 / 库 / 商店 / Agent / 分享 / 设置  
+- 已通：四加载器、MR+CF、实例模组管理、分享包、Agent、CLI、安装进度事件  
+- Token：`src/styles/tokens.css` + `global.css`  
+- MSA：`EASYMC_MSA_CLIENT_ID` 钩子；离线默认可玩  
+
+## 附录 B — 参考
+
+- Meloong-Git/PCL · PCL-Community/PCL-CE  
+- impeccable：`operate.md` / `colorize.md` / `animate.md` / `polish.md` / `craft-floor.md`  
+- 仓库内对比报告 Canvas（Phase 0）
