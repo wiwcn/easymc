@@ -2,9 +2,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use easymc_core::{Account, AccountKind, EasyMcError, Instance, Paths, Result, Settings};
+use easymc_core::{Account, AccountKind, EasyMcError, Instance, ModLoader, Paths, Result, Settings};
 use easymc_meta::rules_allow;
-use easymc_meta::{classpath_jars, extract_natives, is_version_installed, load_installed_version, VersionInfo};
+use easymc_meta::{
+    classpath_jars, extract_natives, fabric_profile_id, is_version_installed, load_installed_version,
+    quilt_profile_id, VersionInfo,
+};
 use serde_json::Value;
 
 use crate::java::{ensure_java, select_java, JavaInstall};
@@ -25,6 +28,47 @@ impl Default for LaunchRequest {
     }
 }
 
+/// Resolve the version JSON id to launch for this instance (vanilla or loader profile).
+pub fn resolve_launch_version(paths: &Paths, instance: &Instance) -> Result<VersionInfo> {
+    let id = match instance.loader {
+        ModLoader::Vanilla => instance.version.0.clone(),
+        ModLoader::Fabric => {
+            let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
+                EasyMcError::msg("Fabric 实例缺少 loader_version，请重新安装 Fabric")
+            })?;
+            fabric_profile_id(instance.version.as_str(), loader_ver)
+        }
+        ModLoader::Quilt => {
+            let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
+                EasyMcError::msg("Quilt 实例缺少 loader_version，请重新安装 Quilt")
+            })?;
+            quilt_profile_id(instance.version.as_str(), loader_ver)
+        }
+        ModLoader::Forge | ModLoader::NeoForge => {
+            return Err(EasyMcError::NotImplemented(match instance.loader {
+                ModLoader::Forge => "Forge 启动",
+                _ => "NeoForge 启动",
+            }));
+        }
+    };
+    if !is_version_installed(paths, &id) {
+        // Fall back: vanilla id check message
+        if instance.loader == ModLoader::Vanilla {
+            return Err(EasyMcError::msg(format!(
+                "版本 {} 尚未安装，请先安装",
+                instance.version
+            )));
+        }
+        return Err(EasyMcError::msg(format!(
+            "加载器配置 {} 尚未安装，请先安装 {} {}",
+            id,
+            instance.loader.label_zh(),
+            instance.version
+        )));
+    }
+    load_installed_version(paths, &id)
+}
+
 pub async fn prepare_and_launch(
     paths: &Paths,
     instance: &Instance,
@@ -34,15 +78,9 @@ pub async fn prepare_and_launch(
     procs: Arc<ProcessManager>,
     on_log: impl Fn(String) + Send + Sync + 'static,
 ) -> Result<LaunchStatus> {
-    if !is_version_installed(paths, instance.version.as_str()) {
-        return Err(EasyMcError::msg(format!(
-            "版本 {} 尚未安装，请先安装",
-            instance.version
-        )));
-    }
-    let info = load_installed_version(paths, instance.version.as_str())?;
-    // Ensure natives extracted
-    let natives = paths.natives_for_version(&info.id);
+    let info = resolve_launch_version(paths, instance)?;
+    // Ensure natives extracted (always from the jar / parent version)
+    let natives = paths.natives_for_version(info.jar_id());
     if !natives.exists() || std::fs::read_dir(&natives).map(|mut d| d.next().is_none()).unwrap_or(true)
     {
         on_log("解压 natives…".into());
@@ -91,7 +129,7 @@ pub fn build_jvm_and_game_args(
     req: &LaunchRequest,
 ) -> Result<Vec<String>> {
     let _ = java;
-    let natives = paths.natives_for_version(&info.id);
+    let natives = paths.natives_for_version(info.jar_id());
     let jars = classpath_jars(paths, info)?;
     let sep = if cfg!(windows) { ";" } else { ":" };
     let classpath = jars
@@ -118,7 +156,12 @@ pub fn build_jvm_and_game_args(
         "assets_root".into(),
         paths.assets_dir().to_string_lossy().into_owned(),
     );
-    vars.insert("assets_index_name".into(), info.asset_index.id.clone());
+    let assets_index = info
+        .asset_index
+        .as_ref()
+        .map(|a| a.id.clone())
+        .ok_or_else(|| EasyMcError::msg(format!("版本 {} 缺少 assetIndex", info.id)))?;
+    vars.insert("assets_index_name".into(), assets_index);
     vars.insert("auth_uuid".into(), account.uuid.clone());
     vars.insert("auth_access_token".into(), account.access_token.clone());
     vars.insert("clientid".into(), "easymc".into());
