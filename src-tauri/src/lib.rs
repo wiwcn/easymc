@@ -174,6 +174,37 @@ async fn start_microsoft_login(state: State<'_, AppState>) -> Result<Account, St
         .map_err(|e| e.to_string())
 }
 
+fn msa_cfg(state: &AppState) -> Result<MicrosoftAuthConfig, String> {
+    let settings = load_settings(state_paths(state)).map_err(|e| e.to_string())?;
+    Ok(MicrosoftAuthConfig::resolve(settings.msa_client_id.as_deref()))
+}
+
+/// Step 1 of 正版登录: get the code the player types at microsoft.com/link.
+#[tauri::command]
+async fn msa_device_code_cmd(state: State<'_, AppState>) -> Result<easymc_core::msa::DeviceCodeInfo, String> {
+    let cfg = msa_cfg(&state)?;
+    easymc_core::msa::request_device_code(&cfg).await.map_err(|e| e.to_string())
+}
+
+/// Step 2: wait for the browser sign-in, run Xbox/XSTS/Minecraft chain, save + activate account.
+#[tauri::command]
+async fn msa_poll_cmd(
+    state: State<'_, AppState>,
+    info: easymc_core::msa::DeviceCodeInfo,
+) -> Result<Account, String> {
+    let cfg = msa_cfg(&state)?;
+    let acc = easymc_core::msa::poll_device_code(&cfg, &info)
+        .await
+        .map_err(|e| e.to_string())?;
+    let paths = state_paths(&state);
+    let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+    store.accounts.retain(|a| a.id != acc.id);
+    store.active_id = Some(acc.id.clone());
+    store.accounts.push(acc.clone());
+    save_accounts(paths, &store).map_err(|e| e.to_string())?;
+    Ok(acc)
+}
+
 #[derive(serde::Deserialize)]
 struct UpdateSettingsPatch {
     mode: Option<String>,
@@ -243,9 +274,9 @@ fn msa_status_cmd(state: State<'_, AppState>) -> serde_json::Value {
     serde_json::json!({
         "configured": cfg.is_configured(),
         "using_temporary_client_id": cfg.using_temporary_client_id,
-        "oauth_ready": false,
+        "oauth_ready": cfg.is_configured(),
         "message_zh": if cfg.is_configured() {
-            "正版登录即将可用（已配置登录客户端）"
+            "使用微软账户登录 Minecraft（正版）"
         } else {
             "正版登录即将可用，可先离线游玩"
         },
@@ -534,6 +565,23 @@ async fn launch_instance(
         .find(|a| a.id == acc_id)
         .cloned()
         .ok_or_else(|| format!("account missing: {acc_id}"))?;
+    // 正版账户：令牌快过期时先刷新，再用真实 accessToken / uuid / 名字启动。
+    let acc = if easymc_core::msa::needs_refresh(&acc) {
+        let cfg = MicrosoftAuthConfig::resolve(settings.msa_client_id.as_deref());
+        let fresh = easymc_core::msa::refresh_account(&cfg, &acc)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+        for a in store.accounts.iter_mut() {
+            if a.id == acc.id {
+                *a = fresh.clone();
+            }
+        }
+        save_accounts(paths, &store).map_err(|e| e.to_string())?;
+        fresh
+    } else {
+        acc
+    };
 
     let procs = state.procs.clone();
     let app2 = app.clone();
@@ -950,6 +998,8 @@ pub fn run() {
             update_settings_cmd,
             complete_onboarding_cmd,
             msa_status_cmd,
+            msa_device_code_cmd,
+            msa_poll_cmd,
             list_versions,
             install_mc_version,
             list_loader_versions,

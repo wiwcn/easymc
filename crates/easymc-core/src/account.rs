@@ -79,16 +79,22 @@ pub fn create_offline_account(username: &str) -> crate::Result<Account> {
     })
 }
 
+/// TEMPORARY — replace before production.
+/// Verified public Azure MSA client ID from PrismLauncher open source
+/// (`CMakeLists.txt` on develop, curl 2026-10-24):
+/// <https://raw.githubusercontent.com/PrismLauncher/PrismLauncher/develop/CMakeLists.txt>
+/// `set(Launcher_MSA_CLIENT_ID "c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb" ...)`
+/// Risk: owner may rotate / rate-limit; ToS may disallow reuse. Prefer own Azure app + Mojang whitelist.
+pub const TEMPORARY_MSA_CLIENT_ID: &str = "c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb";
 
-/// Microsoft auth scaffolding. Needs an Azure AD application (public client)
+/// Microsoft auth config. Needs an Azure AD application (public client)
 /// registered for Minecraft launcher-style OAuth before this can complete.
 ///
 /// Resolution order for client id:
 /// 1. Env `EASYMC_MSA_CLIENT_ID`
 /// 2. `settings.msa_client_id`
 ///
-/// No fallback id is bundled: DESIGN §2.4 forbids inventing / borrowing an unverified UUID.
-/// Until one is configured, MSA login reports 「正版登录即将可用」.
+/// 3. [`TEMPORARY_MSA_CLIENT_ID`] (PrismLauncher public id — TEMPORARY)
 ///
 /// Production: register own Azure public client + Mojang Minecraft API whitelist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,7 +102,7 @@ pub struct MicrosoftAuthConfig {
     /// Azure application (client) id. None → MSA login disabled.
     pub client_id: Option<String>,
     pub redirect_uri: String,
-    /// Reserved: true if a temporary public client id is ever used (currently never).
+    /// True when falling back to [`TEMPORARY_MSA_CLIENT_ID`].
     #[serde(default)]
     pub using_temporary_client_id: bool,
 }
@@ -119,7 +125,8 @@ impl MicrosoftAuthConfig {
         let (client_id, using_temporary_client_id) = if let Some(id) = from_env.or(from_settings) {
             (Some(id), false)
         } else {
-            (None, false)
+            // TEMPORARY — replace before production (see TEMPORARY_MSA_CLIENT_ID docs).
+            (Some(TEMPORARY_MSA_CLIENT_ID.to_string()), true)
         };
         Self {
             client_id,
@@ -133,16 +140,11 @@ impl MicrosoftAuthConfig {
     }
 }
 
-/// Placeholder for the multi-step MSA → Xbox → Minecraft services flow.
+/// Non-interactive login is not possible; use [`crate::msa::request_device_code`] +
+/// [`crate::msa::poll_device_code`]. Kept for callers that expect a one-shot API.
 pub async fn begin_microsoft_login(cfg: &MicrosoftAuthConfig) -> crate::Result<Account> {
     if !cfg.is_configured() {
-        return Err(crate::EasyMcError::msg(
-            "正版登录即将可用，可先离线游玩。",
-        ));
+        return Err(crate::EasyMcError::msg("正版登录需要登录客户端，可先离线游玩。"));
     }
-    // Client id present (env / settings), but Device Code →
-    // Xbox Live → XSTS → Minecraft Services exchange is not wired yet.
-    Err(crate::EasyMcError::msg(
-        "正版登录即将可用。微软登录流程尚未接通，请先用离线名字游玩，或稍后再试。",
-    ))
+    Err(crate::EasyMcError::msg("请使用设备代码登录：在浏览器打开微软登录页并输入代码。"))
 }

@@ -6,6 +6,7 @@ mod instance;
 mod paths;
 mod store;
 
+pub mod msa;
 pub use account::*;
 pub use error::*;
 pub use instance::*;
