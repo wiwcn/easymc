@@ -97,7 +97,8 @@ async fn real_main() -> easymc_core::Result<()> {
                     natives: true,
                 },
                 |p| {
-                    println!("[{}] {}/ {:?} — {}", p.stage, p.current, p.total, p.detail);
+                    // Progress to stderr so piping stdout stays clean; humans see live status.
+                    eprintln!("{}", p.format_line());
                 },
             )
             .await?;
@@ -108,6 +109,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 }
             }
             save_instances(&paths, &store)?;
+            eprintln!("OK 已安装 {id}");
             println!("installed {id}");
         }
         "instances" => {

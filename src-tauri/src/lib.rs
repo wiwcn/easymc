@@ -157,18 +157,13 @@ async fn install_mc_version(
         natives: true,
     };
     install_version(&paths, &McVersion(version.clone()), opts, move |p| {
-        let _ = app.emit(
-            "install-progress",
-            serde_json::json!({
-                "stage": p.stage,
-                "current": p.current,
-                "total": p.total,
-                "detail": p.detail,
-            }),
-        );
+        let _ = app.emit("install-progress", &p);
     })
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        // Already includes stage context from meta.
+        e.to_string()
+    })?;
 
     let mut store = load_instances(&paths).map_err(|e| e.to_string())?;
     for inst in &mut store.instances {
@@ -177,7 +172,12 @@ async fn install_mc_version(
         }
     }
     save_instances(&paths, &store).map_err(|e| e.to_string())?;
-    Ok(format!("已安装 {version}"))
+    let assets_note = if with_assets.unwrap_or(true) {
+        "客户端/依赖/资源已就绪"
+    } else {
+        "客户端/依赖已就绪（已跳过资源）"
+    };
+    Ok(format!("已安装 {version}（{assets_note}）"))
 }
 
 #[tauri::command]
