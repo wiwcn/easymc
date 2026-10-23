@@ -14,6 +14,10 @@ use easymc_meta::{
     install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
     list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
 };
+use easymc_mods::{
+    api_key_from_env, install_mod, list_installed_mods, list_mod_versions, search_mods,
+    ModInstallResult, ModProject, ModSource, ModVersion, SearchQuery, API_KEY_ENV,
+};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
@@ -39,7 +43,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1.3",
+        "milestone": "M1.4",
         "data_dir": state.paths.root,
         "msa_configured": MicrosoftAuthConfig::default().is_configured(),
     })
@@ -426,6 +430,112 @@ fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
     load_settings(state_paths(&state)).map_err(|e| e.to_string())
 }
 
+
+fn parse_mod_source(s: &str) -> Result<ModSource, String> {
+    ModSource::parse(s).ok_or_else(|| format!("未知模组源: {s}（modrinth|curseforge）"))
+}
+
+#[tauri::command]
+fn curseforge_configured() -> serde_json::Value {
+    let set = api_key_from_env().is_some();
+    serde_json::json!({
+        "configured": set,
+        "env": API_KEY_ENV,
+        "hint": if set {
+            "CurseForge API Key 已配置"
+        } else {
+            "未配置 EASYMC_CURSEFORGE_API_KEY。可在 https://console.curseforge.com/ 申请；Modrinth 无需 Key。"
+        }
+    })
+}
+
+#[tauri::command]
+async fn search_mods_cmd(
+    source: String,
+    query: Option<String>,
+    game_version: Option<String>,
+    loader: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<ModProject>, String> {
+    let source = parse_mod_source(&source)?;
+    let loader = loader.and_then(|s| ModLoader::parse_loose(&s));
+    let q = SearchQuery {
+        text: query.unwrap_or_default(),
+        game_version,
+        loader,
+        limit: limit.unwrap_or(20).clamp(1, 50),
+        offset: 0,
+    };
+    search_mods(source, &q).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn list_mod_versions_cmd(
+    source: String,
+    project_id: String,
+    game_version: Option<String>,
+    loader: Option<String>,
+) -> Result<Vec<ModVersion>, String> {
+    let source = parse_mod_source(&source)?;
+    let loader = loader.and_then(|s| ModLoader::parse_loose(&s));
+    list_mod_versions(source, &project_id, game_version.as_deref(), loader)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_mod_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    source: String,
+    project_id: String,
+    version_id: Option<String>,
+    instance_id: Option<String>,
+) -> Result<ModInstallResult, String> {
+    let source = parse_mod_source(&source)?;
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .clone();
+    let app2 = app.clone();
+    install_mod(
+        &inst,
+        source,
+        &project_id,
+        version_id.as_deref(),
+        move |p| {
+            let _ = app2.emit("install-progress", &p);
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_installed_mods_cmd(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?;
+    list_installed_mods(inst).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn version_installed(state: State<'_, AppState>, version: String) -> bool {
     is_version_installed(state_paths(&state), &version)
@@ -462,6 +572,11 @@ pub fn run() {
             get_logs,
             get_settings,
             version_installed,
+            curseforge_configured,
+            search_mods_cmd,
+            list_mod_versions_cmd,
+            install_mod_cmd,
+            list_installed_mods_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

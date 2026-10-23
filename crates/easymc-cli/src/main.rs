@@ -12,6 +12,10 @@ use easymc_meta::{
     install_fabric, install_quilt, install_version, is_loader_installed, is_version_installed,
     list_loaders, InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
 };
+use easymc_mods::{
+    install_mod, list_installed_mods, list_mod_versions, search_mods, ModSource, SearchQuery,
+    API_KEY_ENV,
+};
 
 #[tokio::main]
 async fn main() {
@@ -221,6 +225,157 @@ async fn real_main() -> easymc_core::Result<()> {
             store.accounts.push(acc);
             save_accounts(&paths, &store)?;
         }
+        "search-mods" => {
+            let source_s = args
+                .first()
+                .cloned()
+                .ok_or_else(|| easymc_core::EasyMcError::msg(
+                    "usage: search-mods <modrinth|curseforge> [query] [--game VER] [--loader fabric|quilt|vanilla|forge|neoforge]"
+                ))?;
+            let source = ModSource::parse(&source_s).ok_or_else(|| {
+                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}（modrinth|curseforge）"))
+            })?;
+            let query_text = args
+                .iter()
+                .skip(1)
+                .find(|a| !a.starts_with('-'))
+                .cloned()
+                .unwrap_or_default();
+            let game = flag_value(&args, "--game");
+            let loader = flag_value(&args, "--loader").and_then(|s| ModLoader::parse_loose(&s));
+            let q = SearchQuery {
+                text: query_text,
+                game_version: game,
+                loader,
+                limit: 15,
+                offset: 0,
+            };
+            let hits = search_mods(source, &q).await?;
+            if hits.is_empty() {
+                println!("(无结果)");
+            }
+            for h in hits {
+                let author = h.author.as_deref().unwrap_or("-");
+                println!(
+                    "{}\t{}\t{}\tdl={}\t@{}",
+                    h.id, h.slug, h.name, h.downloads, author
+                );
+                if !h.description.is_empty() {
+                    let d = h.description.replace('\n', " ");
+                    let short = if d.chars().count() > 80 {
+                        format!("{}…", d.chars().take(80).collect::<String>())
+                    } else {
+                        d
+                    };
+                    println!("  {short}");
+                }
+            }
+        }
+        "list-mod-versions" => {
+            let source_s = args.first().cloned().ok_or_else(|| {
+                easymc_core::EasyMcError::msg(
+                    "usage: list-mod-versions <modrinth|curseforge> <project-id> [--game VER] [--loader …]",
+                )
+            })?;
+            let project = args.get(1).cloned().ok_or_else(|| {
+                easymc_core::EasyMcError::msg("缺少 project-id")
+            })?;
+            let source = ModSource::parse(&source_s).ok_or_else(|| {
+                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}"))
+            })?;
+            let game = flag_value(&args, "--game");
+            let loader = flag_value(&args, "--loader").and_then(|s| ModLoader::parse_loose(&s));
+            let list = list_mod_versions(source, &project, game.as_deref(), loader).await?;
+            for v in list.into_iter().take(20) {
+                let gvs = v.game_versions.join(",");
+                let lds = v.loaders.join(",");
+                println!(
+                    "{}\t{}\t{}\tgames=[{gvs}]\tloaders=[{lds}]",
+                    v.id, v.version_number, v.name
+                );
+            }
+        }
+        "install-mod" => {
+            let source_s = args.first().cloned().ok_or_else(|| {
+                easymc_core::EasyMcError::msg(
+                    "usage: install-mod <modrinth|curseforge> <project-id> [--version ID] [--instance ID]",
+                )
+            })?;
+            let project = args.get(1).cloned().ok_or_else(|| {
+                easymc_core::EasyMcError::msg("缺少 project-id / slug")
+            })?;
+            let source = ModSource::parse(&source_s).ok_or_else(|| {
+                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}"))
+            })?;
+            let version_id = flag_value(&args, "--version");
+            let store = load_instances(&paths)?;
+            let inst_id = flag_value(&args, "--instance")
+                .or(store.active_id.clone())
+                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active"))?;
+            let inst = store
+                .instances
+                .iter()
+                .find(|i| i.id == inst_id)
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?
+                .clone();
+            let res = install_mod(
+                &inst,
+                source,
+                &project,
+                version_id.as_deref(),
+                |p| {
+                    let pct = p.percent.map(|x| format!("{x:.0}%")).unwrap_or_else(|| "—".into());
+                    let tot = p.total.map(|t| format!("{}/{}", p.current, t)).unwrap_or_else(|| format!("{}", p.current));
+                    eprintln!(
+                        "[{}/{} {}] {pct}  {tot}  {}",
+                        p.phase, p.phase_total, p.stage_label, p.detail
+                    );
+                },
+            )
+            .await?;
+            println!(
+                "OK {} {} @ {} → {}{}",
+                res.source,
+                res.project_name,
+                res.version_number,
+                res.path,
+                if res.skipped { " (跳过)" } else { "" }
+            );
+        }
+        "list-mods" => {
+            let store = load_instances(&paths)?;
+            let inst_id = args
+                .first()
+                .cloned()
+                .or(flag_value(&args, "--instance"))
+                .or(store.active_id.clone())
+                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例"))?;
+            let inst = store
+                .instances
+                .iter()
+                .find(|i| i.id == inst_id)
+                .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
+            let mods = list_installed_mods(inst)?;
+            if mods.is_empty() {
+                println!("(mods 目录为空) {}", inst.game_dir);
+            } else {
+                for m in mods {
+                    println!("{m}");
+                }
+            }
+        }
+        "curseforge-key" => {
+            match std::env::var(API_KEY_ENV) {
+                Ok(k) if !k.trim().is_empty() => {
+                    println!("已配置 {API_KEY_ENV}（长度 {}）", k.trim().len());
+                }
+                _ => {
+                    println!("未配置 {API_KEY_ENV}");
+                    println!("申请: https://console.curseforge.com/ → 设置环境变量后即可搜索/安装 CurseForge 模组。");
+                    println!("Modrinth 无需此 Key。");
+                }
+            }
+        }
         "launch" => {
             let store = load_instances(&paths)?;
             let id = args
@@ -399,6 +554,14 @@ fn print_help() {
            offline [username]\n\
            create-instance [name] [version] [--loader vanilla|fabric|quilt] [--loader-version VER]\n\
            set-active <instance-id>\n\
-           launch [instance-id]\n"
+           search-mods <modrinth|curseforge> [query] [--game VER] [--loader …]\n\
+           list-mod-versions <modrinth|curseforge> <project-id> [--game VER] [--loader …]\n\
+           install-mod <modrinth|curseforge> <project-id> [--version ID] [--instance ID]\n\
+           list-mods [instance-id]\n\
+           curseforge-key\n\
+           launch [instance-id]\n\
+\n\
+         CurseForge 需要环境变量 EASYMC_CURSEFORGE_API_KEY（https://console.curseforge.com/）。\n\
+         Modrinth 无需 Key。\n"
     );
 }
