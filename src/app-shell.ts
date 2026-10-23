@@ -117,8 +117,9 @@ export class EasyMcApp extends LitElement {
       case "settings":
         return html`<easymc-placeholder-page
           title="设置"
-          subtitle="外观、Java、账户与 Agent 提供商（M0 占位）"
+          subtitle="账户与运行时"
           icon="⚙️"
+          settings
         ></easymc-placeholder-page>`;
     }
   }

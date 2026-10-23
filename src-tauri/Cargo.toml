@@ -29,3 +29,4 @@ serde_json = { workspace = true }
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tokio = { workspace = true }
+chrono = { workspace = true }

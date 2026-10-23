@@ -1,61 +1,108 @@
-import type { InstanceDto } from "./types";
+import type { AccountDto, InstanceDto, VersionSummary } from "./types";
 import { versionId } from "./types";
-
-const FALLBACK: InstanceDto[] = [
-  {
-    id: "survival",
-    name: "Survival World",
-    version: "1.21.1",
-    loader: "fabric",
-    description: "Your go-to survival experience.",
-    last_played: "Today, 4:32 PM",
-  },
-  {
-    id: "creative",
-    name: "Creative Build",
-    version: "1.21.1",
-    loader: "vanilla",
-    last_played: null,
-  },
-  {
-    id: "modded",
-    name: "Modded Adventures",
-    version: "1.21.1",
-    loader: "fabric",
-    last_played: null,
-  },
-  {
-    id: "test",
-    name: "Test World",
-    version: "1.21.1",
-    loader: "vanilla",
-    last_played: null,
-  },
-];
 
 async function invokeSafe<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     return await invoke<T>(cmd, args);
-  } catch {
+  } catch (e) {
+    console.warn("invoke failed", cmd, e);
     return null;
   }
 }
 
-export async function listInstances(): Promise<InstanceDto[]> {
-  const raw = await invokeSafe<InstanceDto[]>("list_instances");
-  if (!raw) return FALLBACK;
-  return raw.map((i) => ({
+async function invokeOrThrow<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<T>(cmd, args);
+}
+
+function mapInstance(i: InstanceDto): InstanceDto {
+  return {
     ...i,
     version: versionId(i.version),
     loader: String(i.loader).toLowerCase(),
-  }));
+  };
+}
+
+export async function listInstances(): Promise<InstanceDto[]> {
+  const raw = await invokeSafe<InstanceDto[]>("list_instances");
+  if (!raw) {
+    return [
+      {
+        id: "default",
+        name: "Survival World",
+        version: "1.21.1",
+        loader: "vanilla",
+        description: "浏览器预览 · 请用 pnpm tauri dev 连接后端",
+        version_ready: false,
+      },
+    ];
+  }
+  return raw.map(mapInstance);
+}
+
+export async function listAccounts(): Promise<AccountDto[]> {
+  return (await invokeSafe<AccountDto[]>("list_accounts")) ?? [];
+}
+
+export async function createOffline(username: string): Promise<AccountDto | null> {
+  return invokeSafe<AccountDto>("create_offline", { username });
+}
+
+export async function listVersions(): Promise<VersionSummary[]> {
+  return (await invokeSafe<VersionSummary[]>("list_versions")) ?? [];
+}
+
+export async function installVersion(version: string, withAssets = true): Promise<string> {
+  return invokeOrThrow<string>("install_mc_version", { version, withAssets });
 }
 
 export async function launchInstance(instanceId: string): Promise<string> {
-  const res = await invokeSafe<{ ok: boolean; message: string }>("launch_instance", {
-    instanceId,
-  });
-  if (res) return res.message;
-  return `M0 stub: 将启动「${instanceId}」（浏览器预览模式，无 Tauri 后端）`;
+  try {
+    const res = await invokeOrThrow<{ ok: boolean; message: string }>("launch_instance", {
+      instanceId,
+    });
+    return res.message;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(msg);
+  }
+}
+
+export async function stopInstance(): Promise<void> {
+  await invokeSafe("stop_instance");
+}
+
+export async function getLogs(): Promise<string[]> {
+  return (await invokeSafe<string[]>("get_logs")) ?? [];
+}
+
+export async function ensureJava(major = 21): Promise<string> {
+  const j = await invokeOrThrow<{ path: string; major: number }>("ensure_java_cmd", { major });
+  return `${j.path} (Java ${j.major})`;
+}
+
+export async function listenLogs(handler: (line: string) => void): Promise<() => void> {
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    const un = await listen<string>("launch-log", (e) => handler(e.payload));
+    return () => un();
+  } catch {
+    return () => undefined;
+  }
+}
+
+export async function listenInstallProgress(
+  handler: (p: { stage: string; current: number; total: number | null; detail: string }) => void,
+): Promise<() => void> {
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    const un = await listen<{ stage: string; current: number; total: number | null; detail: string }>(
+      "install-progress",
+      (e) => handler(e.payload),
+    );
+    return () => un();
+  } catch {
+    return () => undefined;
+  }
 }
