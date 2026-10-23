@@ -6,6 +6,13 @@ use tokio::io::AsyncWriteExt;
 
 use easymc_core::{EasyMcError, Result};
 
+/// Outcome of a fetch: skipped (already on disk) or newly written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FetchResult {
+    Skipped,
+    Downloaded,
+}
+
 pub async fn download_file(
     client: &reqwest::Client,
     url: &str,
@@ -13,18 +20,20 @@ pub async fn download_file(
     expected_sha1: Option<&str>,
     expected_size: Option<u64>,
     mut on_progress: impl FnMut(u64, Option<u64>),
-) -> Result<()> {
+) -> Result<FetchResult> {
     if dest.exists() {
         if let Some(sha) = expected_sha1 {
             if verify_sha1(dest, sha)? {
                 if let Some(sz) = expected_size {
                     on_progress(sz, Some(sz));
                 }
-                return Ok(());
+                return Ok(FetchResult::Skipped);
             }
+            // Corrupt / outdated — remove and re-fetch.
+            let _ = tokio::fs::remove_file(dest).await;
         } else if expected_size.is_some_and(|s| dest.metadata().map(|m| m.len() == s).unwrap_or(false))
         {
-            return Ok(());
+            return Ok(FetchResult::Skipped);
         }
     }
 
@@ -32,44 +41,99 @@ pub async fn download_file(
         tokio::fs::create_dir_all(parent).await?;
     }
 
+    let tmp = dest.with_extension("part");
+    // Drop any leftover partial from a prior failed run.
+    let _ = tokio::fs::remove_file(&tmp).await;
+
+    let result = download_to_part(
+        client,
+        url,
+        dest,
+        &tmp,
+        expected_sha1,
+        expected_size,
+        &mut on_progress,
+    )
+    .await;
+
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&tmp).await;
+    }
+    result
+}
+
+async fn download_to_part(
+    client: &reqwest::Client,
+    url: &str,
+    dest: &Path,
+    tmp: &Path,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
+    on_progress: &mut impl FnMut(u64, Option<u64>),
+) -> Result<FetchResult> {
     let resp = client
         .get(url)
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(e.to_string()))?
+        .map_err(|e| EasyMcError::Http(format!("请求失败 {url}: {e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(e.to_string()))?;
+        .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}: {e}")))?;
 
     let total = expected_size.or_else(|| resp.content_length());
-    let tmp = dest.with_extension("part");
-    let mut file = tokio::fs::File::create(&tmp).await?;
+    let mut file = tokio::fs::File::create(tmp)
+        .await
+        .map_err(|e| EasyMcError::msg(format!("无法写入临时文件 {}: {e}", tmp.display())))?;
     let mut stream = resp.bytes_stream();
     let mut hasher = Sha1::new();
     let mut written = 0u64;
+    let mut last_emit = 0u64;
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| EasyMcError::Http(e.to_string()))?;
+        let chunk = chunk.map_err(|e| EasyMcError::Http(format!("下载中断 {url}: {e}")))?;
         hasher.update(&chunk);
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
-        on_progress(written, total);
+        // Throttle: every ~256 KiB or at completion.
+        let step = 256 * 1024;
+        if written == total.unwrap_or(u64::MAX)
+            || written.saturating_sub(last_emit) >= step
+            || last_emit == 0
+        {
+            on_progress(written, total);
+            last_emit = written;
+        }
     }
     file.flush().await?;
     drop(file);
+    on_progress(written, total);
 
-    if let Some(sha) = expected_sha1 {
-        let got = hex::encode(hasher.finalize());
-        if !got.eq_ignore_ascii_case(sha) {
-            let _ = tokio::fs::remove_file(&tmp).await;
+    if let Some(expected) = expected_size {
+        if written != expected {
             return Err(EasyMcError::msg(format!(
-                "sha1 mismatch for {}: expected {sha}, got {got}",
+                "大小不符 {}: 期望 {expected} 字节，实际 {written}（网络可能中断，已丢弃不完整文件）",
                 dest.display()
             )));
         }
     }
 
-    tokio::fs::rename(&tmp, dest).await?;
-    Ok(())
+    if let Some(sha) = expected_sha1 {
+        let got = hex::encode(hasher.finalize());
+        if !got.eq_ignore_ascii_case(sha) {
+            return Err(EasyMcError::msg(format!(
+                "校验失败 {}: 期望 sha1={sha}，实际 {got}（已丢弃损坏文件）",
+                dest.display()
+            )));
+        }
+    }
+
+    tokio::fs::rename(tmp, dest).await.map_err(|e| {
+        EasyMcError::msg(format!(
+            "无法落盘 {} ← {}: {e}",
+            dest.display(),
+            tmp.display()
+        ))
+    })?;
+    Ok(FetchResult::Downloaded)
 }
 
 pub fn verify_sha1(path: &Path, expected: &str) -> Result<bool> {

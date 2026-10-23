@@ -6,6 +6,7 @@ mod install;
 mod download;
 
 pub use install::*;
+pub use download::FetchResult;
 pub use types::*;
 pub use rules::{rules_allow, current_os_name, is_native_library};
 
