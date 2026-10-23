@@ -3,9 +3,13 @@ name = "easymc-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "EasyMC shared types, errors, and domain models (Java Edition)"
+description = "EasyMC shared types, persistence, accounts, paths (Java Edition)"
 
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+dirs = { workspace = true }
+uuid = { workspace = true }
+md-5 = { workspace = true }
+chrono = { workspace = true }
