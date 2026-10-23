@@ -56,7 +56,7 @@ pnpm tauri dev
 
 **System deps (Linux example):** `webkit2gtk-4.1`, `librsvg2`, `patchelf`, build essentials, `libssl-dev`, etc. See Tauri 2 prerequisites for your OS.
 
-> On this scaffold host, WebKitGTK may be missing — `pnpm build` and `cargo check --workspace` are the M0 gates. `pnpm tauri build` / `dev` need those native libs.
+> M0 gates on CI/headless boxes: `pnpm build` + `cargo check --workspace`. `pnpm tauri dev` also needs a display (Wayland/X11) plus the Linux packages above; without `DISPLAY`/`WAYLAND_DISPLAY` the native window will not open.
 
 ## Crate map
 
