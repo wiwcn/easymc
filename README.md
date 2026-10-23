@@ -70,15 +70,23 @@ Nav: **启动 / 库 / 商店 / Agent / 分享 / 设置**
 
 Until then use **离线账户**.
 
+## Smoke status (this box)
+
+Verified with `EASYMC_DATA_DIR=/workspace/easymc-data`:
+
+- `ensure-java 21` → Temurin 21.0.13
+- `install 1.21.1` → client + 56 libs + natives + asset index 17 (3911 objects)
+- `launch default` → LWJGL 3.3.3, offline user EasyPlayer, texture atlases created (title-screen path). OpenAL/ALSA missing on headless audio → game continues muted. Needs a real DISPLAY/GPU for the window.
+
 ## Remaining gaps for “actually usable”
 
-- Full MSA login (needs your Azure client id + OAuth implementation finish)
+- Full MSA login (needs Azure client id + OAuth → Xbox → Minecraft services finish)
 - In-UI version picker / multi-instance create (CLI works today)
 - Mod loaders (Fabric/Forge) — vanilla only for this slice
 - Asset download progress UI polish; optional mirror CDNs
-- Windows JDK zip extract path
-- Signed launcher branding / demo mode flags
-- GPU/display required for the game window itself
+- Windows JDK zip extract path (Linux tar.gz path works)
+- Real audio device for OpenAL (optional)
+- GPU/display for the game window itself
 
 ## Linux packages
 
