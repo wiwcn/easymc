@@ -1,0 +1,31 @@
+[package]
+name = "easymc-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "EasyMC Tauri 2 desktop shell"
+default-run = "easymc-app"
+
+[lib]
+name = "easymc_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "easymc-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+easymc-core = { workspace = true }
+easymc-meta = { workspace = true }
+easymc-mods = { workspace = true }
+easymc-agent = { workspace = true }
+easymc-share = { workspace = true }
+easymc-launch-desktop = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tokio = { workspace = true }

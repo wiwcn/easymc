@@ -1,0 +1,12 @@
+[package]
+name = "easymc-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pluggable cloud LLM agent provider stubs"
+
+[dependencies]
+easymc-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }

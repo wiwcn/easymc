@@ -1,0 +1,44 @@
+/*
+  EasyMC MD3 tokens — soft teal seed.
+  Choice (M0): thin custom CSS tokens + Lit components.
+  Rationale: @material/web is in maintenance mode; we avoid depending solely on it.
+  Actively maintained Lit MD3 options (e.g. community Material 3 Web Components)
+  can be adopted later without changing these token names.
+  Seed inspired by MD3 tonal palette from soft teal (~#0F766E / #4DB6AC family).
+*/
+:root {
+  --md-sys-color-primary: #0f766e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #b2dfdb;
+  --md-sys-color-on-primary-container: #003731;
+  --md-sys-color-secondary: #4a635f;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #cce8e3;
+  --md-sys-color-on-secondary-container: #05201c;
+  --md-sys-color-tertiary: #456179;
+  --md-sys-color-surface: #f7faf9;
+  --md-sys-color-surface-dim: #d7dbda;
+  --md-sys-color-surface-container: #ebefee;
+  --md-sys-color-surface-container-low: #f1f5f4;
+  --md-sys-color-surface-container-high: #e5e9e8;
+  --md-sys-color-surface-container-highest: #dfe3e2;
+  --md-sys-color-on-surface: #191c1c;
+  --md-sys-color-on-surface-variant: #3f4947;
+  --md-sys-color-outline: #6f7977;
+  --md-sys-color-outline-variant: #bec9c6;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-success: #2e7d32;
+
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 999px;
+
+  --md-sys-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --md-sys-elevation-2: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  --easymc-nav-width: 200px;
+  --easymc-font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+}

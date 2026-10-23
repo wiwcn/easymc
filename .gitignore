@@ -1,0 +1,52 @@
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+pnpm-lock.yaml.bak
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas/*.json
+!src-tauri/gen/schemas/.gitkeep
+src-tauri/WixTools/
+*.app
+*.dmg
+*.AppImage
+*.msi
+*.exe
+*.deb
+*.rpm
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Test / coverage
+coverage/
+.nyc_output/

@@ -1,0 +1,11 @@
+[package]
+name = "easymc-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "EasyMC shared types, errors, and domain models (Java Edition)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

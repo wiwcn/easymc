@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/easymc-core",
+    "crates/easymc-meta",
+    "crates/easymc-mods",
+    "crates/easymc-agent",
+    "crates/easymc-share",
+    "crates/easymc-launch-desktop",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["EasyMC Contributors"]
+repository = "https://github.com/easymc/easymc"
+
+[workspace.dependencies]
+easymc-core = { path = "crates/easymc-core" }
+easymc-meta = { path = "crates/easymc-meta" }
+easymc-mods = { path = "crates/easymc-mods" }
+easymc-agent = { path = "crates/easymc-agent" }
+easymc-share = { path = "crates/easymc-share" }
+easymc-launch-desktop = { path = "crates/easymc-launch-desktop" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -1,0 +1,11 @@
+[package]
+name = "easymc-mods"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Mod provider trait + Modrinth / CurseForge stubs"
+
+[dependencies]
+easymc-core = { workspace = true }
+serde = { workspace = true }
+async-trait = { workspace = true }

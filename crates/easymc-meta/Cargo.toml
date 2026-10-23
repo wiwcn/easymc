@@ -1,0 +1,11 @@
+[package]
+name = "easymc-meta"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Minecraft Java Edition version metadata stubs"
+
+[dependencies]
+easymc-core = { workspace = true }
+serde = { workspace = true }
+async-trait = { workspace = true }

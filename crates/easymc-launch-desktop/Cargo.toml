@@ -1,0 +1,12 @@
+[package]
+name = "easymc-launch-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop Java Edition launch stubs (no real process spawn yet)"
+
+[dependencies]
+easymc-core = { workspace = true }
+easymc-meta = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
