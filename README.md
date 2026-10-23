@@ -4,7 +4,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
 **License:** MIT · **Milestone:** M1.7 (配置一键分享 — export/import)
 
-**Android track:** sibling repo [`/workspace/easymc-android`](../easymc-android) (A3 — GL4ES + Surface handoff + glfw-stub (title still no); see its DESIGN.md). Not the same milestone as desktop M1.
+**Android track:** sibling repo [`/workspace/easymc-android`](../easymc-android) (A3.1 — CreateJavaVM + EarlyGlFrame (title still no); see its DESIGN.md). Not the same milestone as desktop M1.
 
 ## What works (M1)
 
