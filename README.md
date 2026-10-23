@@ -2,7 +2,7 @@
 
 Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
-**License:** MIT · **Milestone:** M1.2 (install progress polish)
+**License:** MIT · **Milestone:** M1.3 (Fabric / Quilt loader install)
 
 ## What works (M1)
 
@@ -16,6 +16,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - Multi-instance: list, set default, launch selected (Home + 库)
 - Install progress: phase labels (元数据/客户端/依赖库/本地库/游戏资源) + counts/%; CLI stderr lines; Tauri `install-progress` events → Home/库 progress bar
 - Skip-if-present clarity (新下 / 跳过); `--no-assets` + UI「下载游戏资源」/「快速安装（无资源）」; mid-fail drops `.part` and surfaces stage-scoped errors
+- Mod loaders: **Fabric** (and **Quilt**) profile install via meta.fabricmc.net / meta.quiltmc.org; `inheritsFrom` merge; launch uses KnotClient + loader jars. Forge/NeoForge stubbed. UI create flow: 原版 | Fabric | Quilt
 - Microsoft auth: structure + clear TODO (`EASYMC_MSA_CLIENT_ID`); offline play works without it
 - Headless CLI: `cargo run -p easymc-cli -- <cmd>`
 
@@ -37,6 +38,9 @@ cargo run -p easymc-cli -- ensure-java 21
 cargo run -p easymc-cli -- install 1.21.1          # full assets ~800MB+; progress on stderr
 # faster iterate without assets (title screen may fail):
 # cargo run -p easymc-cli -- install 1.21.1 --no-assets
+cargo run -p easymc-cli -- list-loaders fabric 1.21.1
+cargo run -p easymc-cli -- install-fabric 1.21.1 --no-assets
+cargo run -p easymc-cli -- create-instance "Fabric" 1.21.1 --loader fabric --loader-version 0.20.1
 cargo run -p easymc-cli -- list-versions          # releases
 # cargo run -p easymc-cli -- list-versions --snapshots
 cargo run -p easymc-cli -- create-instance "速通" 1.20.1
@@ -51,7 +55,7 @@ cargo run -p easymc-cli -- launch default
 pnpm tauri dev
 ```
 
-Home: **安装并启动** / **启动** / **新建实例** (version picker) + install progress bar. 库: instance list + create + progress. Settings: offline accounts. Logs under the hero card. Toggle **下载游戏资源** or use **快速安装（无资源）** for faster iterate.
+Home: **安装并启动** / **启动** / **新建实例** (version + **加载器** 原版/Fabric/Quilt) + install progress bar. 库: same. Settings: offline accounts. Logs under the hero card. Toggle **下载游戏资源** or use **快速安装（无资源）** for faster iterate.
 
 ## Crate map
 
@@ -90,7 +94,7 @@ Verified with `EASYMC_DATA_DIR=/workspace/easymc-data`:
 ## Remaining gaps for “actually usable”
 
 - Full MSA login (needs Azure client id + OAuth → Xbox → Minecraft services finish)
-- Mod loaders (Fabric/Forge) — vanilla only for this slice
+- Forge/NeoForge install; Modrinth/CurseForge browse UI
 - Asset download progress UI polish; optional mirror CDNs
 - Windows JDK zip extract path (Linux tar.gz path works)
 - Real audio device for OpenAL (optional)
