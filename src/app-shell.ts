@@ -5,6 +5,7 @@ import "./components/side-nav";
 import "./pages/home-page";
 import "./pages/library-page";
 import "./pages/placeholder-page";
+import "./pages/store-page";
 
 @customElement("easymc-app")
 export class EasyMcApp extends LitElement {
@@ -94,11 +95,7 @@ export class EasyMcApp extends LitElement {
       case "library":
         return html`<easymc-library-page></easymc-library-page>`;
       case "store":
-        return html`<easymc-placeholder-page
-          title="商店"
-          subtitle="浏览 Modrinth / CurseForge 模组与整合包（M0 占位）"
-          icon="🛍️"
-        ></easymc-placeholder-page>`;
+        return html`<easymc-store-page></easymc-store-page>`;
       case "agent":
         return html`<easymc-placeholder-page
           title="Agent"

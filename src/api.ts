@@ -1,4 +1,4 @@
-import type { AccountDto, InstanceDto, InstancesState, LoaderVersionItem, VersionSummary } from "./types";
+import type { AccountDto, CurseForgeStatusDto, InstanceDto, InstancesState, LoaderVersionItem, ModInstallResultDto, ModProjectDto, ModVersionDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -174,3 +174,69 @@ export async function listenInstallProgress(
   }
 }
 
+
+export async function curseforgeConfigured(): Promise<CurseForgeStatusDto> {
+  return (
+    (await invokeSafe<CurseForgeStatusDto>("curseforge_configured")) ?? {
+      configured: false,
+      env: "EASYMC_CURSEFORGE_API_KEY",
+      hint: "未配置 CurseForge API Key（浏览器预览）",
+    }
+  );
+}
+
+export async function searchMods(
+  source: string,
+  query: string,
+  gameVersion?: string | null,
+  loader?: string | null,
+  limit = 20,
+): Promise<ModProjectDto[]> {
+  return (
+    (await invokeSafe<ModProjectDto[]>("search_mods_cmd", {
+      source,
+      query: query || null,
+      gameVersion: gameVersion || null,
+      loader: loader || null,
+      limit,
+    })) ?? []
+  );
+}
+
+export async function listModVersions(
+  source: string,
+  projectId: string,
+  gameVersion?: string | null,
+  loader?: string | null,
+): Promise<ModVersionDto[]> {
+  return (
+    (await invokeSafe<ModVersionDto[]>("list_mod_versions_cmd", {
+      source,
+      projectId,
+      gameVersion: gameVersion || null,
+      loader: loader || null,
+    })) ?? []
+  );
+}
+
+export async function installMod(
+  source: string,
+  projectId: string,
+  versionId?: string | null,
+  instanceId?: string | null,
+): Promise<ModInstallResultDto> {
+  return invokeOrThrow<ModInstallResultDto>("install_mod_cmd", {
+    source,
+    projectId,
+    versionId: versionId || null,
+    instanceId: instanceId || null,
+  });
+}
+
+export async function listInstalledMods(instanceId?: string | null): Promise<string[]> {
+  return (
+    (await invokeSafe<string[]>("list_installed_mods_cmd", {
+      instanceId: instanceId || null,
+    })) ?? []
+  );
+}

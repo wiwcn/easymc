@@ -65,3 +65,46 @@ export function loaderLabel(loader: string): string {
       return "原版";
   }
 }
+
+export type ModSourceId = "modrinth" | "curseforge";
+
+export interface ModProjectDto {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  source: ModSourceId;
+  downloads: number;
+  author?: string | null;
+  icon_url?: string | null;
+  categories: string[];
+}
+
+export interface ModVersionDto {
+  id: string;
+  project_id: string;
+  name: string;
+  version_number: string;
+  game_versions: string[];
+  loaders: string[];
+  downloads: number;
+  date_published?: string | null;
+  files: { filename: string; url: string; size?: number | null; primary: boolean; sha1?: string | null }[];
+}
+
+export interface ModInstallResultDto {
+  source: ModSourceId;
+  project_id: string;
+  project_name: string;
+  version_id: string;
+  version_number: string;
+  filename: string;
+  path: string;
+  skipped: boolean;
+}
+
+export interface CurseForgeStatusDto {
+  configured: boolean;
+  env: string;
+  hint: string;
+}

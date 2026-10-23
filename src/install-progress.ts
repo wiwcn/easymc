@@ -18,6 +18,7 @@ const STAGE_LABELS: Record<string, string> = {
   libraries: "依赖库",
   natives: "本地库",
   assets: "游戏资源",
+  mod: "下载模组",
   done: "完成",
   error: "失败",
 };
