@@ -65,7 +65,7 @@ export class AccountsPage extends LitElement {
         display: grid;
         gap: var(--easymc-space-2);
       }
-      button.acct {
+      .acct {
         display: flex;
         align-items: center;
         gap: var(--easymc-space-3);
@@ -82,10 +82,10 @@ export class AccountsPage extends LitElement {
           border-color var(--easymc-dur-press) var(--easymc-ease-out),
           background var(--easymc-dur-press) var(--easymc-ease-out);
       }
-      button.acct:hover {
+      .acct:hover {
         background: var(--md-sys-color-surface-container);
       }
-      button.acct.active {
+      .acct.active {
         border-color: var(--md-sys-color-primary);
         background: var(--md-sys-color-primary-container);
         color: var(--md-sys-color-on-primary-container);
@@ -330,16 +330,22 @@ export class AccountsPage extends LitElement {
       <div class="acct-list" role="listbox" aria-label="账户列表">
         ${this.accounts.map((a) => {
           const active = a.id === this.activeAccountId;
-          return html`<button
+          return html`<div
             class="acct ${active ? "active" : ""}"
-            type="button"
             role="option"
+            tabindex="0"
             aria-selected=${active}
             @click=${async () => {
               const st = await setActiveAccount(a.id);
               this.accounts = st.accounts;
               this.activeAccountId = st.active_id;
               showToast(`已切换到 ${a.username}`);
+            }}
+            @keydown=${(e: KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                (e.currentTarget as HTMLElement).click();
+              }
             }}
           >
             <span class="skin-ph ${this.kindBadgeClass(a.kind)}" aria-hidden="true"></span>
@@ -352,9 +358,10 @@ export class AccountsPage extends LitElement {
             </span>
             <span class="acct-actions" @click=${(e: Event) => e.stopPropagation()}>
               <button
-                class="danger"
+                class="text"
                 type="button"
                 title="移除"
+                style="color:var(--md-sys-color-error)"
                 @click=${async () => {
                   if (!confirm(`移除账户「${a.username}」？`)) return;
                   const st = await removeAccount(a.id);
@@ -366,7 +373,7 @@ export class AccountsPage extends LitElement {
                 移除
               </button>
             </span>
-          </button>`;
+          </div>`;
         })}
       </div>
       ${!this.accounts.length
