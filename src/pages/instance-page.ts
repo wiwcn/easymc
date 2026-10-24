@@ -28,6 +28,7 @@ import { listenInstallProgress } from "../api";
 import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
+import "../components/empty-state";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
 
@@ -62,7 +63,14 @@ export class InstancePage extends LitElement {
   private unprog?: () => void;
 
   static styles = css`
-    :host { display: block; }
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 auto;
+      min-height: 100%;
+      width: 100%;
+      box-sizing: border-box;
+    }
     h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
     .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 12px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -78,7 +86,6 @@ export class InstancePage extends LitElement {
     button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
     button.ghost { background: transparent; }
     button.danger { color: var(--md-sys-color-error); }
-    .list { display: flex; flex-direction: column; gap: 6px; }
     .row-item {
       display: flex; align-items: center; gap: 12px;
       padding: 12px 14px;
@@ -134,11 +141,24 @@ export class InstancePage extends LitElement {
     .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-width: 420px; }
     .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
     .field input, .field select { border-radius: var(--md-sys-shape-corner-small); }
-    .empty-soft {
-      text-align: center; padding: 28px 16px; margin: 8px 0;
-      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    .list {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 200px;
     }
-    .empty-soft span { display: block; font-size: 0.82rem; opacity: 0.85; margin-top: 6px; }
+    .panel.panel-empty {
+      display: flex;
+      flex-direction: column;
+      min-height: 220px;
+    }
+    .panel-empty-slot {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 160px;
+    }
+    .list { gap: 6px; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -244,7 +264,13 @@ export class InstancePage extends LitElement {
       </div>
       <div class="list">
         ${this.instances.length === 0
-          ? html`<div class="empty-soft">咦？似乎什么都没有…<span>点「添加版本」，或 <button class="ghost" type="button" style="padding:0 4px;display:inline;border:none;text-decoration:underline;cursor:pointer;font:inherit;color:var(--md-sys-color-primary)" @click=${() => this.goDownload("modpack")}>去下载整合包</button></span></div>`
+          ? html`<easymc-empty-state
+              variant="panel"
+              title="咦？似乎什么都没有…"
+              description="点「添加版本」，或去下载整合包逛逛"
+            >
+              <button class="ghost" type="button" @click=${() => this.goDownload("modpack")}>去下载整合包</button>
+            </easymc-empty-state>`
           : this.instances.map((i) => this.renderRow(i))}
       </div>
       ${this.showCreate ? this.renderCreate() : nothing}
@@ -352,10 +378,16 @@ export class InstancePage extends LitElement {
           ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
         </div>`;
       case "mods":
-        return html`<div class="panel">
+        return html`<div class="panel ${this.mods.length === 0 ? "panel-empty" : ""}">
           <h2>已安装的模组</h2>
           ${this.mods.length === 0
-            ? html`<div class="empty-soft">咦？还没有模组呢…<span></span></div><div style="text-align:center"><button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button></div>`
+            ? html`<div class="panel-empty-slot"><easymc-empty-state
+                variant="panel"
+                title="咦？还没有模组呢…"
+                description="去下载中心挑几个装上吧"
+              >
+                <button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>
+              </easymc-empty-state></div>`
             : this.mods.map((m) => {
                 const disabled = m.endsWith(".disabled");
                 return html`<div class="mod-row">
@@ -385,14 +417,19 @@ export class InstancePage extends LitElement {
   }
 
   private renderLocals(d: InstanceDto, kind: string, title: string, empty: string, downloadTab?: string) {
-    return html`<div class="panel">
+    const isEmpty = this.locals.length === 0;
+    return html`<div class="panel ${isEmpty ? "panel-empty" : ""}">
       <h2>${title}</h2>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <button class="ghost" type="button" @click=${() => this.act(async () => { showToast(await openInstanceFolder(d.id, kind === "saves" ? "saves" : kind)); })}>打开文件夹</button>
         ${downloadTab ? html`<button class="primary" type="button" @click=${() => this.goDownload(downloadTab)}>去下载</button>` : nothing}
       </div>
-      ${this.locals.length === 0
-        ? html`<div class="empty-soft">${empty}</div>`
+      ${isEmpty
+        ? html`<div class="panel-empty-slot"><easymc-empty-state
+            variant="panel"
+            title=${empty}
+            description=""
+          ></easymc-empty-state></div>`
         : this.locals.map((e) => html`<div class="local-row">
             <span>${e.name}${e.is_dir ? "/" : ""} <span class="muted">${Math.round(e.size / 1024)} KB</span></span>
             <button class="danger ghost" type="button" @click=${() => this.act(async () => {

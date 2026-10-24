@@ -14,6 +14,7 @@ import {
 } from "../api";
 import type { AccountDto, AppMode, CurseForgeStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
+import "../components/empty-state";
 import "../components/msa-login";
 
 @customElement("easymc-settings-page")
@@ -136,11 +137,24 @@ export class SettingsPage extends LitElement {
     .form-card input { border-radius: 12px; }
     .err { color: var(--md-sys-color-error); font-size: 0.85rem; margin: -4px 0 8px; }
     .tip { font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.45; margin-bottom: 8px; }
-    .empty-soft {
-      text-align: center; padding: 28px 16px; margin: 8px 0;
-      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    .card.card-empty {
+      display: flex;
+      flex-direction: column;
+      min-height: 360px;
     }
-    .empty-soft span { font-size: 0.82rem; opacity: 0.85; }
+    .card.card-empty > p { margin-bottom: 0; }
+    .acct-empty-slot {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      align-self: stretch;
+    }
+    .acct-empty-slot easymc-empty-state {
+      flex: 1 1 auto;
+      min-height: 240px;
+      width: 100%;
+    }
   `;
 
   connectedCallback() {
@@ -213,7 +227,7 @@ export class SettingsPage extends LitElement {
 
   private renderLaunch() {
     return html`
-      <div class="card">
+      <div class="card ${this.accountPanel === null && !this.accounts.length ? "card-empty" : ""}">
         <h2>账户</h2>
         <p>启动游戏时用哪个名字进游戏。点选切换当前账户；正版服请用微软账户。</p>
         ${this.accountPanel === null ? this.renderAccountList() : nothing}
@@ -301,11 +315,18 @@ export class SettingsPage extends LitElement {
         })}
       </div>
       ${!this.accounts.length
-        ? html`<div class="empty-soft">咦？还没有账户呢…<br /><span>点下面加一个，就能开玩啦</span></div>`
-        : nothing}
-      <div class="row" style="margin-top:12px">
-        <button class="primary" type="button" @click=${() => (this.accountPanel = "chooser")}>添加账户</button>
-      </div>
+        ? html`<div class="acct-empty-slot">
+            <easymc-empty-state
+              variant="panel"
+              title="咦？还没有账户呢…"
+              description="点下面加一个，就能开玩啦"
+            >
+              <button class="primary" type="button" @click=${() => (this.accountPanel = "chooser")}>添加账户</button>
+            </easymc-empty-state>
+          </div>`
+        : html`<div class="row" style="margin-top:12px">
+            <button class="primary" type="button" @click=${() => (this.accountPanel = "chooser")}>添加账户</button>
+          </div>`}
     `;
   }
 

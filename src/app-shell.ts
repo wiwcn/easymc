@@ -103,12 +103,25 @@ export class EasyMcApp extends LitElement {
     }
     .content {
       flex: 1;
+      min-height: 0;
       overflow: auto;
       padding: 18px 28px 32px;
       background: var(--md-sys-color-surface);
+      display: flex;
+      flex-direction: column;
     }
     .page {
+      flex: 1 1 auto;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
       animation: page-in var(--easymc-dur-page) var(--easymc-ease-out) both;
+    }
+    .page > * {
+      flex: 1 0 auto;
+      min-height: 100%;
+      box-sizing: border-box;
+      width: 100%;
     }
     @keyframes page-in {
       from {

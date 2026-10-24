@@ -27,6 +27,7 @@ import {
   versionType,
 } from "../types";
 import { showToast } from "../toast";
+import "../components/empty-state";
 
 const PLAY = svg`<path d="M8 5.5v13l11-6.5L8 5.5Z" fill="currentColor"/>`;
 const MORE = svg`<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>`;
@@ -111,9 +112,14 @@ export class HomePage extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 auto;
+      min-height: 100%;
       max-width: 980px;
+      width: 100%;
       position: relative;
+      box-sizing: border-box;
     }
     .page-head {
       display: flex;
@@ -568,26 +574,18 @@ export class HomePage extends LitElement {
     .vcard .more svg { width: 16px; height: 16px; }
 
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
-    .empty {
-      text-align: center;
-      padding: 48px 20px 32px;
+    .empty-wrap {
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      min-height: 100%;
+      align-self: stretch;
+      width: 100%;
     }
-    .empty h1 {
-      font-size: 1.25rem;
-      font-weight: 650;
-      letter-spacing: -0.02em;
-      margin: 0 0 8px;
+    easymc-empty-state button.primary,
+    easymc-empty-state button.ghost {
+      /* inherit page button tokens via light-DOM in host shadow */
     }
-    .empty .sub {
-      color: var(--md-sys-color-on-surface-variant);
-      margin: 0 0 20px;
-      max-width: 28em;
-      line-height: 1.5;
-    }
-    .empty .row { justify-content: center; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .card {
       margin-top: 14px;
@@ -981,13 +979,15 @@ export class HomePage extends LitElement {
     const f = this.current;
     if (!f) {
       return html`
-        <div class="empty">
-          <h1>咦？似乎什么都没有…</h1>
-          <p class="sub">还没有可玩的版本。加一个，或者去下载中心逛逛？</p>
-          <div class="row">
+        <div class="empty-wrap">
+          <easymc-empty-state
+            variant="page"
+            title="咦？似乎什么都没有…"
+            description="还没有可玩的版本。加一个，或者去下载中心逛逛？"
+          >
             <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
             <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
-          </div>
+          </easymc-empty-state>
           ${this.showCreate ? this.renderCreate() : nothing}
         </div>
       `;

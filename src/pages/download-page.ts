@@ -32,6 +32,7 @@ import type {
 } from "../types";
 import { loaderLabel, versionType } from "../types";
 import { showToast } from "../toast";
+import "../components/empty-state";
 
 type DlTab = "vanilla" | "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
 
@@ -71,7 +72,15 @@ export class DownloadPage extends LitElement {
   private unprog?: () => void;
 
   static styles = css`
-    :host { display: block; max-width: 1100px; }
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 auto;
+      min-height: 100%;
+      max-width: 1100px;
+      width: 100%;
+      box-sizing: border-box;
+    }
     h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.03em; }
     .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 14px; }
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -170,11 +179,18 @@ export class DownloadPage extends LitElement {
     }
     .dl-stat { font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
-    .empty-soft {
-      text-align: center; padding: 36px 16px; margin: 12px 0;
-      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    .results-slot {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 220px;
     }
-    .empty-soft span { display: block; font-size: 0.82rem; opacity: 0.85; margin-top: 6px; }
+    .vanilla-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 240px;
+    }
     .panel {
       padding: 18px; border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
@@ -471,7 +487,11 @@ export class DownloadPage extends LitElement {
                   </button>
                 </div>
               </div>`
-            : html`<div class="empty-soft">咦？这个加载器好像还没版本…<span>换个游戏版本或加载器再试试</span></div>`}
+            : html`<div class="results-slot"><easymc-empty-state
+                  variant="panel"
+                  title="咦？这个加载器好像还没版本…"
+                  description="换个游戏版本或加载器再试试"
+                ></easymc-empty-state></div>`}
         ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
       `;
     }
@@ -484,33 +504,42 @@ export class DownloadPage extends LitElement {
     };
 
     return html`
-      <div class="toolbar">
-        <div class="search grow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input placeholder="筛选版本号…" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
+      <div class="vanilla-body">
+        <div class="toolbar">
+          <div class="search grow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input placeholder="筛选版本号…" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
+          </div>
+          <label class="muted" style="display:inline-flex;align-items:center;gap:6px">
+            <input type="checkbox" .checked=${this.snapshots} @change=${async (e: Event) => { this.snapshots = (e.target as HTMLInputElement).checked; await this.loadVanilla(); }} />
+            含快照
+          </label>
         </div>
-        <label class="muted" style="display:inline-flex;align-items:center;gap:6px">
-          <input type="checkbox" .checked=${this.snapshots} @change=${async (e: Event) => { this.snapshots = (e.target as HTMLInputElement).checked; await this.loadVanilla(); }} />
-          含快照
-        </label>
+        ${!filtered.length
+          ? html`<div class="results-slot">
+              <easymc-empty-state
+                variant="panel"
+                title="没有符合筛选的版本"
+                description="换个关键词试试，或者打开「含快照」看看"
+              ></easymc-empty-state>
+            </div>`
+          : html`<div class="ver-grid" role="listbox" aria-label="游戏版本">
+              ${filtered.slice(0, 48).map(
+                (v) => html`<button
+                  class="ver-card"
+                  type="button"
+                  role="option"
+                  @click=${() => this.pickVersion(v.id)}
+                >
+                  <span>
+                    <div class="vid">${v.id}</div>
+                    <div class="meta">${typeLabel(v)}</div>
+                  </span>
+                  ${v.installed ? html`<span class="badge-inst">已安装</span>` : nothing}
+                </button>`,
+              )}
+            </div>`}
       </div>
-      <div class="ver-grid" role="listbox" aria-label="游戏版本">
-        ${filtered.slice(0, 48).map(
-          (v) => html`<button
-            class="ver-card"
-            type="button"
-            role="option"
-            @click=${() => this.pickVersion(v.id)}
-          >
-            <span>
-              <div class="vid">${v.id}</div>
-              <div class="meta">${typeLabel(v)}</div>
-            </span>
-            ${v.installed ? html`<span class="badge-inst">已安装</span>` : nothing}
-          </button>`,
-        )}
-      </div>
-      ${!filtered.length ? html`<div class="empty-soft">咦？似乎什么都没有…<span>换个筛选试试，或者打开「含快照」看看</span></div>` : nothing}
     `;
   }
 
@@ -608,7 +637,13 @@ export class DownloadPage extends LitElement {
       <div class="market-grid">
         ${this.results.map((p) => this.renderCard(p))}
       </div>
-      ${!this.loading && this.results.length === 0 && !this.error ? html`<div class="empty-soft">咦？似乎什么都没有…<span>输入关键词搜索，或留空看看热门</span></div>` : nothing}
+      ${!this.loading && this.results.length === 0 && !this.error
+        ? html`<div class="results-slot"><easymc-empty-state
+            variant="panel"
+            title="没有符合筛选的结果"
+            description="换个关键词试试，或留空看看热门"
+          ></easymc-empty-state></div>`
+        : nothing}
     `;
   }
 
