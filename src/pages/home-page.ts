@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing, svg } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -35,11 +35,11 @@ const MORE = svg`<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx=
 
 /** Soft pastel tiles for instance cards — sketch style, not plain letters. */
 const TILE_PALETTES = [
-  { bg: "oklch(0.90 0.05 155)", fg: "oklch(0.38 0.08 155)" },
-  { bg: "oklch(0.91 0.05 70)", fg: "oklch(0.42 0.09 55)" },
-  { bg: "oklch(0.90 0.04 235)", fg: "oklch(0.40 0.07 235)" },
-  { bg: "oklch(0.90 0.05 186)", fg: "oklch(0.38 0.08 186)" },
-  { bg: "oklch(0.91 0.045 310)", fg: "oklch(0.40 0.08 310)" },
+  { bg: "var(--easymc-tile-0-bg)", fg: "var(--easymc-tile-0-fg)" },
+  { bg: "var(--easymc-tile-1-bg)", fg: "var(--easymc-tile-1-fg)" },
+  { bg: "var(--easymc-tile-2-bg)", fg: "var(--easymc-tile-2-fg)" },
+  { bg: "var(--easymc-tile-3-bg)", fg: "var(--easymc-tile-3-fg)" },
+  { bg: "var(--easymc-tile-4-bg)", fg: "var(--easymc-tile-4-fg)" },
 ];
 
 function tileFor(id: string) {
@@ -113,6 +113,7 @@ export class HomePage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
     :host {
       display: flex;
@@ -128,22 +129,22 @@ export class HomePage extends LitElement {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: var(--easymc-space-2);
+      margin-bottom: var(--easymc-space-3);
       min-height: 36px;
     }
     .page-head .grow { flex: 1; }
     button.manage {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--easymc-space-2);
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface-variant);
       border-radius: var(--md-sys-shape-corner-full);
       padding: 7px 14px 7px 16px;
       cursor: pointer;
-      font-size: 0.88rem;
+      font-size: var(--easymc-type-label);
       font-weight: 600;
     }
     button.manage:hover {
@@ -170,13 +171,13 @@ export class HomePage extends LitElement {
       border-radius: 20px;
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       overflow: hidden;
-      margin-bottom: 22px;
+      margin-bottom: var(--easymc-space-5);
       animation: focal-in var(--easymc-dur-focal) var(--easymc-ease-out) both;
       transition:
         margin var(--easymc-dur-med) var(--easymc-ease-out);
     }
     .featured.compact {
-      margin-bottom: 14px;
+      margin-bottom: var(--easymc-space-4);
     }
     @keyframes focal-in {
       from { opacity: 0; transform: translateY(8px); }
@@ -184,8 +185,8 @@ export class HomePage extends LitElement {
     }
     .featured-top {
       display: flex;
-      gap: 24px;
-      padding: 28px 28px 22px;
+      gap: var(--easymc-space-5);
+      padding: var(--easymc-space-6) var(--easymc-space-6) var(--easymc-space-5);
       align-items: stretch;
       min-height: 196px;
       transition:
@@ -194,8 +195,8 @@ export class HomePage extends LitElement {
         gap var(--easymc-dur-med) var(--easymc-ease-out);
     }
     .featured.compact .featured-top {
-      padding: 14px 18px 12px;
-      gap: 16px;
+      padding: var(--easymc-space-4) var(--easymc-space-4) var(--easymc-space-3);
+      gap: var(--easymc-space-4);
       min-height: 0;
       align-items: center;
     }
@@ -257,20 +258,20 @@ export class HomePage extends LitElement {
     }
     .featured.compact .feat-title {
       margin: 0 0 6px;
-      font-size: 1.15rem;
+      font-size: var(--easymc-type-title);
     }
     .featured.compact .feat-desc { display: none; }
     .featured.compact .chips { margin-bottom: 0; }
     .chips {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 10px;
+      gap: var(--easymc-space-2);
+      margin-bottom: var(--easymc-space-3);
     }
     .chip {
-      font-size: 0.78rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 600;
-      padding: 4px 12px;
+      padding: var(--easymc-space-1) var(--easymc-space-3);
       border-radius: var(--md-sys-shape-corner-full);
       letter-spacing: -0.01em;
     }
@@ -286,7 +287,7 @@ export class HomePage extends LitElement {
     }
     .feat-desc {
       margin: 0;
-      font-size: 0.92rem;
+      font-size: var(--easymc-type-body);
       color: var(--md-sys-color-on-surface-variant);
       line-height: 1.4;
     }
@@ -294,24 +295,24 @@ export class HomePage extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--easymc-space-3);
       flex-wrap: wrap;
-      padding: 16px 26px;
+      padding: var(--easymc-space-4) var(--easymc-space-5);
       border-top: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       background: color-mix(in oklch, var(--md-sys-color-surface-container-low) 55%, transparent);
     }
     .featured.compact .featured-bar {
-      padding: 10px 16px;
+      padding: var(--easymc-space-3) var(--easymc-space-4);
     }
     .feat-meta {
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
       min-width: 0;
     }
     .feat-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--easymc-space-2);
     }
     /* launch base → controlStyles; compact size override */
     .featured.compact button.launch {
@@ -355,14 +356,14 @@ export class HomePage extends LitElement {
       border-radius: var(--md-sys-shape-corner-small);
       cursor: pointer;
       color: var(--md-sys-color-on-surface);
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
     }
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
 
     .status-line {
-      font-size: 0.82rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
-      margin: 0 22px 14px;
+      margin: 0 var(--easymc-space-5) var(--easymc-space-4);
     }
     .bar {
       height: 6px;
@@ -384,14 +385,9 @@ export class HomePage extends LitElement {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin: 4px 0 12px;
+      margin: var(--easymc-space-1) 0 var(--easymc-space-3);
     }
-    .section-head h2 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 650;
-      letter-spacing: -0.02em;
-    }
+    /* section-head h2 → pageChromeStyles */
     .instances-area {
       display: flex;
       flex-direction: column;
@@ -407,7 +403,7 @@ export class HomePage extends LitElement {
     .grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      gap: var(--easymc-space-3);
     }
     @media (max-width: 860px) {
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -422,9 +418,9 @@ export class HomePage extends LitElement {
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: 14px;
+      gap: var(--easymc-space-4);
       text-align: left;
-      padding: 14px 16px;
+      padding: var(--easymc-space-4);
       min-height: 88px;
       border: 1.5px solid transparent;
       border-radius: 18px;
@@ -443,8 +439,11 @@ export class HomePage extends LitElement {
     }
     button.vcard:active { transform: scale(0.985); }
     button.vcard.selected {
+      /* quieter (P2): container tint + border, no elevation (CF-1 XOR) */
       border-color: var(--md-sys-color-primary);
-      box-shadow: var(--md-sys-elevation-1), 0 0 0 1px var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      box-shadow: none;
     }
     .vcard-body {
       flex: 1;
@@ -464,25 +463,25 @@ export class HomePage extends LitElement {
     }
     .tile svg { width: 26px; height: 26px; }
     .vcard .title {
-      font-size: 0.98rem;
+      font-size: var(--easymc-type-body);
       font-weight: 650;
       letter-spacing: -0.02em;
       line-height: 1.25;
     }
     .vcard .meta {
-      font-size: 0.78rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
     }
     .vcard-foot {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       width: 100%;
       flex-wrap: wrap;
       margin-top: 2px;
     }
     .vchip {
-      font-size: 0.72rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 600;
       padding: 3px 9px;
       border-radius: var(--md-sys-shape-corner-full);
@@ -493,7 +492,7 @@ export class HomePage extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 600;
       color: var(--md-sys-color-success);
     }
@@ -529,7 +528,7 @@ export class HomePage extends LitElement {
 
     .home-skel { display: flex; flex-direction: column; gap: var(--easymc-space-5); padding-top: var(--easymc-space-2); }
     .featured-skel { height: 220px; border-radius: 20px; }
-    .skel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .skel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--easymc-space-3); }
     .vcard-skel { height: 88px; border-radius: 18px; }
     @media (max-width: 720px) {
       .skel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -547,18 +546,18 @@ export class HomePage extends LitElement {
     easymc-empty-state button.ghost {
       /* inherit page button tokens via light-DOM in host shadow */
     }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; }
     .card {
       margin-top: 14px;
       padding: 12px 14px;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
     }
-    .card h2 { margin: 0 0 6px; font-size: 0.9rem; }
+    .card h2 { margin: 0 0 6px; font-size: var(--easymc-type-label); }
     pre.logs {
       max-height: 180px;
       overflow: auto;
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       background: var(--md-sys-color-surface-container);
       padding: 10px;
       border-radius: 8px;

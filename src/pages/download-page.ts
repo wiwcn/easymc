@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -67,6 +67,7 @@ export class DownloadPage extends LitElement {
   @state() private loaderVer = "";
   @state() private newName = "";
   @state() private busy = false;
+  @state() private vanillaLoading = false;
   /** Vanilla install wizard: pick MC version → pick loader. */
   @state() private vanillaStep: "version" | "loader" = "version";
 
@@ -74,6 +75,7 @@ export class DownloadPage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
     :host {
       display: flex;
@@ -84,13 +86,12 @@ export class DownloadPage extends LitElement {
       width: 100%;
       box-sizing: border-box;
     }
-    h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.03em; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 14px; }
-    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    /* h1 / .sub → pageChromeStyles */
+    .tabs { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; margin-bottom: var(--easymc-space-4); }
     .tabs button {
       border: none; background: transparent; cursor: pointer;
       padding: 9px 16px; border-radius: 999px;
-      color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); font-weight: 500;
       transition: background var(--easymc-dur-press) var(--easymc-ease-out), color var(--easymc-dur-press) var(--easymc-ease-out);
     }
     .tabs button.on {
@@ -98,10 +99,10 @@ export class DownloadPage extends LitElement {
       color: var(--md-sys-color-on-primary-container); font-weight: 650;
     }
     .search-row {
-      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;
+      display: flex; gap: var(--easymc-space-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-3);
     }
     .search {
-      flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px;
+      flex: 1; min-width: 200px; display: flex; align-items: center; gap: var(--easymc-space-2);
       padding: 10px 16px; border-radius: 999px;
       background: var(--md-sys-color-surface-container-lowest);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
@@ -109,17 +110,17 @@ export class DownloadPage extends LitElement {
     }
     .search input {
       flex: 1; border: none; background: transparent; padding: 0; outline: none;
-      font-size: 0.95rem; color: var(--md-sys-color-on-surface);
+      font-size: var(--easymc-type-body); color: var(--md-sys-color-on-surface);
     }
     .search svg { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); flex-shrink: 0; }
-    .sources { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .sources .lbl { font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); margin-right: 2px; }
+    .sources { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; }
+    .sources .lbl { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-right: 2px; }
     button.src {
-      display: inline-flex; align-items: center; gap: 6px;
+      display: inline-flex; align-items: center; gap: var(--easymc-space-2);
       border: 1.5px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface); border-radius: 999px; padding: 8px 14px;
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      font-size: var(--easymc-type-label); font-weight: 600; cursor: pointer;
     }
     button.src.on {
       border-color: var(--md-sys-color-primary);
@@ -129,65 +130,66 @@ export class DownloadPage extends LitElement {
     .dot {
       width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
     }
-    .dot.mr { background: oklch(0.62 0.14 150); }
-    .dot.cf { background: oklch(0.62 0.14 55); }
+    .dot.mr { background: var(--easymc-brand-modrinth); }
+    .dot.cf { background: var(--easymc-brand-curseforge); }
     .bar {
-      display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;
+      display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-3);
     }
     input, select, button {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
-      border-radius: 999px; padding: 8px 14px; font-size: 0.9rem;
+      border-radius: 999px; padding: 8px 14px; font-size: var(--easymc-type-label);
     }
     /* primary / ghost → controlStyles (CMP-1) */
     button.outline-dl {
       border: 1.5px solid var(--md-sys-color-primary);
       background: transparent; color: var(--md-sys-color-primary);
-      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: 0.85rem;
+      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: var(--easymc-type-label);
     }
     .market-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
+      gap: var(--easymc-space-3);
     }
     .card {
-      display: flex; flex-direction: column; gap: 10px; padding: 14px;
+      display: flex; flex-direction: column; gap: var(--easymc-space-3); padding: var(--easymc-space-4);
       border-radius: 16px;
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       align-items: stretch; min-height: 0;
     }
-    .card-top { display: flex; gap: 12px; align-items: flex-start; }
+    .card-top { display: flex; gap: var(--easymc-space-3); align-items: flex-start; }
     .card img, .card .ph {
       width: 48px; height: 48px; border-radius: 12px; object-fit: cover;
       background: var(--md-sys-color-primary-container); flex-shrink: 0;
     }
     .card .body { flex: 1; min-width: 0; }
-    .card .name { font-weight: 650; font-size: 0.95rem; letter-spacing: -0.01em; }
+    .card .name { font-weight: 650; font-size: var(--easymc-type-body); letter-spacing: -0.01em; }
     .card .desc {
-      font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
-    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .tags { display: flex; flex-wrap: wrap; gap: var(--easymc-space-2); margin-top: var(--easymc-space-2); }
     .tag {
-      font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+      font-size: var(--easymc-type-meta); font-weight: 600; padding: 2px 8px; border-radius: 999px;
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
     .card-foot {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;
+      display: flex; align-items: center; justify-content: space-between; gap: var(--easymc-space-2); margin-top: auto;
     }
-    .dl-stat { font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
-    .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }
+    .dl-stat { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
+    /* .muted → pageChromeStyles */
     .market-skel {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: var(--easymc-space-3);
+      margin-bottom: var(--easymc-space-3);
     }
     .card-skel { height: 140px; border-radius: 16px; }
-    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--easymc-space-3); }
+    .ver-expand-skel { display: flex; flex-direction: column; gap: var(--easymc-space-2); padding: var(--easymc-space-2) 0; }
     .ver-skel { height: 72px; border-radius: 16px; }
 
     .results-slot {
@@ -203,20 +205,20 @@ export class DownloadPage extends LitElement {
       min-height: 240px;
     }
     .panel {
-      padding: 18px; border-radius: 18px;
+      padding: var(--easymc-space-4); border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }
-    .field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; max-width: 480px; }
-    .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
+    .field { margin-bottom: 10px; display: flex; flex-direction: column; gap: var(--easymc-space-1); max-width: 480px; }
+    .field label { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); }
 
     .toolbar {
-      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px;
+      display: flex; gap: var(--easymc-space-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-4);
     }
     .toolbar .grow { flex: 1; min-width: 160px; }
     .crumb {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px;
+      display: flex; align-items: center; gap: var(--easymc-space-2); flex-wrap: wrap;
+      font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); margin-bottom: var(--easymc-space-3);
     }
     .crumb strong { color: var(--md-sys-color-on-surface); font-weight: 650; }
     .crumb button {
@@ -226,12 +228,12 @@ export class DownloadPage extends LitElement {
     .ver-grid, .loader-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 10px;
+      gap: var(--easymc-space-3);
     }
     button.ver-card, button.loader-card {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
-      display: flex; gap: 12px; align-items: center;
-      padding: 14px 16px; border-radius: 16px;
+      display: flex; gap: var(--easymc-space-3); align-items: center;
+      padding: var(--easymc-space-4); border-radius: 16px;
       background: var(--md-sys-color-surface-container-lowest);
       border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
       /* CF-1: border only (selection affordance) */
@@ -245,36 +247,36 @@ export class DownloadPage extends LitElement {
     }
     button.ver-card:active, button.loader-card:active { transform: scale(0.985); }
     button.ver-card .vid {
-      font-weight: 700; font-size: 1.05rem; letter-spacing: -0.02em;
+      font-weight: 700; font-size: var(--easymc-type-title); letter-spacing: -0.02em;
     }
     button.ver-card .meta {
-      font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
     }
     .badge-inst {
-      margin-left: auto; font-size: 0.7rem; font-weight: 650;
+      margin-left: auto; font-size: var(--easymc-type-meta); font-weight: 650;
       padding: 3px 8px; border-radius: 999px;
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
     }
     .loader-ico {
       width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
-      display: grid; place-items: center; font-weight: 800; font-size: 0.85rem;
+      display: grid; place-items: center; font-weight: 800; font-size: var(--easymc-type-label);
       color: white; letter-spacing: -0.04em;
     }
-    .loader-ico.vanilla { background: linear-gradient(135deg, oklch(0.62 0.12 145), oklch(0.48 0.1 150)); }
-    .loader-ico.fabric { background: linear-gradient(135deg, oklch(0.72 0.14 85), oklch(0.55 0.12 70)); }
-    .loader-ico.quilt { background: linear-gradient(135deg, oklch(0.65 0.14 310), oklch(0.5 0.12 300)); }
-    .loader-ico.forge { background: linear-gradient(135deg, oklch(0.55 0.08 60), oklch(0.4 0.06 50)); }
-    .loader-ico.neoforge { background: linear-gradient(135deg, oklch(0.58 0.14 35), oklch(0.45 0.12 25)); }
-    button.loader-card .lname { font-weight: 700; font-size: 0.98rem; }
+    .loader-ico.vanilla { background: var(--easymc-loader-vanilla); }
+    .loader-ico.fabric { background: var(--easymc-loader-fabric); }
+    .loader-ico.quilt { background: var(--easymc-loader-quilt); }
+    .loader-ico.forge { background: var(--easymc-loader-forge); }
+    .loader-ico.neoforge { background: var(--easymc-loader-neoforge); }
+    button.loader-card .lname { font-weight: 700; font-size: var(--easymc-type-body); }
     button.loader-card .ldesc {
-      font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
     }
     .loader-panel {
-      padding: 16px; border-radius: 18px; margin-top: 14px;
+      padding: var(--easymc-space-4); border-radius: 18px; margin-top: var(--easymc-space-4);
       background: var(--md-sys-color-surface-container-low);
     }
-    .loader-panel .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .loader-panel .row { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; margin-top: var(--easymc-space-3); }
     button.back {
       border: none; background: transparent; color: var(--md-sys-color-primary);
       cursor: pointer; font: inherit; font-weight: 600; padding: 8px 4px;
@@ -310,9 +312,14 @@ export class DownloadPage extends LitElement {
   }
 
   private async loadVanilla() {
-    this.mcVersions = await listVersions(this.snapshots);
-    if (!this.mcVersions.some((v) => v.id === this.pick) && this.mcVersions[0]) {
-      this.pick = this.mcVersions[0].id;
+    this.vanillaLoading = true;
+    try {
+      this.mcVersions = await listVersions(this.snapshots);
+      if (!this.mcVersions.some((v) => v.id === this.pick) && this.mcVersions[0]) {
+        this.pick = this.mcVersions[0].id;
+      }
+    } finally {
+      this.vanillaLoading = false;
     }
   }
 
@@ -527,32 +534,36 @@ export class DownloadPage extends LitElement {
             含快照
           </label>
         </div>
-        ${!filtered.length
-          ? html`<div class="results-slot">
-              <easymc-empty-state
-                variant="panel"
-                title="没有符合筛选的版本"
-                description="换个关键词试试，或者打开「含快照」看看"
-              >
-                <button class="ghost" type="button" @click=${() => { this.filter = ""; }}>清空筛选</button>
-              </easymc-empty-state>
+        ${this.vanillaLoading
+          ? html`<div class="vanilla-skel" aria-busy="true" aria-label="正在加载版本">
+              ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block ver-skel"></div>`)}
             </div>`
-          : html`<div class="ver-grid" role="listbox" aria-label="游戏版本">
-              ${filtered.slice(0, 48).map(
-                (v) => html`<button
-                  class="ver-card"
-                  type="button"
-                  role="option"
-                  @click=${() => this.pickVersion(v.id)}
+          : !filtered.length
+            ? html`<div class="results-slot">
+                <easymc-empty-state
+                  variant="panel"
+                  title="没有符合筛选的版本"
+                  description="换个关键词试试，或者打开「含快照」看看"
                 >
-                  <span>
-                    <div class="vid">${v.id}</div>
-                    <div class="meta">${typeLabel(v)}</div>
-                  </span>
-                  ${v.installed ? html`<span class="badge-inst">已安装</span>` : nothing}
-                </button>`,
-              )}
-            </div>`}
+                  <button class="ghost" type="button" @click=${() => { this.filter = ""; }}>清空筛选</button>
+                </easymc-empty-state>
+              </div>`
+            : html`<div class="ver-grid" role="listbox" aria-label="游戏版本">
+                ${filtered.slice(0, 48).map(
+                  (v) => html`<button
+                    class="ver-card"
+                    type="button"
+                    role="option"
+                    @click=${() => this.pickVersion(v.id)}
+                  >
+                    <span>
+                      <div class="vid">${v.id}</div>
+                      <div class="meta">${typeLabel(v)}</div>
+                    </span>
+                    ${v.installed ? html`<span class="badge-inst">已安装</span>` : nothing}
+                  </button>`,
+                )}
+              </div>`}
       </div>
     `;
   }
@@ -699,7 +710,11 @@ export class DownloadPage extends LitElement {
       ${this.expandedId === p.id
         ? html`<div>
             ${this.versionsLoading
-              ? html`<span class="muted">加载版本…</span>`
+              ? html`<div class="ver-expand-skel" aria-busy="true" aria-label="正在加载版本">
+                  <div class="skel skel-line w60"></div>
+                  <div class="skel skel-line w80"></div>
+                  <div class="skel skel-line w40"></div>
+                </div>`
               : this.versions.slice(0, 12).map(
                   (v) => html`<div class="bar">
                     <span class="muted">${v.version_number} · ${v.name}</span>

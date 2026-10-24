@@ -40,7 +40,7 @@ export class EasyMcApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 22px;
+      padding: var(--easymc-space-2) var(--easymc-space-5);
       min-height: 52px;
       background: var(--md-sys-color-surface);
       border-bottom: 1px solid
@@ -51,14 +51,11 @@ export class EasyMcApp extends LitElement {
       align-items: center;
       gap: 10px;
       font-weight: 650;
-      font-size: 1.15rem;
+      font-size: var(--easymc-type-title);
       letter-spacing: -0.025em;
       color: var(--md-sys-color-on-surface);
     }
-    /* A11Y-1: inert until side-nav collapse exists — hide from view + a11y tree */
-    .menu-btn {
-      display: none;
-    }
+    /* A11Y-1: topbar menu removed until side-nav collapse ships */
     .account {
       display: flex;
       align-items: center;
@@ -77,8 +74,8 @@ export class EasyMcApp extends LitElement {
       height: 34px;
       border-radius: 50%;
       background:
-        radial-gradient(circle at 35% 30%, oklch(0.92 0.03 80), transparent 45%),
-        radial-gradient(circle at 50% 70%, oklch(0.55 0.08 186), oklch(0.42 0.06 186));
+        radial-gradient(circle at 35% 30%, var(--easymc-avatar-glow), transparent 45%),
+        radial-gradient(circle at 50% 70%, var(--easymc-avatar-base-from), var(--easymc-avatar-base-to));
       border: 2px solid var(--md-sys-color-outline-variant);
       flex-shrink: 0;
     }
@@ -91,7 +88,7 @@ export class EasyMcApp extends LitElement {
       flex: 1;
       min-height: 0;
       overflow: auto;
-      padding: 18px 28px 32px;
+      padding: var(--easymc-page-pad-y) var(--easymc-page-pad-x) var(--easymc-space-6);
       background: var(--md-sys-color-surface);
       display: flex;
       flex-direction: column;
@@ -191,11 +188,6 @@ export class EasyMcApp extends LitElement {
       <div class="main">
         <header class="top">
           <div class="brand">
-            <button class="menu-btn" type="button" hidden aria-hidden="true" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
-            </button>
             <span>EasyMC</span>
           </div>
           <button class="account" type="button" title="账户" @click=${() => this.goAccounts()}>

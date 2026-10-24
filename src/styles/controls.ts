@@ -242,3 +242,33 @@ export const controlStyles = css`
     color: var(--md-sys-color-on-surface-variant);
   }
 `;
+
+/** Shared page chrome — titles, subs, section heads (TYP-1 / SP-1). */
+export const pageChromeStyles = css`
+  h1 {
+    margin: 0 0 var(--easymc-space-1);
+    font-size: var(--easymc-type-display);
+    font-weight: var(--easymc-weight-bold);
+    letter-spacing: -0.03em;
+    color: var(--md-sys-color-on-surface);
+    line-height: 1.2;
+  }
+  .sub,
+  p.sub {
+    margin: 0 0 var(--easymc-space-4);
+    font-size: var(--easymc-type-label);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.45;
+  }
+  .section-head h2,
+  h2.section-title {
+    margin: 0;
+    font-size: var(--easymc-type-title);
+    font-weight: var(--easymc-weight-medium);
+    letter-spacing: -0.02em;
+  }
+  .muted {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: var(--easymc-type-meta);
+  }
+`;

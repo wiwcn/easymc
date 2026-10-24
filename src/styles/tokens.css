@@ -131,7 +131,52 @@
   --easymc-art-hill: oklch(0.55 0.08 160 / 0.55);
   --easymc-art-sun: oklch(0.92 0.06 95);
   --easymc-art-sun-halo: oklch(0.92 0.06 95 / 0.25);
+
+  /* Avatar (topbar) — TOK-1 */
+  --easymc-avatar-glow: oklch(0.92 0.03 80);
+  --easymc-avatar-base-from: oklch(0.55 0.08 186);
+  --easymc-avatar-base-to: oklch(0.42 0.06 186);
+
+  /* Source brand dots (download) — specialty, not signature gradient */
+  --easymc-brand-modrinth: oklch(0.62 0.14 150);
+  --easymc-brand-curseforge: oklch(0.62 0.14 55);
+
+  /* Instance tile pastels (home grid) */
+  --easymc-tile-0-bg: oklch(0.90 0.05 155);
+  --easymc-tile-0-fg: oklch(0.38 0.08 155);
+  --easymc-tile-1-bg: oklch(0.91 0.05 70);
+  --easymc-tile-1-fg: oklch(0.42 0.09 55);
+  --easymc-tile-2-bg: oklch(0.90 0.04 235);
+  --easymc-tile-2-fg: oklch(0.40 0.07 235);
+  --easymc-tile-3-bg: oklch(0.90 0.05 186);
+  --easymc-tile-3-fg: oklch(0.38 0.08 186);
+  --easymc-tile-4-bg: oklch(0.91 0.045 310);
+  --easymc-tile-4-fg: oklch(0.40 0.08 310);
+
+  /* Loader marks (download wizard) — specialty, not Launch signature */
+  --easymc-loader-vanilla: linear-gradient(135deg, oklch(0.62 0.12 145), oklch(0.48 0.1 150));
+  --easymc-loader-fabric: linear-gradient(135deg, oklch(0.72 0.14 85), oklch(0.55 0.12 70));
+  --easymc-loader-quilt: linear-gradient(135deg, oklch(0.65 0.14 310), oklch(0.5 0.12 300));
+  --easymc-loader-forge: linear-gradient(135deg, oklch(0.55 0.08 60), oklch(0.4 0.06 50));
+  --easymc-skin-ph-base: linear-gradient(
+    180deg,
+    oklch(0.78 0.06 70) 0 38%,
+    oklch(0.55 0.1 220) 38% 62%,
+    oklch(0.45 0.08 250) 62% 100%
+  );
+  --easymc-skin-ph-face: oklch(0.92 0.03 90 / 0.35);
+  --easymc-skin-ph-ms: linear-gradient(135deg, oklch(0.55 0.12 250), oklch(0.45 0.1 220));
+  --easymc-skin-ph-skin: linear-gradient(135deg, oklch(0.62 0.14 330), oklch(0.5 0.12 300));
+  --easymc-acct-ms-bg: oklch(0.55 0.12 250 / 0.2);
+  --easymc-acct-ms-fg: oklch(0.4 0.1 250);
+  --easymc-acct-off-bg: oklch(0.7 0.05 150 / 0.25);
+  --easymc-acct-off-fg: oklch(0.4 0.08 150);
+  --easymc-acct-skin-bg: oklch(0.65 0.12 330 / 0.22);
+  --easymc-acct-skin-fg: oklch(0.42 0.12 330);
+  --easymc-loader-neoforge: linear-gradient(135deg, oklch(0.58 0.14 35), oklch(0.45 0.12 25));
 }
+
+
 
 /*
   Optional dark theme — composed (not mechanical invert).

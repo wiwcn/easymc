@@ -1,37 +1,40 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { AppMode } from "../types";
+import { pageChromeStyles } from "../styles/controls";
 
 @customElement("easymc-more-page")
 export class MorePage extends LitElement {
   @property({ type: String }) mode: AppMode = "standard";
 
-  static styles = css`
-    :host { display: block; max-width: 640px; }
-    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; margin-bottom: 16px; }
-    .grid { display: grid; gap: 10px; }
-    button.tile {
-      display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-      text-align: left; padding: 16px 18px; cursor: pointer;
-      border: 1px solid var(--md-sys-color-outline-variant);
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      color: var(--md-sys-color-on-surface);
-      transition: background var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    button.tile:hover { background: var(--md-sys-color-surface-container); }
-    button.tile strong { font-size: 1rem; }
-    button.tile span { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
-    .about {
-      margin-top: 18px; padding: 16px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant);
-      line-height: 1.5;
-    }
-    a { color: var(--md-sys-color-primary); }
-  `;
+  static styles = [
+    pageChromeStyles,
+    css`
+      :host { display: block; max-width: 640px; }
+      .grid { display: grid; gap: var(--easymc-space-3); }
+      button.tile {
+        display: flex; flex-direction: column; align-items: flex-start; gap: var(--easymc-space-1);
+        text-align: left; padding: var(--easymc-space-4) 18px; cursor: pointer;
+        border: 1px solid var(--md-sys-color-outline-variant);
+        border-radius: var(--md-sys-shape-corner-large);
+        background: var(--md-sys-color-surface-container-low);
+        color: var(--md-sys-color-on-surface);
+        box-shadow: none; /* CF-1: border only */
+        transition: background var(--easymc-dur-press) var(--easymc-ease-out);
+      }
+      button.tile:hover { background: var(--md-sys-color-surface-container); }
+      button.tile strong { font-size: var(--easymc-type-title); }
+      button.tile span { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); }
+      .about {
+        margin-top: var(--easymc-space-5); padding: var(--easymc-space-4);
+        border-radius: var(--md-sys-shape-corner-large);
+        background: var(--md-sys-color-surface-container-low);
+        font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant);
+        line-height: 1.5;
+      }
+      a { color: var(--md-sys-color-primary); }
+    `,
+  ];
 
   private go(id: string) {
     this.dispatchEvent(new CustomEvent("nav-change", { detail: id, bubbles: true, composed: true }));

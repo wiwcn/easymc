@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -65,6 +65,7 @@ export class InstancePage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
     :host {
       display: flex;
@@ -74,8 +75,8 @@ export class InstancePage extends LitElement {
       width: 100%;
       box-sizing: border-box;
     }
-    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 12px; }
+    h1 { font-size: var(--easymc-type-display); font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
+    .sub { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); margin: 0 0 12px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
     button, select, input {
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -83,7 +84,7 @@ export class InstancePage extends LitElement {
       color: var(--md-sys-color-on-surface);
       border-radius: var(--md-sys-shape-corner-full);
       padding: 8px 14px;
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-body);
       cursor: pointer;
     }
     /* primary / ghost → controlStyles (CMP-1) */
@@ -109,7 +110,7 @@ export class InstancePage extends LitElement {
     }
     .meta { flex: 1; min-width: 0; }
     .meta .name { font-weight: 600; }
-    .meta .info { font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); }
+    .meta .info { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); }
     .menu-wrap { position: relative; }
     .menu-panel {
       position: absolute; right: 0; top: 100%; z-index: 10; min-width: 180px;
@@ -139,9 +140,9 @@ export class InstancePage extends LitElement {
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
     }
-    .panel h2 { margin: 0 0 10px; font-size: 1rem; }
+    .panel h2 { margin: 0 0 10px; font-size: var(--easymc-type-title); }
     .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-width: 420px; }
-    .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
+    .field label { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); }
     .field input, .field select { border-radius: var(--md-sys-shape-corner-small); }
     .list {
       flex: 1 1 auto;
@@ -162,13 +163,13 @@ export class InstancePage extends LitElement {
     }
     .list { gap: 6px; }
     .inst-skel { padding: var(--easymc-space-4) 0; }
-    .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+    .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--md-sys-color-outline-variant);
     }
     .mod-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
-    .mod-row code { flex: 1; font-size: 0.8rem; word-break: break-all; }
+    .mod-row code { flex: 1; font-size: var(--easymc-type-meta); word-break: break-all; }
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
     }

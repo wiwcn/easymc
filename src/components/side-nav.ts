@@ -49,7 +49,7 @@ export class SideNav extends LitElement {
       background: var(--md-sys-color-surface-container-lowest);
       border-right: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
       flex-shrink: 0;
-      gap: 8px;
+      gap: var(--easymc-space-2);
     }
     nav {
       display: flex;
@@ -67,7 +67,7 @@ export class SideNav extends LitElement {
       padding: 11px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       cursor: pointer;
-      font-size: 0.95rem;
+      font-size: var(--easymc-type-body);
       font-weight: 500;
       text-align: left;
       transition:
@@ -103,7 +103,7 @@ export class SideNav extends LitElement {
     }
     .pill {
       margin-left: auto;
-      font-size: 0.68rem;
+      font-size: var(--easymc-type-meta);
       padding: 2px 8px;
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-primary);
@@ -142,13 +142,13 @@ export class SideNav extends LitElement {
     }
     .promo strong {
       display: block;
-      font-size: 0.88rem;
+      font-size: var(--easymc-type-label);
       font-weight: 650;
       letter-spacing: -0.01em;
       margin-bottom: 2px;
     }
     .promo span {
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       line-height: 1.35;
       color: var(--md-sys-color-on-surface-variant);
     }

@@ -95,12 +95,7 @@ export class AccountsPage extends LitElement {
         height: 44px;
         border-radius: 10px;
         flex-shrink: 0;
-        background: linear-gradient(
-          180deg,
-          oklch(0.78 0.06 70) 0 38%,
-          oklch(0.55 0.1 220) 38% 62%,
-          oklch(0.45 0.08 250) 62% 100%
-        );
+        background: var(--easymc-skin-ph-base);
         box-shadow: var(--md-sys-elevation-1);
         position: relative;
         overflow: hidden;
@@ -110,13 +105,13 @@ export class AccountsPage extends LitElement {
         position: absolute;
         inset: 8px 14px 10px;
         border-radius: 4px;
-        background: oklch(0.92 0.03 90 / 0.35);
+        background: var(--easymc-skin-ph-face);
       }
       .skin-ph.ms {
-        background: linear-gradient(135deg, oklch(0.55 0.12 250), oklch(0.45 0.1 220));
+        background: var(--easymc-skin-ph-ms);
       }
       .skin-ph.skin {
-        background: linear-gradient(135deg, oklch(0.62 0.14 330), oklch(0.5 0.12 300));
+        background: var(--easymc-skin-ph-skin);
       }
       .acct-body {
         flex: 1;
@@ -140,7 +135,7 @@ export class AccountsPage extends LitElement {
         align-items: center;
       }
       .badge {
-        font-size: 0.68rem;
+        font-size: var(--easymc-type-meta);
         font-weight: 700;
         padding: 2px 8px;
         border-radius: 999px;
@@ -148,16 +143,16 @@ export class AccountsPage extends LitElement {
         color: var(--md-sys-color-on-secondary-container);
       }
       .badge.ms {
-        background: oklch(0.55 0.12 250 / 0.2);
-        color: oklch(0.4 0.1 250);
+        background: var(--easymc-acct-ms-bg);
+        color: var(--easymc-acct-ms-fg);
       }
       .badge.off {
-        background: oklch(0.7 0.05 150 / 0.25);
-        color: oklch(0.4 0.08 150);
+        background: var(--easymc-acct-off-bg);
+        color: var(--easymc-acct-off-fg);
       }
       .badge.skin {
-        background: oklch(0.65 0.12 330 / 0.22);
-        color: oklch(0.42 0.12 330);
+        background: var(--easymc-acct-skin-bg);
+        color: var(--easymc-acct-skin-fg);
       }
       .acct-actions {
         display: flex;

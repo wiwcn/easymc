@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   agentAsk,
@@ -12,6 +12,7 @@ import {
   listInstancesState,
 } from "../api";
 import { showToast } from "../toast";
+import "../components/empty-state";
 import type {
   AgentAskResponse,
   AgentFinding,
@@ -35,6 +36,7 @@ export class AgentPage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
     :host {
       display: block;
@@ -45,7 +47,7 @@ export class AgentPage extends LitElement {
     .layout {
       display: grid;
       grid-template-columns: 1fr 220px;
-      gap: 16px;
+      gap: var(--easymc-space-4);
       height: 100%;
       min-height: 0;
     }
@@ -63,31 +65,26 @@ export class AgentPage extends LitElement {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: var(--easymc-space-3);
+      margin-bottom: var(--easymc-space-3);
     }
     h1 {
       margin: 0;
-      font-size: 1.35rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--easymc-space-3);
       flex-wrap: wrap;
     }
     .sub {
-      margin: 4px 0 0;
-      color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.9rem;
+      margin: var(--easymc-space-1) 0 0;
     }
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--easymc-space-2);
       padding: 4px 10px;
       border-radius: var(--md-sys-shape-corner-full);
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 600;
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
@@ -120,22 +117,30 @@ export class AgentPage extends LitElement {
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
     }
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      margin-bottom: var(--easymc-space-3);
+    }
     .chat {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: var(--easymc-space-3);
       overflow: auto;
-      padding: 16px;
+      padding: var(--easymc-space-4);
       border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
-      margin-bottom: 12px;
+      margin-bottom: var(--easymc-space-3);
       min-height: 240px;
     }
     .msg {
       display: flex;
-      gap: 10px;
+      gap: var(--easymc-space-3);
       align-items: flex-start;
       max-width: 92%;
     }
@@ -148,7 +153,7 @@ export class AgentPage extends LitElement {
       flex-shrink: 0;
       display: grid;
       place-items: center;
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 700;
     }
     .msg.assistant .avatar {
@@ -163,7 +168,7 @@ export class AgentPage extends LitElement {
       padding: 11px 15px;
       border-radius: 16px;
       white-space: pre-wrap;
-      font-size: 0.92rem;
+      font-size: var(--easymc-type-body);
       line-height: 1.45;
     }
     .msg.user .bubble {
@@ -177,13 +182,13 @@ export class AgentPage extends LitElement {
       border-bottom-left-radius: 6px;
     }
     .meta {
-      font-size: 0.7rem;
+      font-size: var(--easymc-type-meta);
       opacity: 0.7;
       margin-top: 4px;
     }
     .composer {
       display: flex;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       align-items: center;
     }
     .composer input {
@@ -198,8 +203,8 @@ export class AgentPage extends LitElement {
     .tools {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 14px;
+      gap: var(--easymc-space-2);
+      padding: var(--easymc-space-4);
       border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
@@ -207,7 +212,7 @@ export class AgentPage extends LitElement {
     }
     .tools h2 {
       margin: 0 0 4px;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       font-weight: 650;
       color: var(--md-sys-color-on-surface-variant);
       letter-spacing: 0.02em;
@@ -220,18 +225,18 @@ export class AgentPage extends LitElement {
       gap: 2px;
       text-align: left;
       width: 100%;
-      padding: 12px;
+      padding: var(--easymc-space-3);
       border-radius: 14px;
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       background: var(--md-sys-color-surface);
     }
     button.tool strong {
-      font-size: 0.88rem;
+      font-size: var(--easymc-type-label);
       font-weight: 650;
       color: var(--md-sys-color-on-surface);
     }
     button.tool span {
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       line-height: 1.3;
     }
@@ -240,7 +245,7 @@ export class AgentPage extends LitElement {
       border-color: transparent;
     }
     .tools .note {
-      font-size: 0.72rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       margin-top: 4px;
       line-height: 1.35;
@@ -248,30 +253,30 @@ export class AgentPage extends LitElement {
     .findings {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--easymc-space-3);
       margin: 0 0 12px;
     }
     .card {
-      padding: 14px 16px;
+      padding: var(--easymc-space-4);
       border-radius: 16px;
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }
     .card.error { outline: 1px solid var(--md-sys-color-error); }
     .card.warn { outline: 1px solid var(--md-sys-color-warning); }
-    .card h3 { margin: 0 0 6px; font-size: 1rem; }
-    .card p { margin: 0 0 6px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
-    .card ul { margin: 0; padding-left: 1.2em; font-size: 0.88rem; }
+    .card h3 { margin: 0 0 6px; font-size: var(--easymc-type-title); }
+    .card p { margin: 0 0 6px; font-size: var(--easymc-type-body); color: var(--md-sys-color-on-surface-variant); }
+    .card ul { margin: 0; padding-left: 1.2em; font-size: var(--easymc-type-label); }
     .evidence {
       font-family: ui-monospace, monospace;
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       opacity: 0.85;
       word-break: break-all;
     }
     .row {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       margin-bottom: 10px;
       align-items: center;
     }
@@ -468,21 +473,29 @@ export class AgentPage extends LitElement {
               `
             : null}
 
-          <div class="chat">
-            ${this.turns.map(
-              (t) => html`
-                <div class="msg ${t.role}">
-                  <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
-                  <div>
-                    <div class="bubble">${t.content}</div>
-                    ${t.mode
-                      ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
-                      : null}
-                  </div>
-                </div>
-              `,
-            )}
-          </div>
+          ${!this.turns.length && !this.report
+            ? html`<div class="chat-empty">
+                <easymc-empty-state
+                  variant="panel"
+                  title="有什么我能帮你的？"
+                  description="说说启动不了、崩了，或者点右侧快捷工具"
+                ></easymc-empty-state>
+              </div>`
+            : html`<div class="chat">
+                ${this.turns.map(
+                  (t) => html`
+                    <div class="msg ${t.role}">
+                      <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
+                      <div>
+                        <div class="bubble">${t.content}</div>
+                        ${t.mode
+                          ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
+                          : null}
+                      </div>
+                    </div>
+                  `,
+                )}
+              </div>`}
 
           <div class="composer">
             <input

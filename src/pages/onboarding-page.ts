@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import { completeOnboarding, createOfflineOrThrow, msaStatus } from "../api";
 import { showToast } from "../toast";
@@ -24,6 +24,7 @@ export class OnboardingPage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
     :host {
       display: grid;
@@ -34,11 +35,11 @@ export class OnboardingPage extends LitElement {
       color: var(--md-sys-color-on-surface);
     }
     .wrap { width: min(640px, calc(100vw - 48px)); }
-    .brand { font-weight: 700; font-size: 1.4rem; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .brand { font-weight: 700; font-size: var(--easymc-type-display); letter-spacing: -0.02em; margin-bottom: 4px; }
     .steps { display: flex; gap: 6px; margin: 0 0 24px; }
     .steps i { flex: 1; height: 4px; border-radius: 999px; background: var(--md-sys-color-surface-container-highest); }
     .steps i.on { background: var(--md-sys-color-primary); }
-    h1 { margin: 0 0 6px; font-size: 1.5rem; }
+    h1 { margin: 0 0 6px; font-size: var(--easymc-type-display); }
     p.sub { margin: 0 0 20px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
     .options { display: grid; gap: 12px; }
     button.opt {
@@ -50,8 +51,8 @@ export class OnboardingPage extends LitElement {
     }
     button.opt:hover { background: var(--md-sys-color-surface-container); }
     button.opt.sel { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
-    button.opt strong { display: block; font-size: 1rem; margin-bottom: 4px; }
-    button.opt span { font-size: 0.88rem; opacity: 0.85; line-height: 1.45; }
+    button.opt strong { display: block; font-size: var(--easymc-type-title); margin-bottom: 4px; }
+    button.opt span { font-size: var(--easymc-type-label); opacity: 0.85; line-height: 1.45; }
     button.opt:focus-visible, .btn:focus-visible, input:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
     .row { display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap; }
     /* Align .btn with controlStyles vocabulary (CMP-1) */
@@ -77,12 +78,12 @@ export class OnboardingPage extends LitElement {
       padding: 11px 22px;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    label { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; font-weight: 500; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: var(--easymc-type-label); font-weight: 500; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
     input { padding: 11px 14px; border-radius: 12px; border: 1px solid var(--md-sys-color-outline-variant); font: inherit; background: var(--md-sys-color-surface-container-lowest); color: var(--md-sys-color-on-surface); }
     input.bad { border-color: var(--md-sys-color-error); }
-    .err { color: var(--md-sys-color-error); font-size: 0.85rem; margin: -4px 0 8px; }
-    .tip { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
-    .notice { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-surface-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
+    .err { color: var(--md-sys-color-error); font-size: var(--easymc-type-label); margin: -4px 0 8px; }
+    .tip { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
+    .notice { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-surface-container); font-size: var(--easymc-type-body); line-height: 1.5; margin-bottom: 12px; }
     @media (prefers-reduced-motion: reduce) { button.opt { transition: none; } }
   `,
   ];

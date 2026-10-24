@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   agentDataDir,
@@ -29,6 +29,7 @@ export class SettingsPage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
       :host {
         display: block;
@@ -72,12 +73,12 @@ export class SettingsPage extends LitElement {
       }
       .card h2 {
         margin: 0 0 8px;
-        font-size: 1rem;
+        font-size: var(--easymc-type-title);
       }
       .card p {
         margin: 0 0 10px;
         color: var(--md-sys-color-on-surface-variant);
-        font-size: 0.9rem;
+        font-size: var(--easymc-type-body);
       }
       .row {
         display: flex;
@@ -92,7 +93,7 @@ export class SettingsPage extends LitElement {
         color: var(--md-sys-color-on-surface);
         border-radius: 999px;
         padding: 8px 14px;
-        font-size: 0.9rem;
+        font-size: var(--easymc-type-body);
       }
       details.card summary {
         cursor: pointer;
@@ -100,7 +101,7 @@ export class SettingsPage extends LitElement {
       }
       .muted {
         color: var(--md-sys-color-on-surface-variant);
-        font-size: 0.85rem;
+        font-size: var(--easymc-type-label);
       }
       .mem-hints {
         display: flex;
