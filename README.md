@@ -6,6 +6,15 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 
 **Android track:** sibling repo [`/workspace/easymc-android`](../easymc-android) (A3.1 — CreateJavaVM + EarlyGlFrame (title still no); see its DESIGN.md). Not the same milestone as desktop M1.
 
+## ⚠️ Handover — runtime instantiation plan is approved and MUST be executed
+
+**Next shift: implement [`docs/RUNTIME-INSTANTIATION-PLAN.md`](./docs/RUNTIME-INSTANTIATION-PLAN.md).**
+
+- **Status:** plan approved 2026-10-24 · **no implementation code exists yet** — the doc is an execution spec, not a record of done work.
+- **Decisions locked (§9):** D1 = **Debian-slim** base (not Alpine) · D2 = **bundled bubblewrap** · D3 = **default Native, isolation opt-in** · D4 = **macOS native only** (no GPU passthrough to a Linux VM exists on Apple Silicon) · D5 = **implementation not started**.
+- **Start at P0 (§7):** extract a platform-agnostic `LaunchSpec` and add a `RuntimeBackend` trait whose `NativeBackend` is a pure lift-and-shift of today's [`launch.rs`](./crates/easymc-launch-desktop/src/launch.rs) + [`process.rs`](./crates/easymc-launch-desktop/src/process.rs). **Zero behaviour change.** Do not start P1/P2 until P0 lands green.
+- **Backends:** Windows → WSL2 (`/dev/dxg` + WSLg) · Linux → rootless bubblewrap (`/dev/dri` + Wayland socket) · macOS → native · any probe failure silently falls back to `NativeBackend`.
+
 ## What works (M1)
 
 - Local JSON persistence for instances & accounts (`EASYMC_DATA_DIR` or platform data dir `/EasyMC`)
