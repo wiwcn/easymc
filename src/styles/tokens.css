@@ -8,7 +8,7 @@
   /* ——— Brand / action ——— */
   --md-sys-color-primary: oklch(0.48 0.09 186.5);
   --md-sys-color-on-primary: oklch(0.99 0.01 186);
-  --md-sys-color-primary-container: oklch(0.88 0.055 188);
+  --md-sys-color-primary-container: oklch(0.90 0.045 186);
   --md-sys-color-on-primary-container: oklch(0.28 0.06 185);
 
   --md-sys-color-secondary: oklch(0.48 0.035 185);
@@ -22,10 +22,10 @@
   --md-sys-color-on-tertiary-container: oklch(0.28 0.04 235);
 
   /* ——— Surfaces (cool teal-tinted neutrals; sidebar reads slightly cooler via container-low) ——— */
-  --md-sys-color-surface: oklch(0.975 0.006 185);
+  --md-sys-color-surface: oklch(0.97 0.008 186);
   --md-sys-color-surface-dim: oklch(0.88 0.012 185);
   --md-sys-color-surface-bright: oklch(0.985 0.004 185);
-  --md-sys-color-surface-container-lowest: oklch(0.995 0.002 185);
+  --md-sys-color-surface-container-lowest: oklch(0.995 0.003 185);
   --md-sys-color-surface-container-low: oklch(0.955 0.01 188);
   --md-sys-color-surface-container: oklch(0.935 0.012 186);
   --md-sys-color-surface-container-high: oklch(0.915 0.014 186);
@@ -63,8 +63,9 @@
   --md-sys-shape-corner-extra-small: 4px;
   --md-sys-shape-corner-small: 8px;
   --md-sys-shape-corner-medium: 12px;
-  --md-sys-shape-corner-large: 16px;
-  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-large: 18px;
+  --md-sys-shape-corner-extra-large: 20px; /* paper cards ~16–20 */
+  --md-sys-shape-corner-xl: 28px;
   --md-sys-shape-corner-full: 999px;
 
   /* ——— Elevation (offset + soft blur; no zero-offset halo) ——— */
@@ -88,7 +89,7 @@
   --easymc-dur-focal: 400ms; /* quiet Home hero only */
 
   /* ——— Layout / type ——— */
-  --easymc-nav-width: 200px;
+  --easymc-nav-width: 212px;
   --easymc-font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
   --easymc-space-1: 4px;
   --easymc-space-2: 8px;

@@ -69,19 +69,54 @@ export class DownloadPage extends LitElement {
   private unprog?: () => void;
 
   static styles = css`
-    :host { display: block; }
-    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 12px; }
-    .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+    :host { display: block; max-width: 1100px; }
+    h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.03em; }
+    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 14px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
     .tabs button {
       border: none; background: transparent; cursor: pointer;
-      padding: 8px 14px; border-radius: 999px;
-      color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem;
+      padding: 9px 16px; border-radius: 999px;
+      color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; font-weight: 500;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out), color var(--easymc-dur-press) var(--easymc-ease-out);
     }
     .tabs button.on {
-      background: var(--md-sys-color-secondary-container);
-      color: var(--md-sys-color-on-secondary-container); font-weight: 600;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container); font-weight: 650;
     }
+    .search-row {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;
+    }
+    .search {
+      flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: 999px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+    .search input {
+      flex: 1; border: none; background: transparent; padding: 0; outline: none;
+      font-size: 0.95rem; color: var(--md-sys-color-on-surface);
+    }
+    .search svg { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); flex-shrink: 0; }
+    .sources { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .sources .lbl { font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); margin-right: 2px; }
+    button.src {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1.5px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface); border-radius: 999px; padding: 8px 14px;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    }
+    button.src.on {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot.mr { background: oklch(0.62 0.14 150); }
+    .dot.cf { background: oklch(0.62 0.14 55); }
     .bar {
       display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;
     }
@@ -91,22 +126,52 @@ export class DownloadPage extends LitElement {
       color: var(--md-sys-color-on-surface);
       border-radius: 999px; padding: 8px 14px; font-size: 0.9rem;
     }
-    button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); cursor: pointer; }
+    button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); cursor: pointer; font-weight: 600; }
     button.ghost { background: transparent; cursor: pointer; }
-    .card {
-      display: flex; gap: 12px; padding: 12px; margin-bottom: 8px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      align-items: flex-start;
+    button.outline-dl {
+      border: 1.5px solid var(--md-sys-color-primary);
+      background: transparent; color: var(--md-sys-color-primary);
+      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: 0.85rem;
     }
-    .card img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; background: var(--md-sys-color-surface-container); }
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      display: flex; flex-direction: column; gap: 10px; padding: 14px;
+      border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+      align-items: stretch; min-height: 0;
+    }
+    .card-top { display: flex; gap: 12px; align-items: flex-start; }
+    .card img, .card .ph {
+      width: 48px; height: 48px; border-radius: 12px; object-fit: cover;
+      background: var(--md-sys-color-primary-container); flex-shrink: 0;
+    }
     .card .body { flex: 1; min-width: 0; }
-    .card .name { font-weight: 600; }
-    .card .desc { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px; }
+    .card .name { font-weight: 650; font-size: 0.95rem; letter-spacing: -0.01em; }
+    .card .desc {
+      font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .tag {
+      font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .card-foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;
+    }
+    .dl-stat { font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
     .panel {
-      padding: 16px; border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      padding: 18px; border-radius: 18px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
     }
     .field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; max-width: 480px; }
     .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
@@ -329,18 +394,26 @@ export class DownloadPage extends LitElement {
               : "给世界加玩法";
     return html`
       <p class="muted" style="margin-top:0">${hint}</p>
-      <div class="bar">
-        <select .value=${this.source} @change=${(e: Event) => (this.source = (e.target as HTMLSelectElement).value as ModSourceId)}>
-          <option value="modrinth">Modrinth</option>
-          <option value="curseforge">CurseForge</option>
-        </select>
-        <input style="flex:1;min-width:160px" placeholder="搜索…" .value=${this.query} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
+      <div class="search-row">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input placeholder="搜索模组、工具、整合包…" .value=${this.query} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
+        </div>
         <button class="primary" type="button" ?disabled=${this.loading} @click=${() => this.onSearch()}>搜索</button>
         ${this.instances.length
           ? html`<select .value=${this.activeId ?? ""} @change=${async (e: Event) => { this.activeId = (e.target as HTMLSelectElement).value; await setActiveInstance(this.activeId); }} title="装进哪个版本">
               ${this.instances.map((i) => html`<option value=${i.id}>${i.name}</option>`)}
             </select>`
           : nothing}
+      </div>
+      <div class="sources" style="margin-bottom:14px">
+        <span class="lbl">来源</span>
+        <button class="src ${this.source === "modrinth" ? "on" : ""}" type="button" @click=${() => (this.source = "modrinth")}>
+          <span class="dot mr"></span> Modrinth
+        </button>
+        <button class="src ${this.source === "curseforge" ? "on" : ""}" type="button" @click=${() => (this.source = "curseforge")}>
+          <span class="dot cf"></span> CurseForge
+        </button>
       </div>
       ${this.source === "curseforge" && !this.cf?.configured
         ? html`<div class="panel" style="margin-bottom:12px">
@@ -361,7 +434,9 @@ export class DownloadPage extends LitElement {
       ${this.error ? html`<p class="muted" style="color:var(--md-sys-color-error)">${this.error}</p>` : nothing}
       ${this.loading ? html`<p class="muted">搜索中…</p>` : nothing}
       ${this.progress && this.installingId ? html`<p class="muted">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
-      ${this.results.map((p) => this.renderCard(p))}
+      <div class="market-grid">
+        ${this.results.map((p) => this.renderCard(p))}
+      </div>
       ${!this.loading && this.results.length === 0 && !this.error ? html`<p class="muted">输入关键词搜索，或留空看热门。</p>` : nothing}
     `;
   }
@@ -369,30 +444,44 @@ export class DownloadPage extends LitElement {
   private renderCard(p: ModProjectDto) {
     const busy = this.installingId === p.id;
     const cta =
-      this.tab === "modpack" ? "安装到新版本" : this.tab === "mod" ? "装入当前版本" : "下载";
+      this.tab === "modpack" ? "安装" : this.tab === "mod" ? "装入" : "下载";
+    const dl =
+      typeof p.downloads === "number"
+        ? p.downloads >= 1000
+          ? `${(p.downloads / 1000).toFixed(p.downloads >= 10000 ? 0 : 1)}K`
+          : String(p.downloads)
+        : String(p.downloads ?? "");
     return html`<div class="card">
-      ${p.icon_url ? html`<img src=${p.icon_url} alt="" />` : html`<div style="width:48px;height:48px;border-radius:10px;background:var(--md-sys-color-surface-container)"></div>`}
-      <div class="body">
-        <div class="name">${p.name}</div>
-        <div class="desc">${p.description}</div>
-        <div class="muted" style="margin-top:4px">${p.source} · 下载 ${p.downloads}${p.author ? ` · ${p.author}` : ""}</div>
-        <div class="bar" style="margin:8px 0 0">
-          <button class="primary" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p)}>${busy ? "安装中…" : cta}</button>
-          <button class="ghost" type="button" @click=${() => this.onExpand(p)}>${this.expandedId === p.id ? "收起版本" : "选版本"}</button>
+      <div class="card-top">
+        ${p.icon_url ? html`<img src=${p.icon_url} alt="" />` : html`<div class="ph" aria-hidden="true"></div>`}
+        <div class="body">
+          <div class="name">${p.name}</div>
+          <div class="desc">${p.description}</div>
+          <div class="tags">
+            <span class="tag">${p.source}</span>
+            ${p.author ? html`<span class="tag">${p.author}</span>` : nothing}
+          </div>
         </div>
-        ${this.expandedId === p.id
-          ? html`<div style="margin-top:8px">
-              ${this.versionsLoading
-                ? html`<span class="muted">加载版本…</span>`
-                : this.versions.slice(0, 12).map(
-                    (v) => html`<div class="bar">
-                      <span class="muted">${v.version_number} · ${v.name}</span>
-                      <button class="ghost" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p, v.id)}>用此版本</button>
-                    </div>`,
-                  )}
-            </div>`
-          : nothing}
       </div>
+      <div class="card-foot">
+        <span class="dl-stat">${dl ? `↓ ${dl}` : ""}</span>
+        <div class="bar" style="margin:0">
+          <button class="outline-dl" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p)}>${busy ? "…" : cta}</button>
+          <button class="ghost" type="button" @click=${() => this.onExpand(p)}>${this.expandedId === p.id ? "收起" : "版本"}</button>
+        </div>
+      </div>
+      ${this.expandedId === p.id
+        ? html`<div>
+            ${this.versionsLoading
+              ? html`<span class="muted">加载版本…</span>`
+              : this.versions.slice(0, 12).map(
+                  (v) => html`<div class="bar">
+                    <span class="muted">${v.version_number} · ${v.name}</span>
+                    <button class="ghost" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p, v.id)}>用此版本</button>
+                  </div>`,
+                )}
+          </div>`
+        : nothing}
     </div>`;
   }
 }

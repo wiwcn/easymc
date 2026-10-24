@@ -4,13 +4,23 @@ import type { AppMode, NavId } from "../types";
 
 type Item = { id: NavId; label: string; icon: string };
 
-const ICONS: Record<string, unknown> = {
-  home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="currentColor"/>`,
+/** Filled icons when active; outlined when idle — MD3 sketch richness. */
+const ICONS_OUTLINE: Record<string, unknown> = {
+  home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>`,
   download: svg`<path d="M12 3v10m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   multiplayer: svg`<path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4.5 19c.6-2.2 2.6-3.5 5.5-3.5s4.9 1.3 5.5 3.5M14 15.5c1 .3 2.1.5 3.5.5 2.4 0 4-.8 4.5 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
   settings: svg`<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 13a7.8 7.8 0 0 0 .1-2l1.7-1.3-1.7-3-2 .5a7.6 7.6 0 0 0-1.7-1L15.4 3h-3.8l-.4 2.2a7.6 7.6 0 0 0-1.7 1l-2-.5-1.7 3L7.5 11a7.8 7.8 0 0 0 0 2l-1.7 1.3 1.7 3 2-.5c.5.4 1.1.8 1.7 1l.4 2.2h3.8l.4-2.2c.6-.2 1.2-.6 1.7-1l2 .5 1.7-3L19.4 13Z" stroke="currentColor" stroke-width="1.4" fill="none"/>`,
   more: svg`<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>`,
   agent: svg`<path d="M8 10h8M9 14h6M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H13l-3 3v-3H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+};
+
+const ICONS_FILLED: Record<string, unknown> = {
+  home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="currentColor"/>`,
+  download: svg`<path d="M11 3h2v9.2l2.6-2.6 1.4 1.4L12 16l-5-5 1.4-1.4L11 12.2V3Z" fill="currentColor"/><path d="M5 17h14v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2Z" fill="currentColor"/>`,
+  multiplayer: svg`<circle cx="8" cy="8" r="3" fill="currentColor"/><circle cx="16" cy="8" r="3" fill="currentColor"/><path d="M2.5 19c.7-2.6 3-4 5.5-4s4.8 1.4 5.5 4H2.5Zm9.5 0c.4-1.5 1.4-2.6 2.8-3.2 1 .4 2.1.7 3.7.7 2.2 0 3.7.8 4.3 2.5H12Z" fill="currentColor"/>`,
+  settings: svg`<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm7.4 4.2a7.8 7.8 0 0 0 .1-1.4l1.8-1.4-1.8-3.1-2.1.5a7.6 7.6 0 0 0-1.8-1L14.9 2h-3.8l-.5 2.3a7.6 7.6 0 0 0-1.8 1l-2.1-.5-1.8 3.1 1.8 1.4a7.8 7.8 0 0 0 0 1.4l-1.8 1.4 1.8 3.1 2.1-.5c.5.4 1.1.8 1.8 1l.5 2.3h3.8l.5-2.3c.6-.2 1.3-.6 1.8-1l2.1.5 1.8-3.1-1.8-1.4Z" fill="currentColor"/>`,
+  more: svg`<circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="18" cy="12" r="2" fill="currentColor"/>`,
+  agent: svg`<path d="M7 6h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-3.2L10 22v-3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm1 5h8v2H8v-2Zm1 4h6v2H9v-2Z" fill="currentColor"/>`,
 };
 
 const NAV: Item[] = [
@@ -22,11 +32,6 @@ const NAV: Item[] = [
   { id: "more", label: "更多", icon: "more" },
 ];
 
-/** Always show 助手 in the sidebar (both modes). Agent mode badges 「已开启」. */
-function itemsFor(_mode: AppMode): Item[] {
-  return NAV;
-}
-
 @customElement("easymc-side-nav")
 export class SideNav extends LitElement {
   @property({ type: String }) active: NavId = "home";
@@ -37,15 +42,16 @@ export class SideNav extends LitElement {
       display: flex;
       flex-direction: column;
       width: var(--easymc-nav-width);
-      padding: 16px 10px;
-      background: var(--md-sys-color-surface-container-low);
-      border-right: 1px solid var(--md-sys-color-outline-variant);
+      padding: 18px 12px 14px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border-right: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
       flex-shrink: 0;
+      gap: 8px;
     }
     nav {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       flex: 1;
     }
     button.item {
@@ -55,7 +61,7 @@ export class SideNav extends LitElement {
       border: none;
       background: transparent;
       color: var(--md-sys-color-on-surface-variant);
-      padding: 10px 14px;
+      padding: 11px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       cursor: pointer;
       font-size: 0.95rem;
@@ -67,7 +73,7 @@ export class SideNav extends LitElement {
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.item:hover {
-      background: var(--md-sys-color-surface-container-high);
+      background: var(--md-sys-color-surface-container);
     }
     button.item:active {
       transform: scale(0.98);
@@ -75,6 +81,7 @@ export class SideNav extends LitElement {
     button.item.active {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
+      font-weight: 600;
     }
     button.item:focus-visible {
       box-shadow: var(--easymc-focus-ring);
@@ -93,26 +100,60 @@ export class SideNav extends LitElement {
     }
     .pill {
       margin-left: auto;
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       padding: 2px 8px;
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
+      font-weight: 600;
     }
     .promo {
       margin-top: auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
       padding: 14px;
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-secondary-container);
-      color: var(--md-sys-color-on-secondary-container);
-      font-size: 0.8rem;
-      line-height: 1.4;
+      background: var(--md-sys-color-surface-container-low);
+      color: var(--md-sys-color-on-surface);
+      cursor: default;
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+    }
+    .promo-ico {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+    .promo-ico svg {
+      width: 20px;
+      height: 20px;
+    }
+    .promo-body {
+      flex: 1;
+      min-width: 0;
     }
     .promo strong {
       display: block;
-      font-size: 0.9rem;
-      margin-bottom: 4px;
+      font-size: 0.88rem;
+      font-weight: 650;
       letter-spacing: -0.01em;
+      margin-bottom: 2px;
+    }
+    .promo span {
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .promo-chev {
+      color: var(--md-sys-color-on-surface-variant);
+      align-self: center;
+      opacity: 0.7;
+      flex-shrink: 0;
     }
     @media (prefers-reduced-motion: reduce) {
       button.item:active {
@@ -122,32 +163,53 @@ export class SideNav extends LitElement {
   `;
 
   render() {
+    const tipTitle = this.mode === "agent" ? "助手已开启" : "1.21.1 新内容";
+    const tipBody =
+      this.mode === "agent"
+        ? "游戏打不开或崩溃时，点「助手」帮你看看"
+        : "更多功能，更好体验 · 选好版本就能开玩";
+
     return html`
       <nav aria-label="主导航">
-        ${itemsFor(this.mode).map(
-          (it) => html`
+        ${NAV.map((it) => {
+          const on = this.active === it.id;
+          return html`
             <button
-              class="item ${this.active === it.id ? "active" : ""}"
+              class="item ${on ? "active" : ""}"
               type="button"
-              aria-current=${this.active === it.id ? "page" : "false"}
+              aria-current=${on ? "page" : "false"}
               @click=${() => this.select(it.id)}
             >
               <span class="ico" aria-hidden="true"
-                ><svg viewBox="0 0 24 24">${ICONS[it.icon]}</svg></span
+                ><svg viewBox="0 0 24 24">
+                  ${on ? ICONS_FILLED[it.icon] : ICONS_OUTLINE[it.icon]}
+                </svg></span
               >
               <span>${it.label}</span>
               ${it.id === "agent" && this.mode === "agent"
                 ? html`<span class="pill">已开启</span>`
                 : nothing}
             </button>
-          `,
-        )}
+          `;
+        })}
       </nav>
-      <div class="promo">
-        <strong>${this.mode === "agent" ? "助手已开启" : "准备好了就开玩"}</strong>
-        ${this.mode === "agent"
-          ? "游戏打不开或崩溃时，点侧栏「助手」帮你看看"
-          : "选好版本，点启动游戏；需要排错时打开「助手」"}
+      <div class="promo" role="note">
+        <div class="promo-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2l1.4 4.2L18 7.6l-3.6 2.8L15.4 15 12 12.6 8.6 15l1-4.6L6 7.6l4.6-1.4L12 2Zm6.5 11 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6ZM5.5 13l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"
+            />
+          </svg>
+        </div>
+        <div class="promo-body">
+          <strong>${tipTitle}</strong>
+          <span>${tipBody}</span>
+        </div>
+        <span class="promo-chev" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </span>
       </div>
     `;
   }

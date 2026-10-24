@@ -35,16 +35,48 @@ export class AgentPage extends LitElement {
   static styles = css`
     :host {
       display: block;
-      max-width: 920px;
+      max-width: 960px;
+      height: calc(100vh - 100px);
+      min-height: 480px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 16px;
+      height: 100%;
+      min-height: 0;
+    }
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+      .tools { display: none; }
+    }
+    .main-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+    }
+    .head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
     }
     h1 {
-      margin: 0 0 4px;
-      font-size: 1.5rem;
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     .sub {
-      margin: 0 0 16px;
+      margin: 4px 0 0;
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
     .badge {
       display: inline-flex;
@@ -52,71 +84,36 @@ export class AgentPage extends LitElement {
       gap: 6px;
       padding: 4px 10px;
       border-radius: var(--md-sys-shape-corner-full);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
+      font-weight: 600;
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
-      margin-left: 8px;
     }
     .badge.on {
       background: var(--md-sys-color-success-container);
       color: var(--md-sys-color-on-success-container);
-    }
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 12px;
-      align-items: center;
     }
     button,
     .chip {
       padding: 8px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       border: 1px solid var(--md-sys-color-outline-variant);
-      background: var(--md-sys-color-surface-container);
+      background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
       cursor: pointer;
       font: inherit;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.primary {
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
       border-color: transparent;
+      font-weight: 650;
     }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    button,
-    .chip {
-      transition:
-        background var(--easymc-dur-press) var(--easymc-ease-out),
-        transform var(--easymc-dur-press) var(--easymc-ease-out),
-        opacity var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    button:active:not(:disabled),
-    .chip:active {
-      transform: scale(0.98);
-    }
-    .badge.on {
-      background: var(--md-sys-color-success-container);
-      color: var(--md-sys-color-on-success-container);
-    }
-    .err {
-      color: var(--md-sys-color-error);
-    }
-    .findings .card {
-      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
-    }
-    @keyframes row-in {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .findings .card { animation: none; }
-      button:active:not(:disabled),
-      .chip:active { transform: none; }
-    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:active:not(:disabled), .chip:active { transform: scale(0.98); }
     select {
       padding: 8px 12px;
       border-radius: 12px;
@@ -124,73 +121,62 @@ export class AgentPage extends LitElement {
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
     }
-    .findings {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin: 12px 0 20px;
-    }
-    .card {
-      padding: 14px 16px;
-      border-radius: 16px;
-      background: var(--md-sys-color-surface-container-low);
-      border: 1px solid var(--md-sys-color-outline-variant);
-    }
-    .card.error {
-      border-color: var(--md-sys-color-error);
-    }
-    .card.warn {
-      border-color: var(--md-sys-color-warning);
-    }
-    .card h3 {
-      margin: 0 0 6px;
-      font-size: 1rem;
-    }
-    .card p {
-      margin: 0 0 6px;
-      font-size: 0.9rem;
-      color: var(--md-sys-color-on-surface-variant);
-    }
-    .card ul {
-      margin: 0;
-      padding-left: 1.2em;
-      font-size: 0.88rem;
-    }
-    .evidence {
-      font-family: ui-monospace, monospace;
-      font-size: 0.75rem;
-      opacity: 0.85;
-      word-break: break-all;
-    }
     .chat {
+      flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      max-height: 420px;
+      gap: 12px;
       overflow: auto;
-      padding: 12px;
-      border-radius: 16px;
+      padding: 16px;
+      border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
-      border: 1px solid var(--md-sys-color-outline-variant);
+      box-shadow: var(--md-sys-elevation-1);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
       margin-bottom: 12px;
+      min-height: 240px;
+    }
+    .msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      max-width: 92%;
+    }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.assistant { align-self: flex-start; }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .msg.assistant .avatar {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+    .msg.user .avatar {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
     }
     .bubble {
-      max-width: 85%;
-      padding: 10px 14px;
+      padding: 11px 15px;
       border-radius: 16px;
       white-space: pre-wrap;
       font-size: 0.92rem;
       line-height: 1.45;
     }
-    .bubble.user {
-      align-self: flex-end;
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
+    .msg.user .bubble {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      border-bottom-right-radius: 6px;
     }
-    .bubble.assistant {
-      align-self: flex-start;
+    .msg.assistant .bubble {
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface);
+      border-bottom-left-radius: 6px;
     }
     .meta {
       font-size: 0.7rem;
@@ -200,28 +186,101 @@ export class AgentPage extends LitElement {
     .composer {
       display: flex;
       gap: 8px;
+      align-items: center;
     }
     .composer input {
       flex: 1;
-      padding: 12px 14px;
-      border-radius: 24px;
+      padding: 13px 16px;
+      border-radius: 999px;
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
+      box-shadow: var(--md-sys-elevation-1);
     }
-    .hints {
+    .tools {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+      align-self: start;
+    }
+    .tools h2 {
+      margin: 0 0 4px;
+      font-size: 0.85rem;
+      font-weight: 650;
+      color: var(--md-sys-color-on-surface-variant);
+      letter-spacing: 0.02em;
+      text-transform: none;
+    }
+    button.tool {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      text-align: left;
+      width: 100%;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      background: var(--md-sys-color-surface);
+    }
+    button.tool strong {
+      font-size: 0.88rem;
+      font-weight: 650;
+      color: var(--md-sys-color-on-surface);
+    }
+    button.tool span {
+      font-size: 0.75rem;
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.3;
+    }
+    button.tool:hover {
+      background: var(--md-sys-color-primary-container);
+      border-color: transparent;
+    }
+    .tools .note {
+      font-size: 0.72rem;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+    .findings {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 0 0 12px;
+    }
+    .card {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+    .card.error { outline: 1px solid var(--md-sys-color-error); }
+    .card.warn { outline: 1px solid var(--md-sys-color-warning); }
+    .card h3 { margin: 0 0 6px; font-size: 1rem; }
+    .card p { margin: 0 0 6px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
+    .card ul { margin: 0; padding-left: 1.2em; font-size: 0.88rem; }
+    .evidence {
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      opacity: 0.85;
+      word-break: break-all;
+    }
+    .row {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
     }
-    .hints button {
-      font-size: 0.8rem;
-      padding: 6px 10px;
-    }
-    .err {
-      color: var(--md-sys-color-error);
-      margin: 8px 0;
+    .err { color: var(--md-sys-color-error); margin: 8px 0; }
+    @media (prefers-reduced-motion: reduce) {
+      button:active:not(:disabled), .chip:active { transform: none; }
     }
   `;
 
@@ -360,99 +419,119 @@ export class AgentPage extends LitElement {
   render() {
     const llmOn = this.llm?.configured;
     return html`
-      <h1>
-        助手
-        <span class="badge ${llmOn ? "on" : ""}">
-          ${llmOn ? "云端助手已连接" : "本地助手已就绪"}
-        </span>
-      </h1>
-      <p class="sub">
-        游戏崩了、启动不了？让助手帮你看看哪里坏了。需要更聪明的问答时，可在设置里连接 AI 助手。
-      </p>
+      <div class="layout">
+        <div class="main-col">
+          <div class="head">
+            <div>
+              <h1>
+                助手
+                <span class="badge ${llmOn ? "on" : ""}">
+                  ${llmOn ? "云端助手已连接" : "本地助手已就绪"}
+                </span>
+              </h1>
+              <p class="sub">游戏崩了、启动不了？让助手帮你看看哪里坏了。</p>
+            </div>
+            <label class="row" style="margin:0">
+              <select
+                .value=${this.instanceId ?? ""}
+                @change=${(e: Event) => {
+                  this.instanceId = (e.target as HTMLSelectElement).value || null;
+                }}
+              >
+                <option value="">当前版本</option>
+                ${this.instances.map(
+                  (i) => html`<option value=${i.id}>${i.name}</option>`,
+                )}
+              </select>
+            </label>
+          </div>
 
-      <div class="row">
-        <label>
-          实例
-          <select
-            .value=${this.instanceId ?? ""}
-            @change=${(e: Event) => {
-              this.instanceId = (e.target as HTMLSelectElement).value || null;
-            }}
-          >
-            <option value="">当前实例</option>
-            ${this.instances.map(
-              (i) => html`<option value=${i.id}>${i.name} · ${i.version}</option>`,
-            )}
-          </select>
-        </label>
-        <button class="primary" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-          帮我看看上次为什么崩了
-        </button>
-        <button ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>修好 Java</button>
-        <button ?disabled=${this.busy} @click=${() => this.onBumpMem()}>游戏内存调到 4 GB</button>
-        <button ?disabled=${this.busy} @click=${() => this.onDataDir()}>打开游戏文件夹</button>
-        <button ?disabled=${this.busy} @click=${() => this.onExport()}>导出问题报告</button>
-      </div>
+          ${this.error ? html`<p class="err">${this.error}</p>` : null}
 
-      ${this.error ? html`<p class="err">${this.error}</p>` : null}
+          ${this.report
+            ? html`
+                <div class="findings">
+                  <p><strong>${this.report.summary_zh}</strong></p>
+                  ${(this.report.findings ?? []).map(
+                    (f) => html`
+                      <div class="card ${this.severityClass(f)}">
+                        <h3>${f.title}</h3>
+                        <p>${f.summary}</p>
+                        <ul>
+                          ${(f.fixes ?? []).map((x) => html`<li>${x}</li>`)}
+                        </ul>
+                        ${f.evidence
+                          ? html`<p class="evidence">${f.evidence}</p>`
+                          : null}
+                      </div>
+                    `,
+                  )}
+                </div>
+              `
+            : null}
 
-      ${this.report
-        ? html`
-            <div class="findings">
-              <p><strong>${this.report.summary_zh}</strong></p>
-              ${(this.report.findings ?? []).map(
-                (f) => html`
-                  <div class="card ${this.severityClass(f)}">
-                    <h3>${f.title}</h3>
-                    <p>${f.summary}</p>
-                    <ul>
-                      ${(f.fixes ?? []).map((x) => html`<li>${x}</li>`)}
-                    </ul>
-                    ${f.evidence
-                      ? html`<p class="evidence">${f.evidence}</p>`
+          <div class="chat">
+            ${this.turns.map(
+              (t) => html`
+                <div class="msg ${t.role}">
+                  <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
+                  <div>
+                    <div class="bubble">${t.content}</div>
+                    ${t.mode
+                      ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
                       : null}
                   </div>
-                `,
-              )}
-            </div>
-          `
-        : null}
+                </div>
+              `,
+            )}
+          </div>
 
-      <div class="chat">
-        ${this.turns.map(
-          (t) => html`
-            <div class="bubble ${t.role}">
-              ${t.content}
-              ${t.mode ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>` : null}
-            </div>
-          `,
-        )}
-      </div>
+          <div class="composer">
+            <input
+              placeholder=${llmOn
+                ? "说说遇到什么问题…"
+                : "例如：看上次报错 / 修好 Java / 内存 4G"}
+              .value=${this.input}
+              ?disabled=${this.busy}
+              @input=${(e: Event) => {
+                this.input = (e.target as HTMLInputElement).value;
+              }}
+              @keydown=${(e: KeyboardEvent) => {
+                if (e.key === "Enter") void this.onAsk();
+              }}
+            />
+            <button class="primary" ?disabled=${this.busy} @click=${() => this.onAsk()}>发送</button>
+          </div>
+        </div>
 
-      <div class="composer">
-        <input
-          placeholder=${llmOn
-            ? "自由提问，或输入「看上次报错」…"
-            : "例如：看上次报错 / 确保 Java 21 / 装 sodium"}
-          .value=${this.input}
-          ?disabled=${this.busy}
-          @input=${(e: Event) => {
-            this.input = (e.target as HTMLInputElement).value;
-          }}
-          @keydown=${(e: KeyboardEvent) => {
-            if (e.key === "Enter") void this.onAsk();
-          }}
-        />
-        <button class="primary" ?disabled=${this.busy} @click=${() => this.onAsk()}>发送</button>
-      </div>
-      <div class="hints">
-        ${["看上次报错", "确保 Java 21", "内存 4G", "装 sodium", "数据目录", "导出诊断包"].map(
-          (h) =>
-            html`<button ?disabled=${this.busy} @click=${() => this.onAsk(h)}>${h}</button>`,
-        )}
+        <aside class="tools" aria-label="快捷工具">
+          <h2>快捷工具</h2>
+          <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
+            <strong>看上次报错</strong>
+            <span>分析崩溃日志，给出修法</span>
+          </button>
+          <button class="tool" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>
+            <strong>修好 Java</strong>
+            <span>检查并准备合适的 Java</span>
+          </button>
+          <button class="tool" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>
+            <strong>内存调到 4 GB</strong>
+            <span>给游戏多留一点内存</span>
+          </button>
+          <button class="tool" ?disabled=${this.busy} @click=${() => this.onDataDir()}>
+            <strong>打开游戏文件夹</strong>
+            <span>去改配置或找存档</span>
+          </button>
+          <button class="tool" ?disabled=${this.busy} @click=${() => this.onExport()}>
+            <strong>导出问题报告</strong>
+            <span>发给朋友或自己留档</span>
+          </button>
+          <p class="note">工具在你这台电脑上执行，不会乱改游戏以外的东西。</p>
+        </aside>
       </div>
     `;
   }
+
 }
 
 declare global {

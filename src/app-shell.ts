@@ -39,33 +39,73 @@ export class EasyMcApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 24px;
-      min-height: 48px;
+      padding: 10px 22px;
+      min-height: 52px;
+      background: var(--md-sys-color-surface);
       border-bottom: 1px solid
-        color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+        color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-weight: 600;
-      font-size: 1.2rem;
-      letter-spacing: -0.02em;
+      gap: 10px;
+      font-weight: 650;
+      font-size: 1.15rem;
+      letter-spacing: -0.025em;
       color: var(--md-sys-color-on-surface);
     }
-    .avatar {
+    .menu-btn {
       width: 36px;
       height: 36px;
+      border: none;
       border-radius: 50%;
-      background: var(--md-sys-color-primary-container);
+      background: transparent;
+      color: var(--md-sys-color-on-surface-variant);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+    .menu-btn:hover {
+      background: var(--md-sys-color-surface-container);
+    }
+    .menu-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 4px 6px 4px 4px;
+      border-radius: var(--md-sys-shape-corner-full);
+    }
+    .account:hover {
+      background: var(--md-sys-color-surface-container);
+    }
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 30%, oklch(0.92 0.03 80), transparent 45%),
+        radial-gradient(circle at 50% 70%, oklch(0.55 0.08 186), oklch(0.42 0.06 186));
       border: 2px solid var(--md-sys-color-outline-variant);
-      box-shadow: inset 0 0 0 6px
-        color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
+      flex-shrink: 0;
+    }
+    .chev {
+      color: var(--md-sys-color-on-surface-variant);
+      display: grid;
+      place-items: center;
     }
     .content {
       flex: 1;
       overflow: auto;
-      padding: 12px 24px 24px;
+      padding: 18px 28px 32px;
+      background: var(--md-sys-color-surface);
     }
     .page {
       animation: page-in var(--easymc-dur-page) var(--easymc-ease-out) both;
@@ -130,7 +170,6 @@ export class EasyMcApp extends LitElement {
   private onNav = (e: Event) => {
     const detail = (e as CustomEvent<NavId>).detail;
     if (!detail || detail === this.route) return;
-    // legacy redirects from Phase 1 routes
     const map: Record<string, NavId> = {
       library: "instances",
       store: "download",
@@ -140,6 +179,11 @@ export class EasyMcApp extends LitElement {
     this.pageKey += 1;
   };
 
+  private goSettings() {
+    this.route = "settings";
+    this.pageKey += 1;
+  }
+
   render() {
     if (!this.ready) return html``;
     if (!this.onboarded) return html`<easymc-onboarding></easymc-onboarding>`;
@@ -148,9 +192,21 @@ export class EasyMcApp extends LitElement {
       <div class="main">
         <header class="top">
           <div class="brand">
+            <button class="menu-btn" type="button" title="菜单" aria-label="菜单" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
             <span>EasyMC</span>
           </div>
-          <div class="avatar" title="账户"></div>
+          <button class="account" type="button" title="账户" @click=${() => this.goSettings()}>
+            <div class="avatar" aria-hidden="true"></div>
+            <span class="chev" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </button>
         </header>
         <div class="content">
           ${keyed(
