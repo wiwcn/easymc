@@ -30,21 +30,30 @@ pub struct ModpackInstallResult {
     pub message_zh: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub struct MrIndex {
-    #[serde(default)]
-    pub name: String,
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
+    #[serde(default = "default_game")]
+    pub game: String,
     #[serde(default)]
     pub version_id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
     #[serde(default)]
     pub files: Vec<MrFile>,
     #[serde(default)]
     pub dependencies: std::collections::HashMap<String, String>,
 }
 
-#[derive(Debug, Deserialize)]
+fn default_format_version() -> u32 { 1 }
+fn default_game() -> String { "minecraft".into() }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MrFile {
     pub path: String,
@@ -218,67 +227,15 @@ pub async fn install_modpack(
         .map(String::from)
         .unwrap_or_else(|| format!("{} {}", project.name, version.version_number));
 
-    if let Some(idx) = read_zip_text(&zip_path, "modrinth.index.json")? {
-        let index: MrIndex = serde_json::from_str(&idx)
-            .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
-        let game = index
-            .dependencies
-            .get("minecraft")
-            .cloned()
-            .ok_or_else(|| EasyMcError::msg("整合包没写游戏版本"))?;
-        let (loader, lv) = mr_loader(&index.dependencies);
-        let inst = new_pack_instance(paths, &name, &game, loader, lv.clone(), project.icon_url.clone())?;
-        let game_dir = PathBuf::from(&inst.game_dir);
-        let wanted: Vec<&MrFile> = index
-            .files
-            .iter()
-            .filter(|f| {
-                f.env
-                    .as_ref()
-                    .and_then(|e| e.get("client"))
-                    .map(|c| c != "unsupported")
-                    .unwrap_or(true)
-            })
-            .collect();
-        let total = wanted.len() as u64;
-        let mut ok = 0usize;
-        let mut failed = Vec::new();
-        let mr = modrinth_client()?;
-        for (i, f) in wanted.iter().enumerate() {
-            progress(&on_progress, 2, "下载整合包里的模组", i as u64, total, f.path.clone());
-            let Some(rel) = safe_rel(&f.path) else {
-                failed.push(f.path.clone());
-                continue;
-            };
-            let dest = game_dir.join(rel);
-            let sha1 = f.hashes.get("sha1").map(String::as_str);
-            let mut done = false;
-            for u in &f.downloads {
-                if download_file(&mr, u, &dest, sha1, f.file_size, |_, _| {}).await.is_ok() {
-                    done = true;
-                    break;
-                }
-            }
-            if done { ok += 1 } else { failed.push(f.path.clone()) }
-        }
-        progress(&on_progress, 3, "解压配置文件", 0, 1, "overrides".into());
-        let ov = extract_overrides(&zip_path, &["overrides", "client-overrides"], &game_dir)?;
-        progress(&on_progress, 3, "完成", 1, 1, name.clone());
-        return Ok(ModpackInstallResult {
-            message_zh: format!(
-                "已创建「{}」：{ok} 个文件{}，点「安装并启动」即可开玩",
-                inst.name,
-                if failed.is_empty() { String::new() } else { format!("，{} 个没下好", failed.len()) }
-            ),
-            instance_id: inst.id,
-            instance_name: inst.name,
-            game_version: game,
-            loader,
-            loader_version: lv,
-            files_downloaded: ok,
-            files_failed: failed,
-            overrides: ov,
-        });
+    if read_zip_text(&zip_path, "modrinth.index.json")?.is_some() {
+        return install_mrpack_from_zip(
+            paths,
+            &zip_path,
+            Some(name.as_str()),
+            project.icon_url.clone(),
+            on_progress,
+        )
+        .await;
     }
 
     if let Some(man) = read_zip_text(&zip_path, "manifest.json")? {
@@ -360,6 +317,121 @@ pub async fn install_modpack(
     }
 
     Err(EasyMcError::msg("不认识这个整合包格式（需要 Modrinth 或 CurseForge 整合包）"))
+}
+
+
+/// Install a local `.mrpack` (or zip containing `modrinth.index.json`) into a NEW instance.
+pub async fn install_mrpack_file(
+    paths: &Paths,
+    zip_path: &Path,
+    name_override: Option<&str>,
+    on_progress: impl Fn(InstallProgress),
+) -> Result<ModpackInstallResult> {
+    install_mrpack_from_zip(paths, zip_path, name_override, None, on_progress).await
+}
+
+async fn install_mrpack_from_zip(
+    paths: &Paths,
+    zip_path: &Path,
+    name_override: Option<&str>,
+    icon_url: Option<String>,
+    on_progress: impl Fn(InstallProgress),
+) -> Result<ModpackInstallResult> {
+    let idx_raw = read_zip_text(zip_path, "modrinth.index.json")?
+        .ok_or_else(|| EasyMcError::msg("不是 Modrinth 整合包（缺少 modrinth.index.json）"))?;
+    let index: MrIndex = serde_json::from_str(&idx_raw)
+        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
+    let game = index
+        .dependencies
+        .get("minecraft")
+        .cloned()
+        .ok_or_else(|| EasyMcError::msg("整合包没写游戏版本"))?;
+    let (loader, lv) = mr_loader(&index.dependencies);
+    let name = name_override
+        .filter(|s| !s.trim().is_empty())
+        .map(String::from)
+        .unwrap_or_else(|| {
+            if index.version_id.is_empty() {
+                index.name.clone()
+            } else {
+                format!("{} {}", index.name, index.version_id)
+            }
+        });
+    let name = if name.trim().is_empty() {
+        "Modrinth 整合包".into()
+    } else {
+        name
+    };
+    let inst = new_pack_instance(paths, &name, &game, loader, lv.clone(), icon_url)?;
+    let game_dir = PathBuf::from(&inst.game_dir);
+    let wanted: Vec<&MrFile> = index
+        .files
+        .iter()
+        .filter(|f| {
+            f.env
+                .as_ref()
+                .and_then(|e| e.get("client"))
+                .map(|c| c != "unsupported")
+                .unwrap_or(true)
+        })
+        .collect();
+    let total = wanted.len() as u64;
+    let mut ok = 0usize;
+    let mut failed = Vec::new();
+    let mr = modrinth_client()?;
+    for (i, f) in wanted.iter().enumerate() {
+        progress(
+            &on_progress,
+            2,
+            "下载整合包里的模组",
+            i as u64,
+            total,
+            f.path.clone(),
+        );
+        let Some(rel) = safe_rel(&f.path) else {
+            failed.push(f.path.clone());
+            continue;
+        };
+        let dest = game_dir.join(rel);
+        let sha1 = f.hashes.get("sha1").map(String::as_str);
+        let mut done = false;
+        for u in &f.downloads {
+            if download_file(&mr, u, &dest, sha1, f.file_size, |_, _| {})
+                .await
+                .is_ok()
+            {
+                done = true;
+                break;
+            }
+        }
+        if done {
+            ok += 1;
+        } else {
+            failed.push(f.path.clone());
+        }
+    }
+    progress(&on_progress, 3, "解压配置文件", 0, 1, "overrides".into());
+    let ov = extract_overrides(zip_path, &["overrides", "client-overrides"], &game_dir)?;
+    progress(&on_progress, 3, "完成", 1, 1, name.clone());
+    Ok(ModpackInstallResult {
+        message_zh: format!(
+            "已创建「{}」：{ok} 个文件{}，点「安装并启动」即可开玩",
+            inst.name,
+            if failed.is_empty() {
+                String::new()
+            } else {
+                format!("，{} 个没下好", failed.len())
+            }
+        ),
+        instance_id: inst.id,
+        instance_name: inst.name,
+        game_version: game,
+        loader,
+        loader_version: lv,
+        files_downloaded: ok,
+        files_failed: failed,
+        overrides: ov,
+    })
 }
 
 #[cfg(test)]

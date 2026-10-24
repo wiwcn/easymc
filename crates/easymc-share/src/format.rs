@@ -11,8 +11,10 @@ pub const MANIFEST_NAME: &str = "easymc.share.json";
 pub enum ShareMode {
     /// JSON only — small; import resolves mods via Modrinth/CF ids when present.
     Metadata,
-    /// Zip with manifest + mods/*.jar.
+    /// EasyMC zip with easymc.share.json + mods/*.jar.
     Pack,
+    /// Modrinth `.mrpack` (modrinth.index.json + overrides).
+    Mrpack,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

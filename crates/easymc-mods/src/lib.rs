@@ -21,7 +21,7 @@ pub use content::{
     content_dest, delete_local, install_content, list_local, local_dir, ContentInstallResult,
     LocalEntry,
 };
-pub use modpack::{install_modpack, ModpackInstallResult};
+pub use modpack::{install_modpack, install_mrpack_file, ModpackInstallResult};
 
 pub use modrinth::HashLookup;
 
