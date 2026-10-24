@@ -1,0 +1,74 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.90"
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: windows-tauri
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri (NSIS)
+        # Unsigned OK — Windows SmartScreen may warn on first run.
+        run: pnpm tauri build --bundles nsis
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist-windows | Out-Null
+          $nsis = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*-setup.exe" -ErrorAction SilentlyContinue
+          if ($nsis) {
+            Copy-Item $nsis.FullName -Destination "dist-windows/" -Force
+            Write-Host "NSIS:" $nsis.Name
+          } else {
+            Write-Host "WARN: no NSIS setup.exe found"
+            Get-ChildItem -Recurse "src-tauri/target/release/bundle" -ErrorAction SilentlyContinue | Select-Object FullName
+          }
+          $exeCandidates = @(
+            "src-tauri/target/release/easymc-app.exe",
+            "src-tauri/target/release/EasyMC.exe"
+          )
+          foreach ($p in $exeCandidates) {
+            if (Test-Path $p) {
+              Copy-Item $p -Destination "dist-windows/" -Force
+              Write-Host "EXE:" $p
+            }
+          }
+          Get-ChildItem dist-windows | Format-Table Name, Length
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: easymc-windows-0.1.0
+          path: dist-windows/*
+          if-no-files-found: error
+          retention-days: 14
