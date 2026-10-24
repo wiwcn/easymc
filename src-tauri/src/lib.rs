@@ -21,9 +21,9 @@ use easymc_share::{
     ShareMode,
 };
 use easymc_agent::{
-    ask, bump_memory, llm_status, run_diagnose, show_data_dir, try_load_dotenv_llm,
-    write_diagnostic_bundle, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
-    LlmStatus,
+    apply_proposal, ask, bump_memory, llm_status, parse_proposal, run_diagnose, show_data_dir,
+    try_load_dotenv_llm, undo_proposal, write_diagnostic_bundle, ActionResult, AskRequest,
+    AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -1125,6 +1125,167 @@ async fn agent_ask(
             }
         }
     }
+    // setup_env: compose ensure_java + status already in action.message
+    if let Some(action) = resp.action.clone() {
+        if action.action == "setup_env" {
+            let major = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("major"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(21) as u32;
+            let paths = state.paths.clone();
+            let app2 = app.clone();
+            let base_msg = action.message_zh.clone();
+            let download_zh = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("download_source_zh"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("官方")
+                .to_string();
+            let memory_mb = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("memory_mb"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2048);
+            match ensure_java(&paths, major, move |line| {
+                let _ = app2.emit("launch-log", line);
+            })
+            .await
+            {
+                Ok(j) => {
+                    let msg = format!(
+                        "{base_msg}\n\nJava {major} 已就绪。\n路径：{}\n来源：{}\n下载源：{download_zh}\n内存约 {memory_mb} MB。\n下次启动游戏会用这套环境。",
+                        j.path.display(),
+                        j.source
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "setup_env".into(),
+                        message_zh: msg,
+                        path: Some(j.path.display().to_string()),
+                        value: Some(serde_json::json!({
+                            "major": j.major,
+                            "path": j.path.display().to_string(),
+                            "source": j.source,
+                            "download_source_zh": download_zh,
+                            "memory_mb": memory_mb,
+                        })),
+                    });
+                }
+                Err(e) => {
+                    let msg = format!(
+                        "{base_msg}\n\n准备 Java {major} 没成功：{e}\n可检查网络后再点「一键环境」。"
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "setup_env".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "major": major })),
+                    });
+                }
+            }
+        } else if action.action == "build_pack" {
+            let id = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("instance_id"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty())
+                .or(instance_id.clone());
+            let store = match load_instances(&state.paths) {
+                Ok(s) => s,
+                Err(e) => {
+                    let msg = format!("读取版本列表失败：{e}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "build_pack".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: None,
+                    });
+                    return Ok(resp);
+                }
+            };
+            let id = id.or(store.active_id.clone());
+            let Some(id) = id else {
+                let msg = "还没有选版本，没法生成整合包。请先在启动页或助手顶部选一个版本。".to_string();
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "build_pack".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: None,
+                });
+                return Ok(resp);
+            };
+            let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                let msg = format!("找不到版本 {id}");
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "build_pack".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: None,
+                });
+                return Ok(resp);
+            };
+            match export_instance(
+                &state.paths,
+                &inst,
+                ExportOptions {
+                    mode: ShareMode::Pack,
+                    notes: Some("由助手「生成整合包」导出".into()),
+                    output: None,
+                    resolve_modrinth: true,
+                },
+            )
+            .await
+            {
+                Ok(r) => {
+                    let msg = format!(
+                        "整合包已生成。\n版本：「{}」\n模组数：{}\n路径：{}\n{}",
+                        inst.name, r.mod_count, r.path, r.message_zh
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "build_pack".into(),
+                        message_zh: msg,
+                        path: Some(r.path.clone()),
+                        value: Some(serde_json::json!({
+                            "instance_id": inst.id,
+                            "instance_name": inst.name,
+                            "path": r.path,
+                            "mod_count": r.mod_count,
+                            "bytes": r.bytes,
+                            "mode": "pack",
+                        })),
+                    });
+                }
+                Err(e) => {
+                    let msg = format!("生成整合包失败：{e}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "build_pack".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "instance_id": inst.id })),
+                    });
+                }
+            }
+        }
+    }
     Ok(resp)
 }
 
@@ -1161,7 +1322,37 @@ async fn agent_export_diagnostics(
     }))
 }
 
+#[tauri::command]
+fn agent_apply_proposal(
+    state: State<'_, AppState>,
+    proposal: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let prop = parse_proposal(&proposal).ok_or_else(|| "无效的建议更改数据".to_string())?;
+    let ar = apply_proposal(&state.paths, &prop).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "ok": ar.ok,
+        "action": ar.action,
+        "message": ar.message_zh,
+        "message_zh": ar.message_zh,
+        "value": ar.value,
+    }))
+}
 
+#[tauri::command]
+fn agent_undo_proposal(
+    state: State<'_, AppState>,
+    proposal: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let prop = parse_proposal(&proposal).ok_or_else(|| "无效的建议更改数据".to_string())?;
+    let ar = undo_proposal(&state.paths, &prop).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "ok": ar.ok,
+        "action": ar.action,
+        "message": ar.message_zh,
+        "message_zh": ar.message_zh,
+        "value": ar.value,
+    }))
+}
 
 #[tauri::command]
 async fn export_instance_cmd(
@@ -1447,6 +1638,8 @@ pub fn run() {
             agent_data_dir,
             agent_bump_memory,
             agent_export_diagnostics,
+            agent_apply_proposal,
+            agent_undo_proposal,
             export_instance_cmd,
             import_instance_cmd,
             update_instance_cmd,

@@ -13,7 +13,7 @@ use easymc_meta::{
     is_loader_installed, is_version_installed, list_loaders_with_source, InstallOptions,
     LoaderKind, MetaProvider, PistonMetaProvider,
 };
-use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRequest};
+use easymc_agent::{apply_proposal, ask, llm_status, parse_proposal, run_diagnose, undo_proposal, write_diagnostic_bundle, AskRequest};
 use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
 use easymc_mods::{
     api_key, api_key_source, install_mod, list_installed_mods, list_mod_versions, remove_mod,
@@ -841,7 +841,12 @@ async fn real_main() -> easymc_core::Result<()> {
                     println!("mode={} llm={}", resp.mode, resp.llm.mode);
                     println!("{}", resp.reply_zh);
                     if let Some(action) = &resp.action {
-                        if action.action == "ensure_java" {
+                        if action.action == "propose_changes" {
+                            println!("→ action=propose_changes (需确认后应用)");
+                            if let Some(v) = &action.value {
+                                println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
+                            }
+                        } else if action.action == "ensure_java" {
                             let major = action
                                 .value
                                 .as_ref()
@@ -920,8 +925,112 @@ async fn real_main() -> easymc_core::Result<()> {
                             {
                                 println!("→ 请在桌面端「下载」页搜索：{q}");
                             }
+                        } else if action.action == "setup_env" {
+                            let major = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("major"))
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(21) as u32;
+                            println!("→ 一键环境：准备 Java {major} …");
+                            match ensure_java(&paths, major, |s| println!("{s}")).await {
+                                Ok(j) => println!(
+                                    "✓ Java {} 已就绪：{} ({})",
+                                    j.major,
+                                    j.path.display(),
+                                    j.source
+                                ),
+                                Err(e) => println!("✗ 准备 Java {major} 失败：{e}"),
+                            }
+                        } else if action.action == "build_pack" {
+                            let id = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("instance_id"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .filter(|s| !s.is_empty())
+                                .or(instance.clone())
+                                .or_else(|| load_instances(&paths).ok().and_then(|s| s.active_id));
+                            let Some(id) = id else {
+                                println!("✗ 还没有选版本，没法生成整合包（可用 --instance ID）");
+                                return Ok(());
+                            };
+                            let store = load_instances(&paths)?;
+                            let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                                println!("✗ 找不到版本 {id}");
+                                return Ok(());
+                            };
+                            println!("→ 正在导出分享包「{}」…", inst.name);
+                            match export_instance(
+                                &paths,
+                                &inst,
+                                ExportOptions {
+                                    mode: ShareMode::Pack,
+                                    notes: Some("CLI agent build_pack".into()),
+                                    output: None,
+                                    resolve_modrinth: true,
+                                },
+                            )
+                            .await
+                            {
+                                Ok(r) => println!("✓ {}\n  路径：{}", r.message_zh, r.path),
+                                Err(e) => println!("✗ 导出失败：{e}"),
+                            }
+                        } else if matches!(
+                            action.action.as_str(),
+                            "set_download_source"
+                                | "check_mods"
+                                | "open_instance_dir"
+                                | "bump_memory"
+                                | "diagnostics"
+                                | "show_data_dir"
+                                | "apply_changes"
+                                | "undo_changes"
+                        ) {
+                            println!("→ action={}", action.action);
+                            if let Some(v) = &action.value {
+                                println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
+                            }
                         }
                     }
+                }
+                "apply" => {
+                    // agent apply <proposal.json path or inline JSON>
+                    let raw = args.get(1).cloned().unwrap_or_default();
+                    let json = if raw.starts_with('{') {
+                        raw
+                    } else if !raw.is_empty() {
+                        std::fs::read_to_string(&raw)?
+                    } else {
+                        return Err(easymc_core::EasyMcError::msg(
+                            "usage: agent apply <proposal.json|'{...}'>",
+                        ));
+                    };
+                    let value: serde_json::Value = serde_json::from_str(&json)?;
+                    let prop = parse_proposal(&value).ok_or_else(|| {
+                        easymc_core::EasyMcError::msg("invalid proposal JSON")
+                    })?;
+                    let ar = apply_proposal(&paths, &prop)?;
+                    println!("{}", ar.message_zh);
+                }
+                "undo" => {
+                    let raw = args.get(1).cloned().unwrap_or_default();
+                    let json = if raw.starts_with('{') {
+                        raw
+                    } else if !raw.is_empty() {
+                        std::fs::read_to_string(&raw)?
+                    } else {
+                        return Err(easymc_core::EasyMcError::msg(
+                            "usage: agent undo <proposal.json|'{...}'>",
+                        ));
+                    };
+                    let value: serde_json::Value = serde_json::from_str(&json)?;
+                    let prop = parse_proposal(&value).ok_or_else(|| {
+                        easymc_core::EasyMcError::msg("invalid proposal JSON")
+                    })?;
+                    let ar = undo_proposal(&paths, &prop)?;
+                    println!("{}", ar.message_zh);
                 }
                 "status" => {
                     let st = llm_status();
@@ -938,6 +1047,8 @@ async fn real_main() -> easymc_core::Result<()> {
                         "agent subcommands:\n\
                            agent diagnose [--instance ID] [--bundle]\n\
                            agent ask \"…\" [--instance ID] [--rules-only]\n\
+                           agent apply <proposal.json>\n\
+                           agent undo <proposal.json>\n\
                            agent status\n\
                          \n\
                          LLM (optional): source ~/.config/easymc/llm.env\n\

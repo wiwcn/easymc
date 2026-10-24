@@ -199,6 +199,36 @@ export interface AgentActionDto {
   value?: unknown;
 }
 
+export interface ProposeItemDto {
+  key: string;
+  label_zh: string;
+  current: string;
+  proposed: string;
+  delta_zh: string;
+}
+
+export interface ChangeProposalDto {
+  id: string;
+  title_zh: string;
+  tag_zh?: string | null;
+  subtitle_zh?: string | null;
+  items: ProposeItemDto[];
+  apply_payload: {
+    instance_id?: string | null;
+    memory_mb?: number | null;
+    jvm_args?: string | null;
+    clear_jvm_args?: boolean;
+  };
+  undo_snapshot: {
+    instance_id?: string | null;
+    settings_memory_mb: number;
+    instance_memory_mb?: number | null;
+    instance_had_memory: boolean;
+    instance_jvm_args?: string | null;
+    instance_had_jvm: boolean;
+  };
+}
+
 export interface AgentAskResponse {
   mode: string;
   reply_zh: string;

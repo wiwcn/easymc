@@ -8,7 +8,17 @@ use serde::{Deserialize, Serialize};
 pub enum Intent {
     Diagnose { instance_id: Option<String> },
     EnsureJava { major: u32 },
+    /// Immediate write (shortcut「内存 4G」).
     BumpMemory { mb: u32 },
+    /// Analyze + propose_changes card (memory + JVM); user must 应用更改.
+    TuneConfig { instance_id: Option<String> },
+    /// ensure_java + status summary for selected instance.
+    SetupEnv { instance_id: Option<String> },
+    /// Export share pack for current instance (host runs easymc-share).
+    BuildPack { instance_id: Option<String> },
+    SetDownloadSource { source: String },
+    OpenInstanceDir { instance_id: Option<String> },
+    CheckMods { instance_id: Option<String> },
     ShowDataDir,
     DiagnosticsBundle,
     InstallMod { query: String },
@@ -108,7 +118,9 @@ fn extract_mod_query(t: &str) -> Option<String> {
     let compact: String = t.chars().filter(|c| !c.is_whitespace()).collect();
     if compact.len() >= 3
         && compact.len() <= 32
-        && compact.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && compact
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return Some(compact);
     }
@@ -129,16 +141,159 @@ pub fn route(input: &str) -> IntentResult {
         };
     }
 
+    // setup env (before generic java / diagnose)
+    let setup_keys = [
+        "一键环境",
+        "准备环境",
+        "setup env",
+        "setupenv",
+        "环境准备",
+        "配环境",
+    ];
+    for k in setup_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::SetupEnv { instance_id: None },
+                confidence: 0.95,
+                matched: k.into(),
+                reply_zh: "正在检查 Java、内存与下载源…".into(),
+            };
+        }
+    }
+
+    // tune config / optimize (propose, not silent write)
+    let tune_keys = [
+        "优化配置",
+        "优化启动",
+        "tune config",
+        "tuneconfig",
+        "调优",
+        "优化 jvm",
+        "优化jvm",
+        "优化参数",
+        "建议更改",
+        "提出更改",
+    ];
+    for k in tune_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::TuneConfig { instance_id: None },
+                confidence: 0.93,
+                matched: k.into(),
+                reply_zh: "正在分析内存与启动参数，生成建议更改…".into(),
+            };
+        }
+    }
+
+    // build pack / share
+    let pack_keys = [
+        "生成整合包",
+        "分享包",
+        "导出整合包",
+        "build pack",
+        "buildpack",
+        "导出分享",
+        "打包分享",
+        "导出模组包",
+    ];
+    for k in pack_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::BuildPack { instance_id: None },
+                confidence: 0.92,
+                matched: k.into(),
+                reply_zh: "正在为当前版本生成分享包…".into(),
+            };
+        }
+    }
+
+    // BMCLAPI / download source
+    let mirror_keys = [
+        "bmclapi",
+        "切换加速",
+        "下载加速",
+        "镜像源",
+        "加速下载",
+        "切换 bmcl",
+        "用官方源",
+        "官方下载",
+    ];
+    for k in mirror_keys {
+        if t.contains(k) {
+            let source = if t.contains("官方") {
+                "official"
+            } else {
+                "bmclapi"
+            };
+            return IntentResult {
+                intent: Intent::SetDownloadSource {
+                    source: source.into(),
+                },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: if source == "bmclapi" {
+                    "将切换到 BMCLAPI 加速下载。".into()
+                } else {
+                    "将切换回官方下载源。".into()
+                },
+            };
+        }
+    }
+
+    // open instance / version folder
+    let inst_dir_keys = [
+        "打开版本文件夹",
+        "版本文件夹",
+        "实例文件夹",
+        "打开实例",
+        "游戏版本目录",
+        "open instance",
+        "version folder",
+    ];
+    for k in inst_dir_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::OpenInstanceDir { instance_id: None },
+                confidence: 0.92,
+                matched: k.into(),
+                reply_zh: "正在定位当前版本文件夹…".into(),
+            };
+        }
+    }
+
+    // check mods
+    let mods_keys = [
+        "检查模组",
+        "模组冲突",
+        "模组列表",
+        "有多少模组",
+        "看模组",
+        "check mods",
+        "mod conflict",
+    ];
+    for k in mods_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::CheckMods { instance_id: None },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在查看当前版本的模组…".into(),
+            };
+        }
+    }
+
     // diagnose / crash
     let diagnose_keys = [
         "看上次报错",
         "上次报错",
+        "查看崩溃",
         "诊断",
         "分析崩溃",
         "崩溃",
         "报错",
         "diagnose",
         "crash",
+        "read crash",
         "看日志",
         "分析日志",
         "为什么崩",
@@ -165,7 +320,7 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
-    // ensure java
+    // ensure java (after setup env)
     let java_keys = [
         "确保 java",
         "安装 java",
@@ -197,7 +352,7 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
-    // memory
+    // memory — explicit bump (shortcut applies immediately)
     let mem_keys = [
         "内存",
         "memory",
@@ -219,13 +374,21 @@ pub fn route(input: &str) -> IntentResult {
                 intent: Intent::BumpMemory { mb },
                 confidence: 0.85,
                 matched: k.into(),
-                reply_zh: format!("建议将启动内存设为 {mb} MB（写入 settings.memory_mb）。"),
+                reply_zh: format!("将把启动内存设为 {mb} MB（写入 settings.memory_mb）。"),
             };
         }
     }
 
-    // data dir
-    let dir_keys = ["数据目录", "打开目录", "data dir", "open data", "工作目录", "游戏目录"];
+    // data dir (global)
+    let dir_keys = [
+        "数据目录",
+        "打开目录",
+        "data dir",
+        "open data",
+        "工作目录",
+        "游戏目录",
+        "游戏文件夹",
+    ];
     for k in dir_keys {
         if t.contains(k) {
             return IntentResult {
@@ -238,7 +401,7 @@ pub fn route(input: &str) -> IntentResult {
     }
 
     // diagnostics bundle
-    let diag_keys = ["诊断包", "导出日志", "复制诊断", "diagnostic", "bundle"];
+    let diag_keys = ["诊断包", "导出日志", "复制诊断", "diagnostic", "bundle", "导出报告", "导出问题报告"];
     for k in diag_keys {
         if t.contains(k) {
             return IntentResult {
@@ -278,19 +441,22 @@ pub fn route(input: &str) -> IntentResult {
         intent: Intent::Unknown { raw: raw.clone() },
         confidence: 0.0,
         matched: String::new(),
-        reply_zh: format!(
-            "未识别意图：「{raw}」。\n{}",
-            help_text()
-        ),
+        reply_zh: format!("未识别意图：「{raw}」。\n{}", help_text()),
     }
 }
 
 pub fn help_text() -> String {
     r#"我可以帮你：
-· 「看上次报错」— 分析崩溃 / 启动失败日志
+· 「查看崩溃」— 分析崩溃 / 启动失败日志
+· 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
+· 「优化配置」— 生成内存 / JVM 建议更改，你确认后再应用
+· 「生成整合包」— 导出当前版本分享包
+· 「切换 BMCLAPI 加速」— 换国内镜像下载
+· 「打开版本文件夹」— 定位当前版本目录
+· 「检查模组」— 看看装了多少模组
 · 「修好 Java」— 检查并准备合适的 Java
-· 「内存 4G」— 把游戏内存调大一点
-· 「游戏文件夹」— 告诉你数据在哪
+· 「内存 4G」— 立刻把游戏内存调大（也会弹提示）
+· 「游戏文件夹」— EasyMC 数据根目录
 · 「导出报告」— 打包日志方便发给别人
 · 「装 sodium」— 搜索并安装到当前版本
 
@@ -310,7 +476,7 @@ mod tests {
 
     #[test]
     fn route_diagnose_chinese_phrases() {
-        for s in ["闪退了", "启动失败", "打不开游戏", "游戏崩了", "黑屏"] {
+        for s in ["闪退了", "启动失败", "打不开游戏", "游戏崩了", "黑屏", "查看崩溃"] {
             let r = route(s);
             assert!(
                 matches!(r.intent, Intent::Diagnose { .. }),
@@ -348,5 +514,21 @@ mod tests {
             Intent::InstallMod { query } => assert!(query.to_lowercase().contains("sodium")),
             other => panic!("{:?}", other),
         }
+    }
+
+    #[test]
+    fn route_tune_setup_pack_mirror() {
+        assert!(matches!(route("优化配置").intent, Intent::TuneConfig { .. }));
+        assert!(matches!(route("一键环境").intent, Intent::SetupEnv { .. }));
+        assert!(matches!(route("生成整合包").intent, Intent::BuildPack { .. }));
+        match route("切换 BMCLAPI 加速").intent {
+            Intent::SetDownloadSource { source } => assert_eq!(source, "bmclapi"),
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(
+            route("打开版本文件夹").intent,
+            Intent::OpenInstanceDir { .. }
+        ));
+        assert!(matches!(route("检查模组").intent, Intent::CheckMods { .. }));
     }
 }

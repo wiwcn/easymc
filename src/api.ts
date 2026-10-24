@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -493,6 +493,18 @@ export async function agentExportDiagnostics(
   return invokeOrThrow("agent_export_diagnostics", {
     instanceId: instanceId || null,
   });
+}
+
+export async function agentApplyProposal(
+  proposal: ChangeProposalDto,
+): Promise<{ ok: boolean; message: string; message_zh?: string }> {
+  return invokeOrThrow("agent_apply_proposal", { proposal });
+}
+
+export async function agentUndoProposal(
+  proposal: ChangeProposalDto,
+): Promise<{ ok: boolean; message: string; message_zh?: string }> {
+  return invokeOrThrow("agent_undo_proposal", { proposal });
 }
 
 

@@ -1,15 +1,16 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
+  agentApplyProposal,
   agentAsk,
   agentBumpMemory,
   agentDataDir,
-  agentDiagnose,
   agentExportDiagnostics,
   agentLlmStatus,
-  ensureJava,
+  agentUndoProposal,
   listInstancesState,
+  openInstanceFolder,
 } from "../api";
 import { showToast } from "../toast";
 import "../components/empty-state";
@@ -17,12 +18,27 @@ import type {
   AgentActionDto,
   AgentAskResponse,
   AgentFinding,
+  ChangeProposalDto,
   DiagnoseReportDto,
   InstanceDto,
   LlmStatusDto,
 } from "../types";
 
-type ChatTurn = { role: "user" | "assistant"; content: string; mode?: string };
+type ChatTurn = {
+  role: "user" | "assistant";
+  content: string;
+  mode?: string;
+  proposal?: ChangeProposalDto | null;
+  /** applied | undone | pending */
+  proposalStatus?: "pending" | "applied" | "undone";
+};
+
+function asProposal(value: unknown): ChangeProposalDto | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as ChangeProposalDto;
+  if (!v.id || !Array.isArray(v.items) || !v.apply_payload || !v.undo_snapshot) return null;
+  return v;
+}
 
 @customElement("easymc-agent-page")
 export class AgentPage extends LitElement {
@@ -43,13 +59,13 @@ export class AgentPage extends LitElement {
     css`
     :host {
       display: block;
-      max-width: 960px;
+      max-width: 1080px;
       height: calc(100vh - 100px);
       min-height: 480px;
     }
     .layout {
       display: grid;
-      grid-template-columns: 1fr 240px;
+      grid-template-columns: 1fr 260px;
       gap: var(--easymc-space-4);
       height: 100%;
       min-height: 0;
@@ -94,7 +110,7 @@ export class AgentPage extends LitElement {
     }
     button,
     .chip {
-      min-height: 32px; /* A11Y-4 */
+      min-height: 32px;
       padding: 8px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -107,13 +123,12 @@ export class AgentPage extends LitElement {
         background var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    /* primary → controlStyles (CMP-1); keep border reset for agent base button */
     button.primary { border-color: transparent; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:active:not(:disabled), .chip:active { transform: scale(0.98); }
     select {
       padding: 8px 12px;
-      border-radius: var(--md-sys-shape-corner-small); /* CMP-5: form field */
+      border-radius: var(--md-sys-shape-corner-small);
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
@@ -135,7 +150,7 @@ export class AgentPage extends LitElement {
       padding: var(--easymc-space-4);
       border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
+      box-shadow: var(--md-sys-elevation-1);
       margin-bottom: var(--easymc-space-3);
       min-height: 240px;
     }
@@ -143,10 +158,10 @@ export class AgentPage extends LitElement {
       display: flex;
       gap: var(--easymc-space-3);
       align-items: flex-start;
-      max-width: 92%;
+      max-width: 96%;
     }
     .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg.assistant { align-self: flex-start; }
+    .msg.assistant { align-self: flex-start; width: min(100%, 640px); }
     .avatar {
       width: 32px;
       height: 32px;
@@ -184,8 +199,90 @@ export class AgentPage extends LitElement {
     }
     .meta {
       font-size: var(--easymc-type-meta);
-      color: var(--md-sys-color-on-surface-variant); /* A11Y-3: no opacity stack */
+      color: var(--md-sys-color-on-surface-variant);
       margin-top: 4px;
+    }
+    /* Proposal card (ghost card toward agent-v1) */
+    .proposal {
+      margin-top: var(--easymc-space-3);
+      padding: var(--easymc-space-4);
+      border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+      border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+    }
+    .proposal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--easymc-space-3);
+      margin-bottom: var(--easymc-space-3);
+    }
+    .proposal-head h3 {
+      margin: 0;
+      font-size: var(--easymc-type-title);
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .proposal-sub {
+      margin: 4px 0 0;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.35;
+    }
+    .tag {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-size: var(--easymc-type-meta);
+      font-weight: 600;
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .proposal-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--easymc-type-label);
+      margin-bottom: var(--easymc-space-3);
+    }
+    .proposal-table th,
+    .proposal-table td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent);
+      vertical-align: top;
+    }
+    .proposal-table th {
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-meta);
+    }
+    .proposal-table .delta {
+      color: var(--md-sys-color-primary);
+      font-weight: 600;
+    }
+    .proposal-table .proposed {
+      font-weight: 650;
+    }
+    .proposal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--easymc-space-2);
+    }
+    .proposal-actions .ghost {
+      background: transparent;
+      border: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .proposal-status {
+      margin-top: var(--easymc-space-2);
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .proposal-status.ok {
+      color: var(--md-sys-color-primary);
+      font-weight: 600;
     }
     .composer {
       display: flex;
@@ -199,7 +296,6 @@ export class AgentPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
-      /* CF-1: border only for input */
     }
     .tools {
       display: flex;
@@ -208,9 +304,11 @@ export class AgentPage extends LitElement {
       padding: var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-extra-large);
       background: var(--md-sys-color-surface-container);
-      box-shadow: none; /* AG-1: tray; cards carry elevation */
+      box-shadow: none;
       border: none;
       align-self: start;
+      max-height: 100%;
+      overflow: auto;
     }
     .tools h2 {
       margin: 0 0 var(--easymc-space-2);
@@ -236,7 +334,7 @@ export class AgentPage extends LitElement {
       border-radius: var(--md-sys-shape-corner-large);
       border: none;
       background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1); /* AG-1 card stack */
+      box-shadow: var(--md-sys-elevation-1);
       min-height: 56px;
     }
     button.tool .tool-copy {
@@ -278,14 +376,12 @@ export class AgentPage extends LitElement {
       margin-top: var(--easymc-space-2);
       line-height: 1.35;
     }
-    /* ADAPT-1: chips when tools column hidden */
     .quick-chips {
       display: flex;
       flex-wrap: wrap;
       gap: var(--easymc-space-2);
       margin-bottom: var(--easymc-space-3);
     }
-    /* ADAPT-1: after .tools {display:flex} so hide wins */
     @media (max-width: 820px) {
       .layout { grid-template-columns: 1fr; }
       .tools { display: none; }
@@ -341,8 +437,8 @@ export class AgentPage extends LitElement {
       {
         role: "assistant",
         content: st.configured
-          ? "本地 + 云端助手已就绪。点快捷操作，或直接提问。"
-          : "本地助手已就绪。点快捷操作，或直接提问。",
+          ? "本地 + 云端助手已就绪。点右侧工具，或直接提问。"
+          : "本地助手已就绪。点右侧工具，或直接提问。",
         mode: st.mode,
       },
     ];
@@ -356,14 +452,8 @@ export class AgentPage extends LitElement {
     this.busy = true;
     this.error = "";
     try {
-      const report = await agentDiagnose(this.instanceId);
-      this.report = report;
-      this.turns = [
-        ...this.turns,
-        { role: "user", content: "帮我看看上次为什么崩了" },
-        { role: "assistant", content: this.formatReport(report), mode: "rules" },
-      ];
-      showToast(report.summary_zh.slice(0, 80));
+      // Prefer ask path so OOM can attach propose_changes.
+      await this.onAsk("查看崩溃");
     } catch (e) {
       this.error = String(e);
     } finally {
@@ -371,14 +461,6 @@ export class AgentPage extends LitElement {
     }
   }
 
-  private formatReport(r: DiagnoseReportDto): string {
-    let s = r.summary_zh;
-    for (const f of r.findings ?? []) {
-      s += `\n\n【${f.title}】${f.summary}\n建议：\n- ${(f.fixes ?? []).join("\n- ")}`;
-      if (f.evidence) s += `\n证据：${f.evidence}`;
-    }
-    return s;
-  }
 
   private async onAsk(text?: string) {
     const q = (text ?? this.input).trim();
@@ -398,13 +480,27 @@ export class AgentPage extends LitElement {
       });
       if (resp.report) this.report = resp.report;
       let content = resp.reply_zh;
+      let proposal: ChangeProposalDto | null = null;
+      let proposalStatus: ChatTurn["proposalStatus"];
       if (resp.action) {
-        content = this.enrichActionReply(content, resp.action);
-        void this.applyAction(resp.action);
+        if (resp.action.action === "propose_changes") {
+          proposal = asProposal(resp.action.value);
+          proposalStatus = proposal ? "pending" : undefined;
+          // Don't run silent side effects for proposals.
+        } else {
+          content = this.enrichActionReply(content, resp.action);
+          void this.applyAction(resp.action);
+        }
       }
       this.turns = [
         ...this.turns,
-        { role: "assistant", content, mode: resp.mode },
+        {
+          role: "assistant",
+          content,
+          mode: resp.mode,
+          proposal,
+          proposalStatus,
+        },
       ];
     } catch (e) {
       this.error = String(e);
@@ -425,13 +521,16 @@ export class AgentPage extends LitElement {
         return `${reply}\n\n文件：${action.path}`;
       }
     }
-    if (action.action === "ensure_java") {
-      return action.message_zh || reply;
-    }
-    if (action.action === "open_store") {
-      return action.message_zh || reply;
-    }
-    if (action.action === "install_mod") {
+    if (
+      action.action === "ensure_java" ||
+      action.action === "open_store" ||
+      action.action === "install_mod" ||
+      action.action === "setup_env" ||
+      action.action === "build_pack" ||
+      action.action === "set_download_source" ||
+      action.action === "check_mods" ||
+      action.action === "open_instance_dir"
+    ) {
       return action.message_zh || reply;
     }
     return reply;
@@ -460,7 +559,6 @@ export class AgentPage extends LitElement {
       const query = val?.query?.trim() || "";
       const tab = val?.tab || "mod";
       if (!query) return;
-      // Success deep-link (legacy) → navigate. Failure after install attempt → one confirm button.
       if (action.ok) {
         this.goDownloadSearch(query, tab);
       } else {
@@ -469,12 +567,32 @@ export class AgentPage extends LitElement {
       }
       return;
     }
-    if (action.action === "ensure_java") {
-      showToast(action.ok ? "Java 已准备好" : "准备 Java 失败");
+    if (action.action === "ensure_java" || action.action === "setup_env") {
+      showToast(action.ok ? "环境已准备好" : "准备环境失败");
       return;
     }
     if (action.action === "bump_memory" && action.ok) {
       showToast("内存已调整，请重新启动游戏");
+      return;
+    }
+    if (action.action === "build_pack") {
+      showToast(action.ok ? "整合包已生成" : "生成整合包失败");
+      return;
+    }
+    if (action.action === "set_download_source" && action.ok) {
+      showToast("下载源已切换");
+      return;
+    }
+    if (action.action === "open_instance_dir" && action.ok && action.path) {
+      // Try native reveal; path already in chat.
+      if (this.instanceId) {
+        try {
+          await openInstanceFolder(this.instanceId, "root");
+        } catch {
+          /* path shown in chat is enough */
+        }
+      }
+      showToast("已定位版本文件夹");
       return;
     }
     if (action.action === "diagnostics" && action.ok) {
@@ -482,29 +600,75 @@ export class AgentPage extends LitElement {
     }
   }
 
-  private async onEnsureJava() {
+  private patchTurnProposal(turnIndex: number, status: ChatTurn["proposalStatus"], extraContent?: string) {
+    this.turns = this.turns.map((t, i) => {
+      if (i !== turnIndex) return t;
+      return {
+        ...t,
+        proposalStatus: status,
+        content: extraContent ? `${t.content}\n\n${extraContent}` : t.content,
+      };
+    });
+  }
+
+  private async onAcceptProposal(turnIndex: number, proposal: ChangeProposalDto) {
+    if (this.busy) return;
     this.busy = true;
-    this.error = "";
-    this.turns = [...this.turns, { role: "user", content: "修好 Java" }];
     try {
-      const msg = await ensureJava(21);
-      const content = `Java 已准备好。\n${msg}\n下次启动游戏会用它。`;
-      showToast("Java 已准备好");
-      this.turns = [...this.turns, { role: "assistant", content, mode: "rules" }];
+      const r = await agentApplyProposal(proposal);
+      const msg = r.message_zh || r.message || "已应用更改，下次启动生效";
+      showToast("已应用更改，下次启动生效");
+      this.patchTurnProposal(turnIndex, "applied", msg);
     } catch (e) {
-      const err = e instanceof Error ? e.message : String(e);
-      this.error = err;
-      this.turns = [
-        ...this.turns,
-        {
-          role: "assistant",
-          content: `准备 Java 没成功：${err}\n可以检查网络后再点一次「修好 Java」。`,
-          mode: "rules",
-        },
-      ];
+      this.error = String(e);
+      showToast("应用更改失败");
     } finally {
       this.busy = false;
     }
+  }
+
+  private async onUndoProposal(turnIndex: number, proposal: ChangeProposalDto) {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const r = await agentUndoProposal(proposal);
+      const msg = r.message_zh || r.message || "已撤销更改";
+      showToast("已撤销更改");
+      this.patchTurnProposal(turnIndex, "undone", msg);
+    } catch (e) {
+      this.error = String(e);
+      showToast("撤销失败");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async onEnsureJava() {
+    await this.onAsk("修好 Java");
+  }
+
+  private async onSetupEnv() {
+    await this.onAsk("一键环境");
+  }
+
+  private async onTuneConfig() {
+    await this.onAsk("优化配置");
+  }
+
+  private async onBuildPack() {
+    await this.onAsk("生成整合包");
+  }
+
+  private async onBmclapi() {
+    await this.onAsk("切换 BMCLAPI 加速");
+  }
+
+  private async onOpenInstanceDir() {
+    await this.onAsk("打开版本文件夹");
+  }
+
+  private async onCheckMods() {
+    await this.onAsk("检查模组");
   }
 
   private async onDataDir() {
@@ -549,6 +713,72 @@ export class AgentPage extends LitElement {
     if (f.severity === "error") return "error";
     if (f.severity === "warn") return "warn";
     return "";
+  }
+
+  private renderProposal(turn: ChatTurn, index: number) {
+    const p = turn.proposal;
+    if (!p) return nothing;
+    const pending = turn.proposalStatus === "pending" || !turn.proposalStatus;
+    const applied = turn.proposalStatus === "applied";
+    const undone = turn.proposalStatus === "undone";
+    return html`
+      <div class="proposal" data-proposal-id=${p.id}>
+        <div class="proposal-head">
+          <div>
+            <h3>✨ ${p.title_zh || "建议更改"}</h3>
+            ${p.subtitle_zh
+              ? html`<p class="proposal-sub">${p.subtitle_zh}</p>`
+              : nothing}
+          </div>
+          ${p.tag_zh ? html`<span class="tag">${p.tag_zh}</span>` : nothing}
+        </div>
+        <table class="proposal-table">
+          <thead>
+            <tr>
+              <th>设置</th>
+              <th>当前</th>
+              <th>建议</th>
+              <th>变化</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(p.items ?? []).map(
+              (it) => html`
+                <tr>
+                  <td>${it.label_zh}</td>
+                  <td>${it.current}</td>
+                  <td class="proposed">${it.proposed}</td>
+                  <td class="delta">${it.delta_zh}</td>
+                </tr>
+              `,
+            )}
+          </tbody>
+        </table>
+        <div class="proposal-actions">
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${this.busy || !pending}
+            @click=${() => void this.onAcceptProposal(index, p)}
+          >
+            ✓ 应用更改
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.busy || (!applied && !pending)}
+            @click=${() => void this.onUndoProposal(index, p)}
+          >
+            ↺ 撤销
+          </button>
+        </div>
+        ${applied
+          ? html`<p class="proposal-status ok">已应用更改，下次启动生效</p>`
+          : undone
+            ? html`<p class="proposal-status">已撤销，恢复为应用前的设置</p>`
+            : nothing}
+      </div>
+    `;
   }
 
   render() {
@@ -610,16 +840,17 @@ export class AgentPage extends LitElement {
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="说说启动不了、崩了，或点下方快捷操作"
+                  description="说说启动不了、崩了，或点右侧 / 下方快捷工具"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
                 ${this.turns.map(
-                  (t) => html`
+                  (t, idx) => html`
                     <div class="msg ${t.role}">
                       <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
                       <div>
                         <div class="bubble">${t.content}</div>
+                        ${t.role === "assistant" ? this.renderProposal(t, idx) : nothing}
                         ${t.mode
                           ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
                           : null}
@@ -643,18 +874,18 @@ export class AgentPage extends LitElement {
             : null}
 
           <div class="quick-chips" role="group" aria-label="快捷工具">
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>看上次报错</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>修好 Java</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>查看崩溃</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>生成整合包</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDataDir()}>游戏文件夹</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onExport()}>导出报告</button>
           </div>
 
           <div class="composer">
             <input
               placeholder=${llmOn
                 ? "说说遇到什么问题…"
-                : "例如：看上次报错 / 修好 Java / 装 sodium"}
+                : "例如：查看崩溃 / 优化配置 / 装 sodium"}
               .value=${this.input}
               ?disabled=${this.busy}
               @input=${(e: Event) => {
@@ -671,33 +902,40 @@ export class AgentPage extends LitElement {
         <aside class="tools" aria-label="快捷工具">
           <h2>快捷工具</h2>
           <div class="tool-stack">
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>
+              <span class="tool-copy"><strong>一键环境</strong><span>准备 Java，汇报内存与下载源</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-              <span class="tool-copy"><strong>看上次报错</strong><span>分析崩溃日志，给出修法</span></span>
+              <span class="tool-copy"><strong>查看崩溃</strong><span>分析崩溃日志，给出修法</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>
-              <span class="tool-copy"><strong>修好 Java</strong><span>检查并准备合适的 Java</span></span>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>
+              <span class="tool-copy"><strong>优化配置</strong><span>建议内存与 JVM，确认后应用</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>
-              <span class="tool-copy"><strong>内存调到 4 GB</strong><span>给游戏多留一点内存</span></span>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>
+              <span class="tool-copy"><strong>生成整合包</strong><span>导出当前版本分享包</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onDataDir()}>
-              <span class="tool-copy"><strong>打开游戏文件夹</strong><span>去改配置或找存档</span></span>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>
+              <span class="tool-copy"><strong>切换 BMCLAPI 加速</strong><span>国内镜像下载游戏文件</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onExport()}>
-              <span class="tool-copy"><strong>导出问题报告</strong><span>发给朋友或自己留档</span></span>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onOpenInstanceDir()}>
+              <span class="tool-copy"><strong>打开版本文件夹</strong><span>去改配置或找存档</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onCheckMods()}>
+              <span class="tool-copy"><strong>检查模组</strong><span>统计模组数量，提示是否需诊断</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
           </div>
-          <p class="note">工具在你这台电脑上执行，不会乱改游戏以外的东西。</p>
+          <p class="note">「优化配置」只生成建议，需点「应用更改」才会写入。工具在你这台电脑上执行。</p>
         </aside>
       </div>
     `;
   }
-
 }
 
 declare global {

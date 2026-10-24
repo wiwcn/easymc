@@ -7,16 +7,27 @@ mod diagnose;
 mod intent;
 pub mod llm;
 mod patterns;
+mod propose;
 mod service;
 
-pub use actions::{bump_memory, show_data_dir, write_diagnostic_bundle, ActionResult};
+pub use actions::{
+    bump_memory, check_mods, env_status_summary, set_download_source, show_data_dir,
+    show_instance_dir, write_diagnostic_bundle, ActionResult,
+};
 pub use diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 pub use intent::{route, Intent, IntentResult};
-pub use llm::{llm_status, try_load_dotenv_llm, LlmConfig, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY, ENV_BASE_URL, ENV_MODEL};
+pub use llm::{
+    llm_status, try_load_dotenv_llm, LlmConfig, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY,
+    ENV_BASE_URL, ENV_MODEL,
+};
 pub use patterns::{scan_log, Finding, FindingSeverity};
+pub use propose::{
+    apply_proposal, build_tune_proposal, java_major_for_mc, parse_proposal, proposal_to_action,
+    suggested_client_jvm, undo_proposal, ApplyPayload, ChangeProposal, ProposeItem, UndoSnapshot,
+};
 pub use service::{
-    ask, execute_intent, memory_suggestion, run_diagnose, AskRequest, AskResponse, DisabledGguf,
-    LocalGgufBackend,
+    ask, execute_intent, memory_suggestion, run_diagnose, tune_proposal, AskRequest, AskResponse,
+    DisabledGguf, LocalGgufBackend,
 };
 
 use async_trait::async_trait;

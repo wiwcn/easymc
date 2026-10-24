@@ -1,13 +1,17 @@
 //! High-level Agent service: rules first, optional LLM for chat / smarter diagnose.
 
-use easymc_core::{load_instances, load_settings, Paths, Result};
+use easymc_core::{load_settings, Paths, Result};
 
 use crate::actions::{
-    bump_memory, show_data_dir, suggest_memory_text, write_diagnostic_bundle, ActionResult,
+    bump_memory, check_mods, env_status_summary, set_download_source, show_data_dir,
+    show_instance_dir, suggest_memory_text, write_diagnostic_bundle, ActionResult,
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
 use crate::llm::{llm_status, system_prompt_zh, LlmStatus, OpenAiCompatibleProvider};
+use crate::propose::{
+    build_tune_proposal, oom_suggested_mb, proposal_to_action, ChangeProposal,
+};
 use crate::{AgentReply, ChatMessage, LlmProvider};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -37,7 +41,52 @@ fn resolve_instance_id(paths: &Paths, hint: Option<&str>) -> Option<String> {
             return Some(id.to_string());
         }
     }
-    load_instances(paths).ok().and_then(|s| s.active_id)
+    easymc_core::load_instances(paths)
+        .ok()
+        .and_then(|s| s.active_id)
+}
+
+fn maybe_oom_proposal(
+    paths: &Paths,
+    report: &DiagnoseReport,
+    instance_id: Option<&str>,
+) -> Option<ActionResult> {
+    let oom = report.findings.iter().any(|f| {
+        f.id == "oom"
+            || f.action.as_deref() == Some("bump_memory")
+            || f.title.contains("内存")
+    });
+    if !oom {
+        return None;
+    }
+    let settings = load_settings(paths).unwrap_or_default();
+    let current = {
+        let id = resolve_instance_id(paths, instance_id);
+        if let Some(id) = id {
+            easymc_core::load_instances(paths)
+                .ok()
+                .and_then(|s| {
+                    s.instances
+                        .into_iter()
+                        .find(|i| i.id == id)
+                        .and_then(|i| i.memory_mb)
+                })
+                .unwrap_or(settings.memory_mb)
+        } else {
+            settings.memory_mb
+        }
+    };
+    let suggested = oom_suggested_mb(current);
+    let prop = build_tune_proposal(
+        paths,
+        instance_id,
+        Some(suggested),
+        "根据崩溃分析：疑似内存不足，建议提高内存并启用 G1GC（客户端启动参数）。",
+    );
+    Some(proposal_to_action(
+        prop,
+        "检测到可能的内存问题，已生成「建议更改」。确认后点「应用更改」。",
+    ))
 }
 
 pub fn run_diagnose(
@@ -66,15 +115,24 @@ pub async fn execute_intent(
     match intent {
         Intent::Diagnose { instance_id: iid } => {
             let id = iid.clone().or(instance_id);
-            let report = run_diagnose(paths, id, process_logs);
+            let report = run_diagnose(paths, id.clone(), process_logs);
             let mut reply = report.summary_zh.clone();
             for f in &report.findings {
-                reply.push_str(&format!("\n\n【{}】{}\n{}", f.title, f.summary, f.fixes.join("\n")));
+                reply.push_str(&format!(
+                    "\n\n【{}】{}\n{}",
+                    f.title,
+                    f.summary,
+                    f.fixes.join("\n")
+                ));
                 if let Some(ev) = &f.evidence {
                     reply.push_str(&format!("\n证据: {ev}"));
                 }
             }
-            Ok((reply, Some(report), None))
+            let action = maybe_oom_proposal(paths, &report, id.as_deref());
+            if action.is_some() {
+                reply.push_str("\n\n下方有「建议更改」卡片，确认后可一键应用。");
+            }
+            Ok((reply, Some(report), action))
         }
         Intent::EnsureJava { major } => {
             // Host (CLI/Tauri) runs ensure_java and rewrites reply with the real result.
@@ -92,6 +150,58 @@ pub async fn execute_intent(
         }
         Intent::BumpMemory { mb } => {
             let ar = bump_memory(paths, *mb)?;
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::TuneConfig { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let prop = build_tune_proposal(
+                paths,
+                id.as_deref(),
+                None,
+                "根据当前内存与启动参数生成的客户端优化建议。确认后点「应用更改」。",
+            );
+            let ar = proposal_to_action(
+                prop,
+                "已生成优化建议（内存 + JVM）。请在卡片上点「应用更改」才会写入。",
+            );
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::SetupEnv { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let ar = env_status_summary(paths, id.as_deref());
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::BuildPack { instance_id: iid } => {
+            let id = iid.as_ref().cloned().or(instance_id).or_else(|| {
+                resolve_instance_id(paths, None)
+            });
+            Ok((
+                "正在生成当前版本的分享包…".into(),
+                None,
+                Some(ActionResult {
+                    ok: true,
+                    action: "build_pack".into(),
+                    message_zh: "生成分享包".into(),
+                    path: None,
+                    value: Some(serde_json::json!({
+                        "instance_id": id,
+                        "pack": true,
+                    })),
+                }),
+            ))
+        }
+        Intent::SetDownloadSource { source } => {
+            let ar = set_download_source(paths, source)?;
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::OpenInstanceDir { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let ar = show_instance_dir(paths, id.as_deref());
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::CheckMods { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let ar = check_mods(paths, id.as_deref());
             Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::ShowDataDir => {
@@ -168,7 +278,13 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 let msgs = build_messages(&req.history, &user);
                 match provider.complete(&msgs).await {
                     Ok(AgentReply { content, .. }) => {
-                        reply = format!("【规则摘要】{}\n\n【LLM 分析】\n{content}", report.as_ref().map(|r| r.summary_zh.as_str()).unwrap_or(""));
+                        reply = format!(
+                            "【规则摘要】{}\n\n【LLM 分析】\n{content}",
+                            report
+                                .as_ref()
+                                .map(|r| r.summary_zh.as_str())
+                                .unwrap_or("")
+                        );
                         return Ok(AskResponse {
                             mode: "rules+llm".into(),
                             intent: Some(intent),
@@ -218,7 +334,11 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
         if let Some(provider) = OpenAiCompatibleProvider::try_from_env() {
             let mut user = req.text.clone();
             // Attach short diagnose context if logs present
-            if req.process_logs.as_ref().map(|l| !l.is_empty()).unwrap_or(false)
+            if req
+                .process_logs
+                .as_ref()
+                .map(|l| !l.is_empty())
+                .unwrap_or(false)
                 || req.instance_id.is_some()
             {
                 let report = run_diagnose(paths, req.instance_id.clone(), req.process_logs.clone());
@@ -272,7 +392,14 @@ fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {
         role: "system".into(),
         content: system_prompt_zh().into(),
     }];
-    for h in history.iter().rev().take(12).collect::<Vec<_>>().into_iter().rev() {
+    for h in history
+        .iter()
+        .rev()
+        .take(12)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+    {
         if h.role == "system" {
             continue;
         }
@@ -296,6 +423,16 @@ fn truncate(s: &str, n: usize) -> String {
 pub fn memory_suggestion(paths: &Paths, suggested: u32) -> ActionResult {
     let cur = load_settings(paths).map(|s| s.memory_mb).unwrap_or(2048);
     suggest_memory_text(cur, suggested)
+}
+
+/// Build a tune proposal without going through ask() (UI shortcut / tests).
+pub fn tune_proposal(paths: &Paths, instance_id: Option<&str>) -> ChangeProposal {
+    build_tune_proposal(
+        paths,
+        instance_id,
+        None,
+        "根据当前内存与启动参数生成的客户端优化建议。",
+    )
 }
 
 #[allow(dead_code)]
