@@ -47,6 +47,6 @@ UI 视觉仍走 EasyMC 自有 MD3 / Impeccable，不抄参照的皮肤。
 ## 不做
 
 - 不写 MCBBS
-- 不用 CloudAgent / Cursor GitHub MCP 改本仓
+- 不用 Cursor（CloudAgent / GitHub MCP / 付费后台助手）；本机 Shell + gh_token 即可
 - 不把密钥写进 git
 - 不把参照启动器的 UI 皮直接搬过来
