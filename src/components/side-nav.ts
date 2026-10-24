@@ -11,7 +11,6 @@ const ICONS_OUTLINE: Record<string, unknown> = {
   home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>`,
   download: svg`<path d="M12 3v10m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   multiplayer: svg`<path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4.5 19c.6-2.2 2.6-3.5 5.5-3.5s4.9 1.3 5.5 3.5M14 15.5c1 .3 2.1.5 3.5.5 2.4 0 4-.8 4.5 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
-  accounts: svg`<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M4 20c1.5-3.2 4.2-5 8-5s6.5 1.8 8 5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
   settings: svg`<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 13a7.8 7.8 0 0 0 .1-2l1.7-1.3-1.7-3-2 .5a7.6 7.6 0 0 0-1.7-1L15.4 3h-3.8l-.4 2.2a7.6 7.6 0 0 0-1.7 1l-2-.5-1.7 3L7.5 11a7.8 7.8 0 0 0 0 2l-1.7 1.3 1.7 3 2-.5c.5.4 1.1.8 1.7 1l.4 2.2h3.8l.4-2.2c.6-.2 1.2-.6 1.7-1l2 .5 1.7-3L19.4 13Z" stroke="currentColor" stroke-width="1.4" fill="none"/>`,
   more: svg`<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>`,
   agent: svg`<path d="M8 10h8M9 14h6M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H13l-3 3v-3H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -21,7 +20,6 @@ const ICONS_FILLED: Record<string, unknown> = {
   home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="currentColor"/>`,
   download: svg`<path d="M11 3h2v9.2l2.6-2.6 1.4 1.4L12 16l-5-5 1.4-1.4L11 12.2V3Z" fill="currentColor"/><path d="M5 17h14v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2Z" fill="currentColor"/>`,
   multiplayer: svg`<circle cx="8" cy="8" r="3" fill="currentColor"/><circle cx="16" cy="8" r="3" fill="currentColor"/><path d="M2.5 19c.7-2.6 3-4 5.5-4s4.8 1.4 5.5 4H2.5Zm9.5 0c.4-1.5 1.4-2.6 2.8-3.2 1 .4 2.1.7 3.7.7 2.2 0 3.7.8 4.3 2.5H12Z" fill="currentColor"/>`,
-  accounts: svg`<circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 20c1.5-3.5 4.2-5.5 8-5.5s6.5 2 8 5.5H4Z" fill="currentColor"/>`,
   settings: svg`<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm7.4 4.2a7.8 7.8 0 0 0 .1-1.4l1.8-1.4-1.8-3.1-2.1.5a7.6 7.6 0 0 0-1.8-1L14.9 2h-3.8l-.5 2.3a7.6 7.6 0 0 0-1.8 1l-2.1-.5-1.8 3.1 1.8 1.4a7.8 7.8 0 0 0 0 1.4l-1.8 1.4 1.8 3.1 2.1-.5c.5.4 1.1.8 1.8 1l.5 2.3h3.8l.5-2.3c.6-.2 1.3-.6 1.8-1l2.1.5 1.8-3.1-1.8-1.4Z" fill="currentColor"/>`,
   more: svg`<circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="18" cy="12" r="2" fill="currentColor"/>`,
   agent: svg`<path d="M7 6h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-3.2L10 22v-3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm1 5h8v2H8v-2Zm1 4h6v2H9v-2Z" fill="currentColor"/>`,
@@ -32,7 +30,7 @@ const NAV: Item[] = [
   { id: "download", label: "下载", icon: "download" },
   { id: "agent", label: "助手", icon: "agent" },
   { id: "multiplayer", label: "联机", icon: "multiplayer" },
-  { id: "accounts", label: "账户", icon: "accounts" },
+  // Accounts: bottom acct-card only (no duplicate nav item).
   { id: "settings", label: "设置", icon: "settings" },
   { id: "more", label: "更多", icon: "more" },
 ];
