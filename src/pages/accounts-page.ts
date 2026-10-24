@@ -39,6 +39,14 @@ export class AccountsPage extends LitElement {
         min-height: 100%;
         max-width: 720px;
         width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-x: clip;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
       h1 {
         font-size: var(--easymc-type-title);
@@ -56,20 +64,27 @@ export class AccountsPage extends LitElement {
         display: flex;
         flex-direction: column;
         min-height: 360px;
+        min-width: 0;
+        max-width: 100%;
         padding: var(--easymc-space-4);
         border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface-container-lowest);
         box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
+        overflow-x: clip;
       }
       .acct-list {
         display: grid;
         gap: var(--easymc-space-2);
+        min-width: 0;
+        max-width: 100%;
       }
       .acct {
         display: flex;
         align-items: center;
         gap: var(--easymc-space-3);
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         text-align: left;
         font: inherit;
         color: inherit;
@@ -179,6 +194,8 @@ export class AccountsPage extends LitElement {
         display: grid;
         gap: 10px;
         margin-top: 8px;
+        min-width: 0;
+        max-width: 100%;
       }
       button.choice {
         text-align: left;
@@ -189,6 +206,10 @@ export class AccountsPage extends LitElement {
         border-radius: 16px;
         background: var(--md-sys-color-surface);
         border: 1.5px solid var(--md-sys-color-outline-variant);
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
       button.choice:hover {
         border-color: var(--md-sys-color-primary);

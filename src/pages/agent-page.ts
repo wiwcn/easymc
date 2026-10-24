@@ -430,6 +430,45 @@ export class AgentPage extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       button:active:not(:disabled), .chip:active { transform: none; }
     }
+    .gate {
+      max-width: 520px;
+      width: 100%;
+      margin: 24px auto;
+      padding: var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
+      box-sizing: border-box;
+    }
+    .gate h2 {
+      margin: 0 0 8px;
+      font-size: var(--easymc-type-title);
+    }
+    .gate .muted {
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-meta);
+      margin: 0 0 14px;
+      line-height: 1.45;
+    }
+    .gate label.row {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .gate label.row span {
+      min-width: 5.5em;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-label);
+    }
+    .gate input {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      min-width: 0;
+      flex: 1;
+    }
   `,
   ];
 
@@ -449,22 +488,38 @@ export class AgentPage extends LitElement {
     this.llmBase = cfg.base_url || "";
     this.llmModel = cfg.model || "deepseek-chat";
     this.llmKey = "";
+    // Cloud-first: unconfigured → blocking gate (no local chat by default).
     this.showLlmForm = !st.configured;
     this.instances = inst.instances;
     this.instanceId = inst.active_id;
-    this.turns = [
-      {
-        role: "assistant",
-        content: st.configured
-          ? "本地 + 云端助手已就绪。点右侧工具，或直接提问。"
-          : "本地助手已就绪。点右侧工具，或直接提问。",
-        mode: st.mode,
-      },
-    ];
-    if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
+    if (st.configured) {
+      this.turns = [
+        {
+          role: "assistant",
+          content: "云端助手已就绪。点右侧工具，或直接提问。",
+          mode: st.mode,
+        },
+      ];
+      if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
+        sessionStorage.removeItem("easymc-agent-autodiagnose");
+        void this.onDiagnose();
+      }
+    } else {
       sessionStorage.removeItem("easymc-agent-autodiagnose");
-      void this.onDiagnose();
+      this.turns = [];
+      this.report = null;
     }
+  }
+
+  private get cloudReady(): boolean {
+    return !!this.llm?.configured;
+  }
+
+  private requireCloud(): boolean {
+    if (this.cloudReady) return true;
+    this.showLlmForm = true;
+    this.error = "请先配置云端助手 API（Base URL + API Key）后再使用。";
+    return false;
   }
 
   private async onDiagnose() {
@@ -482,6 +537,7 @@ export class AgentPage extends LitElement {
 
 
   private async onAsk(text?: string) {
+    if (!this.requireCloud()) return;
     const q = (text ?? this.input).trim();
     if (!q || this.busy) return;
     this.input = "";
@@ -691,6 +747,7 @@ export class AgentPage extends LitElement {
   }
 
   private async onDataDir() {
+    if (!this.requireCloud()) return;
     this.turns = [...this.turns, { role: "user", content: "游戏文件夹在哪" }];
     const r = await agentDataDir();
     showToast(r.message.slice(0, 60));
@@ -698,6 +755,7 @@ export class AgentPage extends LitElement {
   }
 
   private async onBumpMem() {
+    if (!this.requireCloud()) return;
     this.busy = true;
     try {
       this.turns = [...this.turns, { role: "user", content: "内存调到 4 GB" }];
@@ -715,6 +773,7 @@ export class AgentPage extends LitElement {
   }
 
   private async onExport() {
+    if (!this.requireCloud()) return;
     this.busy = true;
     try {
       this.turns = [...this.turns, { role: "user", content: "导出问题报告" }];
@@ -814,8 +873,19 @@ export class AgentPage extends LitElement {
       this.llm = await agentLlmConfigSave(this.llmBase, this.llmKey, this.llmModel);
       this.llmCfg = await agentLlmConfigGet();
       this.llmKey = "";
-      showToast(this.llm.configured ? "云端助手已启用" : "已保存");
-      if (this.llm.configured) this.showLlmForm = false;
+      if (this.llm.configured) {
+        this.showLlmForm = false;
+        this.turns = [
+          {
+            role: "assistant",
+            content: "云端助手已就绪。点右侧工具，或直接提问。",
+            mode: this.llm.mode,
+          },
+        ];
+        showToast("云端助手已启用");
+      } else {
+        showToast("已保存，但仍未就绪");
+      }
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -832,7 +902,9 @@ export class AgentPage extends LitElement {
       this.llmKey = "";
       this.llmModel = "deepseek-chat";
       this.showLlmForm = true;
-      showToast("已清除云端助手配置");
+      this.turns = [];
+      this.report = null;
+      showToast("已清除，请重新配置云端助手");
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -840,8 +912,75 @@ export class AgentPage extends LitElement {
     }
   }
 
+  private renderCloudGate() {
+    return html`
+      <div class="gate" role="dialog" aria-labelledby="llm-gate-title">
+        <h2 id="llm-gate-title">配置云端助手</h2>
+        <p class="muted">
+          助手默认使用云端对话。请填写 OpenAI 兼容接口后继续。密钥只保存在本机
+          <code>~/.config/easymc/llm.env</code>，不会进 git。
+          ${this.llmCfg?.api_key_set
+            ? html`已有密钥提示：${this.llmCfg.api_key_hint}`
+            : nothing}
+        </p>
+        ${this.error ? html`<p class="err">${this.error}</p>` : nothing}
+        <label class="row">
+          <span>Base URL</span>
+          <input
+            placeholder="https://api.example.com 或 …/v1"
+            .value=${this.llmBase}
+            @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row">
+          <span>API Key</span>
+          <input
+            type="password"
+            autocomplete="off"
+            placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存密钥" : "sk-…"}
+            .value=${this.llmKey}
+            @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row">
+          <span>Model</span>
+          <input
+            placeholder="deepseek-chat"
+            .value=${this.llmModel}
+            @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <div class="row" style="margin-top:12px">
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.saveLlm()}
+          >
+            保存并进入助手
+          </button>
+          <button class="ghost" type="button" @click=${() => this.goSettingsLlm()}>
+            去设置页
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   render() {
-    const llmOn = this.llm?.configured;
+    const llmOn = this.cloudReady;
+    if (!llmOn) {
+      return html`
+        <div>
+          <h1>
+            助手
+            <span class="badge">需要配置云端</span>
+          </h1>
+          <p class="sub">配置完成后即可用云端助手排查崩溃与启动问题。</p>
+          ${this.renderCloudGate()}
+        </div>
+      `;
+    }
     return html`
       <div class="layout">
         <div class="main-col">
@@ -849,9 +988,7 @@ export class AgentPage extends LitElement {
             <div>
               <h1>
                 助手
-                <span class="badge ${llmOn ? "on" : ""}">
-                  ${llmOn ? "云端助手已连接" : "本地助手已就绪"}
-                </span>
+                <span class="badge on">云端助手已连接</span>
               </h1>
               <p class="sub">游戏崩了、启动不了？让助手帮你看看哪里坏了。</p>
               <div class="row" style="margin-top:8px">
@@ -860,10 +997,15 @@ export class AgentPage extends LitElement {
                   type="button"
                   @click=${() => (this.showLlmForm = !this.showLlmForm)}
                 >
-                  ${this.showLlmForm ? "收起 API 配置" : "配置云端 API"}
+                  ${this.showLlmForm ? "收起 API 配置" : "更改 API"}
                 </button>
-                <button class="ghost" type="button" @click=${() => this.goSettingsLlm()}>
-                  设置里配置
+                <button
+                  class="ghost"
+                  type="button"
+                  ?disabled=${this.llmBusy}
+                  @click=${() => void this.clearLlm()}
+                >
+                  清除配置
                 </button>
               </div>
             </div>
@@ -888,10 +1030,10 @@ export class AgentPage extends LitElement {
             ? html`<div class="card" style="margin-bottom:12px">
                 <h3 style="margin:0 0 6px">云端助手 API</h3>
                 <p class="muted" style="margin:0 0 10px">
-                  OpenAI 兼容接口。保存到本机 <code>~/.config/easymc/llm.env</code>。
+                  修改后保存到 <code>~/.config/easymc/llm.env</code>。
                   ${this.llmCfg?.api_key_set
                     ? html`当前密钥：${this.llmCfg.api_key_hint}`
-                    : "尚未保存密钥。"}
+                    : nothing}
                 </p>
                 <label class="row" style="width:100%; margin-bottom:8px">
                   <span style="min-width:5.5em">Base URL</span>
@@ -929,15 +1071,7 @@ export class AgentPage extends LitElement {
                     ?disabled=${this.llmBusy}
                     @click=${() => void this.saveLlm()}
                   >
-                    保存并启用
-                  </button>
-                  <button
-                    class="ghost"
-                    type="button"
-                    ?disabled=${this.llmBusy}
-                    @click=${() => void this.clearLlm()}
-                  >
-                    清除
+                    保存
                   </button>
                 </div>
               </div>`
@@ -1013,9 +1147,7 @@ export class AgentPage extends LitElement {
 
           <div class="composer">
             <input
-              placeholder=${llmOn
-                ? "说说遇到什么问题…"
-                : "例如：查看崩溃 / 优化配置 / 装 sodium"}
+              placeholder="说说遇到什么问题…"
               .value=${this.input}
               ?disabled=${this.busy}
               @input=${(e: Event) => {
