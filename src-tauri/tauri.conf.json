@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "EasyMC",
-        "width": 1280,
-        "height": 800,
+        "width": 1100,
+        "height": 700,
         "minWidth": 960,
         "minHeight": 640,
         "resizable": true
