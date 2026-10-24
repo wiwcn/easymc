@@ -8,7 +8,7 @@ export class MorePage extends LitElement {
 
   static styles = css`
     :host { display: block; max-width: 640px; }
-    h1 { font-size: 1.35rem; font-weight: 650; margin: 8px 0 4px; }
+    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; }
     .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; margin-bottom: 16px; }
     .grid { display: grid; gap: 10px; }
     button.tile {

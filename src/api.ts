@@ -32,10 +32,10 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
       instances: [
         {
           id: "default",
-          name: "Survival World",
+          name: "1.21.1 · 原版",
           version: "1.21.1",
           loader: "vanilla",
-          description: "浏览器预览 · 请用 pnpm tauri dev 连接后端",
+          description: "浏览器预览",
           version_ready: false,
         },
       ],
@@ -84,7 +84,16 @@ export async function setActiveInstance(instanceId: string): Promise<InstancesSt
 }
 
 export async function listAccounts(): Promise<AccountDto[]> {
-  return (await invokeSafe<AccountDto[]>("list_accounts")) ?? [];
+  return (
+    (await invokeSafe<AccountDto[]>("list_accounts")) ?? [
+      {
+        id: "preview-offline",
+        username: "EasyPlayer",
+        kind: "offline",
+        uuid: "00000000-0000-0000-0000-000000000001",
+      },
+    ]
+  );
 }
 
 export async function createOffline(username: string): Promise<AccountDto | null> {
@@ -360,7 +369,7 @@ export async function getSettings(): Promise<SettingsDto> {
     (await invokeSafe<SettingsDto>("get_settings")) ?? {
       memory_mb: 2048,
       mode: "standard",
-      onboarding_complete: false,
+      onboarding_complete: true, // browser preview skips gate
     }
   );
 }

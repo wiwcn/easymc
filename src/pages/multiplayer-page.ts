@@ -12,7 +12,7 @@ export class MultiplayerPage extends LitElement {
       background: var(--md-sys-color-surface-container-low);
       border: 1px dashed var(--md-sys-color-outline-variant);
     }
-    h1 { margin: 0 0 8px; font-size: 1.4rem; letter-spacing: -0.02em; }
+    h1 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.02em; }
     p { margin: 0; color: var(--md-sys-color-on-surface-variant); line-height: 1.55; font-size: 0.95rem; }
     .soon {
       display: inline-block; margin-bottom: 12px;

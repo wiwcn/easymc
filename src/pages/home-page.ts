@@ -19,7 +19,7 @@ import {
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import type { AccountDto, InstanceDto, LoaderId, VersionSummary } from "../types";
-import { loaderLabel, versionId, versionType } from "../types";
+import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 
 @customElement("easymc-home-page")
@@ -51,39 +51,39 @@ export class HomePage extends LitElement {
   private unprog?: () => void;
 
   static styles = css`
-    :host { display: block; max-width: 720px; }
+    :host { display: block; max-width: 640px; }
     h1 {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 650;
       letter-spacing: -0.02em;
-      margin: 8px 0 4px;
+      margin: 0 0 2px;
       color: var(--md-sys-color-on-surface);
     }
     .sub {
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.9rem;
-      margin-bottom: 20px;
+      font-size: 0.875rem;
+      margin: 0 0 12px;
     }
     .launch-row {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: stretch;
       flex-wrap: wrap;
     }
     button.play {
-      flex: 1 1 280px;
-      min-height: 64px;
+      flex: 1 1 260px;
+      min-height: 52px;
       border: none;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
       cursor: pointer;
       text-align: left;
-      padding: 12px 20px;
+      padding: 10px 18px;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 2px;
+      gap: 1px;
       box-shadow: var(--md-sys-elevation-1);
       transition: transform var(--easymc-dur-press) var(--easymc-ease-out),
         filter var(--easymc-dur-press) var(--easymc-ease-out);
@@ -91,8 +91,8 @@ export class HomePage extends LitElement {
     button.play:hover { filter: brightness(1.05); }
     button.play:active { transform: scale(0.985); }
     button.play:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-    button.play .t1 { font-size: 1.1rem; font-weight: 650; }
-    button.play .t2 { font-size: 0.78rem; opacity: 0.9; }
+    button.play .t1 { font-size: 1.05rem; font-weight: 650; }
+    button.play .t2 { font-size: 0.75rem; opacity: 0.92; }
     .side {
       display: flex;
       gap: 8px;
@@ -117,9 +117,8 @@ export class HomePage extends LitElement {
       z-index: 20;
       min-width: 200px;
       background: var(--md-sys-color-surface-container-lowest);
-      border: 1px solid var(--md-sys-color-outline-variant);
       border-radius: var(--md-sys-shape-corner-medium);
-      box-shadow: var(--md-sys-elevation-2, 0 4px 12px rgba(0,0,0,.12));
+      box-shadow: var(--md-sys-elevation-2);
       padding: 6px;
       display: flex;
       flex-direction: column;
@@ -137,13 +136,12 @@ export class HomePage extends LitElement {
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
     .menu-wrap { position: relative; align-self: center; }
     .card {
-      margin-top: 18px;
-      padding: 14px 16px;
+      margin-top: 12px;
+      padding: 12px 14px;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
-      border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
     }
-    .card h2 { margin: 0 0 8px; font-size: 0.95rem; }
+    .card h2 { margin: 0 0 6px; font-size: 0.9rem; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
     .status { margin-top: 12px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
@@ -160,9 +158,9 @@ export class HomePage extends LitElement {
       background: var(--md-sys-color-surface-container); padding: 10px; border-radius: 8px;
     }
     .create {
-      margin-top: 16px; padding: 16px; border-radius: var(--md-sys-shape-corner-large);
+      margin-top: 12px; padding: 14px; border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
-      border: 1px solid var(--md-sys-color-outline-variant);
+      box-shadow: var(--md-sys-elevation-1);
     }
     input, select {
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -294,7 +292,7 @@ export class HomePage extends LitElement {
     }
     this.busy = true;
     try {
-      const name = this.newName.trim() || `我的世界 ${this.newVersion}`;
+      const name = this.newName.trim() || playerVersionLabel(this.newVersion, this.newLoader);
       const inst = await createInstance(
         name,
         this.newVersion,
@@ -307,7 +305,7 @@ export class HomePage extends LitElement {
       }
       await this.onSelect(inst.id);
       this.showCreate = false;
-      showToast(`已添加「${inst.name}」`);
+      showToast(`已添加「${instancePlayerLabel(inst)}」`);
       await this.boot();
     } catch (e) {
       showToast(e instanceof Error ? e.message : String(e));
@@ -334,11 +332,12 @@ export class HomePage extends LitElement {
     const ver = versionId(f.version);
     const ready = !!f.version_ready;
     const playLabel = ready ? "启动游戏" : "安装并启动";
-    const sub = `${f.name} · ${loaderLabel(f.loader)} ${ver}${acc ? ` · ${acc.username}` : ""}`;
+    const verLabel = instancePlayerLabel(f);
+    const sub = acc ? `${verLabel} · ${acc.username}` : verLabel;
     const pct = this.progress?.percent;
     return html`
       <h1>准备好了就开玩</h1>
-      <p class="sub">选好版本和账户，点下面按钮进入 Minecraft。</p>
+      <p class="sub">选好版本，点下面按钮进入 Minecraft。账户在设置里改。</p>
 
       <div class="launch-row">
         <button class="play" type="button" ?disabled=${this.busy} @click=${() => this.onPlay()}>
@@ -352,7 +351,7 @@ export class HomePage extends LitElement {
             .value=${f.id}
             @change=${(e: Event) => this.onSelect((e.target as HTMLSelectElement).value)}
           >
-            ${this.instances.map((i) => html`<option value=${i.id}>${i.name}</option>`)}
+            ${this.instances.map((i) => html`<option value=${i.id}>${instancePlayerLabel(i)}</option>`)}
           </select>
           <div class="menu-wrap">
             <button
@@ -405,15 +404,6 @@ export class HomePage extends LitElement {
           </div>`
         : nothing}
 
-      <div class="card">
-        <h2>当前账户</h2>
-        ${acc
-          ? html`<p class="muted">游戏里显示为 <strong>${acc.username}</strong>（${acc.kind === "microsoft" ? "正版" : "离线"}）</p>
-              <button class="ghost" type="button" @click=${() => this.go("settings")}>更换账户</button>`
-          : html`<p class="muted">还没有账户。</p>
-              <button class="primary" type="button" @click=${() => this.go("settings")}>去添加账户</button>`}
-      </div>
-
       ${this.showLogs
         ? html`<div class="card"><h2>启动日志</h2><pre class="logs">${this.logs.join("\n") || "（暂无）"}</pre></div>`
         : nothing}
@@ -431,7 +421,7 @@ export class HomePage extends LitElement {
       <div class="create">
         <h2 style="margin-top:0">添加版本</h2>
         <div class="row" style="margin-bottom:8px">
-          <input placeholder="名字（可选）" .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} />
+          <input placeholder="自定义名称（可选，启动页仍显示版本·加载器）" .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} />
           <select .value=${this.newLoader} @change=${(e: Event) => { this.newLoader = (e.target as HTMLSelectElement).value as LoaderId; void this.refreshLoaderVersions(); }}>
             <option value="vanilla">原版</option>
             <option value="fabric">Fabric</option>

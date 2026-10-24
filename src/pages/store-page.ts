@@ -117,16 +117,16 @@ export class StorePage extends LitElement {
     .warn {
       padding: 12px 16px;
       border-radius: var(--md-sys-shape-corner-large);
-      background: #fff3e0;
-      color: #e65100;
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
       margin-bottom: 12px;
       line-height: 1.45;
     }
     .err {
       padding: 12px 16px;
       border-radius: var(--md-sys-shape-corner-large);
-      background: #ffebee;
-      color: #b71c1c;
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
       margin-bottom: 12px;
     }
     .progress-card {
@@ -215,13 +215,13 @@ export class StorePage extends LitElement {
     .cf-box {
       padding: 12px 14px;
       border-radius: var(--md-sys-shape-corner-large);
-      background: #fff8e1;
-      border: 1px solid #ffe082;
+      background: var(--md-sys-color-warning-container);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-warning) 35%, transparent);
       margin-bottom: 12px;
       line-height: 1.45;
     }
     .cf-box a {
-      color: #e65100;
+      color: var(--md-sys-color-on-warning-container);
     }
     .cf-box .row {
       display: flex;

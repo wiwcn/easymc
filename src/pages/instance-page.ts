@@ -26,7 +26,7 @@ import {
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
 import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
-import { loaderLabel, versionId, versionType } from "../types";
+import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
@@ -63,8 +63,8 @@ export class InstancePage extends LitElement {
 
   static styles = css`
     :host { display: block; }
-    h1 { font-size: 1.35rem; font-weight: 650; margin: 8px 0 4px; letter-spacing: -0.02em; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; margin-bottom: 16px; }
+    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
+    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 12px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
     button, select, input {
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -105,9 +105,8 @@ export class InstancePage extends LitElement {
     .menu-panel {
       position: absolute; right: 0; top: 100%; z-index: 10; min-width: 180px;
       background: var(--md-sys-color-surface-container-lowest);
-      border: 1px solid var(--md-sys-color-outline-variant);
       border-radius: var(--md-sys-shape-corner-medium);
-      box-shadow: 0 4px 12px rgba(0,0,0,.12); padding: 6px;
+      box-shadow: var(--md-sys-elevation-2); padding: 6px;
       display: flex; flex-direction: column;
     }
     .menu-panel button { border: none; background: transparent; text-align: left; border-radius: 6px; padding: 8px 10px; }
@@ -249,12 +248,15 @@ export class InstancePage extends LitElement {
 
   private renderRow(i: InstanceDto) {
     const ver = versionId(i.version);
+    const label = instancePlayerLabel(i);
+    const custom = (i.name || "").trim();
+    const showCustom = custom && custom !== label && !custom.startsWith(ver);
     return html`
       <div class="row-item ${i.id === this.activeId ? "active" : ""}" @click=${() => this.openDetail(i.id)}>
-        <div class="icon" aria-hidden="true">${(i.name || "?").slice(0, 1)}</div>
+        <div class="icon" aria-hidden="true">${ver.slice(0, 1) || "?"}</div>
         <div class="meta">
-          <div class="name">${i.name}</div>
-          <div class="info">${loaderLabel(i.loader)} ${ver}${i.version_ready ? "" : " · 未安装"} · ${i.category ?? "未分类"}</div>
+          <div class="name">${label}</div>
+          <div class="info">${showCustom ? `${custom} · ` : ""}${i.version_ready ? "已安装" : "未安装"} · ${i.category ?? "未分类"}</div>
         </div>
         <div class="menu-wrap" @click=${(e: Event) => e.stopPropagation()}>
           <button type="button" class="ghost" title="操作" @click=${() => (this.menuFor = this.menuFor === i.id ? null : i.id)}>⋮</button>
@@ -301,8 +303,8 @@ export class InstancePage extends LitElement {
     ];
     return html`
       <button class="ghost back" type="button" @click=${() => (this.detailId = null)}>← 返回列表</button>
-      <h1>${d.name}</h1>
-      <p class="sub">${loaderLabel(d.loader)} ${versionId(d.version)}${d.loader_version ? ` · ${d.loader_version}` : ""}</p>
+      <h1>${instancePlayerLabel(d)}</h1>
+      <p class="sub">${(d.name || "").trim() && (d.name || "").trim() !== instancePlayerLabel(d) ? `${d.name} · ` : ""}${d.loader_version ? `加载器 ${d.loader_version} · ` : ""}管理模组、世界与导出</p>
       <div class="tabs">
         ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
@@ -315,7 +317,7 @@ export class InstancePage extends LitElement {
       case "settings":
         return html`<div class="panel">
           <h2>游戏设置</h2>
-          <div class="field"><label>名称</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>自定义名称（可选）</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 整合包…" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>游戏内存（MB，空白=用全局）</label><input type="number" min="512" placeholder="例如 4096" .value=${this.memDraft} @input=${(e: Event) => (this.memDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>Java 路径（可选）</label><input placeholder="留空则自动选择" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
@@ -455,7 +457,7 @@ export class InstancePage extends LitElement {
       <label class="muted"><input type="checkbox" .checked=${this.alsoInstall} @change=${(e: Event) => (this.alsoInstall = (e.target as HTMLInputElement).checked)} /> 添加后立刻安装</label>
       <div style="margin-top:10px;display:flex;gap:8px">
         <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
-          const inst = await createInstance(this.newName.trim() || `我的世界 ${this.newVersion}`, this.newVersion, this.newLoader, this.newLoader === "vanilla" ? null : this.newLoaderVersion || null);
+          const inst = await createInstance(this.newName.trim() || playerVersionLabel(this.newVersion, this.newLoader), this.newVersion, this.newLoader, this.newLoader === "vanilla" ? null : this.newLoaderVersion || null);
           if (this.alsoInstall) {
             if (this.newLoader === "vanilla") await installVersion(this.newVersion, true);
             else await installLoaderVersion(this.newVersion, this.newLoader, this.newLoaderVersion || null, true);

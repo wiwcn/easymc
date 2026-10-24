@@ -29,8 +29,8 @@ export class SettingsPage extends LitElement {
 
   static styles = css`
     :host { display: block; max-width: 720px; }
-    h1 { font-size: 1.35rem; font-weight: 650; margin: 8px 0 4px; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; margin-bottom: 14px; }
+    h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 2px; }
+    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin: 0 0 12px; }
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
     .tabs button {
       border: none; background: transparent; cursor: pointer;

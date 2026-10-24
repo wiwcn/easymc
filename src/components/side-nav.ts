@@ -41,7 +41,7 @@ export class SideNav extends LitElement {
       display: flex;
       flex-direction: column;
       width: var(--easymc-nav-width);
-      padding: 20px 12px;
+      padding: 16px 10px;
       background: var(--md-sys-color-surface-container-low);
       border-right: 1px solid var(--md-sys-color-outline-variant);
       flex-shrink: 0;
@@ -59,7 +59,7 @@ export class SideNav extends LitElement {
       border: none;
       background: transparent;
       color: var(--md-sys-color-on-surface-variant);
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       cursor: pointer;
       font-size: 0.95rem;

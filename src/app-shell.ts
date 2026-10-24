@@ -39,10 +39,10 @@ export class EasyMcApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 28px;
-      min-height: 56px;
+      padding: 8px 24px;
+      min-height: 48px;
       border-bottom: 1px solid
-        color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+        color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
     }
     .brand {
       display: flex;
@@ -65,7 +65,7 @@ export class EasyMcApp extends LitElement {
     .content {
       flex: 1;
       overflow: auto;
-      padding: 8px 28px 28px;
+      padding: 12px 24px 24px;
     }
     .page {
       animation: page-in var(--easymc-dur-page) var(--easymc-ease-out) both;
@@ -99,6 +99,12 @@ export class EasyMcApp extends LitElement {
     const s = await getSettings();
     this.onboarded = !!s.onboarding_complete;
     this.mode = s.mode === "agent" ? "agent" : "standard";
+    const navParam = new URLSearchParams(location.search).get("nav");
+    const navAlias: Record<string, NavId> = { instance: "instances", library: "instances", store: "download" };
+    const nav = (navAlias[navParam ?? ""] ?? navParam) as NavId | null;
+    if (nav && ["home", "download", "instances", "multiplayer", "settings", "more", "agent"].includes(nav)) {
+      this.route = nav;
+    }
     this.ready = true;
   }
 

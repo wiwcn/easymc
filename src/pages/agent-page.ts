@@ -58,8 +58,8 @@ export class AgentPage extends LitElement {
       margin-left: 8px;
     }
     .badge.on {
-      background: #c8e6c9;
-      color: #1b5e20;
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
     }
     .row {
       display: flex;
@@ -137,10 +137,10 @@ export class AgentPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
     }
     .card.error {
-      border-color: #e57373;
+      border-color: var(--md-sys-color-error);
     }
     .card.warn {
-      border-color: #ffb74d;
+      border-color: var(--md-sys-color-warning);
     }
     .card h3 {
       margin: 0 0 6px;
@@ -220,7 +220,7 @@ export class AgentPage extends LitElement {
       padding: 6px 10px;
     }
     .err {
-      color: #c62828;
+      color: var(--md-sys-color-error);
       margin: 8px 0;
     }
   `;

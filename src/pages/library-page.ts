@@ -146,12 +146,12 @@ export class LibraryPage extends LitElement {
       background: var(--md-sys-color-surface-container-highest);
     }
     .badge.ok {
-      background: #c8e6c9;
-      color: #1b5e20;
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
     }
     .badge.warn {
-      background: #ffe0b2;
-      color: #e65100;
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
     }
     .badge.def {
       background: var(--md-sys-color-primary);
@@ -269,8 +269,8 @@ export class LibraryPage extends LitElement {
       box-shadow: var(--md-sys-elevation-1);
     }
     .progress-card.error {
-      border: 1px solid #ef9a9a;
-      background: #ffebee;
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-error) 40%, transparent);
+      background: var(--md-sys-color-error-container);
     }
     .progress-head {
       display: flex;
@@ -295,12 +295,12 @@ export class LibraryPage extends LitElement {
     .bar > i {
       display: block;
       height: 100%;
-      background: linear-gradient(90deg, #4db6ac, #0f766e);
+      background: var(--md-sys-color-primary);
       border-radius: 999px;
       transition: width 160ms ease;
     }
     .bar.error > i {
-      background: #c62828;
+      background: var(--md-sys-color-error);
     }
     .progress-detail {
       margin-top: 8px;
@@ -334,9 +334,9 @@ export class LibraryPage extends LitElement {
       cursor: pointer;
     }
     .chip.on {
-      background: #0f766e;
-      color: #fff;
-      border-color: #0f766e;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border-color: var(--md-sys-color-primary);
     }
     .field {
       display: flex;

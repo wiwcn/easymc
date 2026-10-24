@@ -103,6 +103,16 @@ export function loaderLabel(loader: string): string {
   }
 }
 
+/** Player-facing primary label: `1.21.1 · Fabric` / `1.21.1 · 原版` (not custom display names). */
+export function playerVersionLabel(mcVersion: string, loader: string): string {
+  const ver = (mcVersion || "").trim() || "?";
+  return `${ver} · ${loaderLabel(loader)}`;
+}
+
+export function instancePlayerLabel(i: { version: InstanceDto["version"]; loader: string }): string {
+  return playerVersionLabel(versionId(i.version), i.loader);
+}
+
 export type ModSourceId = "modrinth" | "curseforge";
 
 export interface ModProjectDto {
