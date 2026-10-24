@@ -270,7 +270,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>Java 运行环境</h2>
         <p>
-          开玩 Minecraft 需要 Java。本机没有也没关系——点一次即可自动下载合适版本并交给 EasyMC 使用，无需自己安装或改系统设置。
+          开玩 Minecraft 需要 Java。首次启动的「准备开玩环境」也会配置它；这里可随时再检查或重新下载。本机没有也没关系——点一次即可自动下载合适版本并交给 EasyMC 使用。
         </p>
         <div class=${ready ? "java-ok" : "java-warn"}>${this.javaStatus || (ready && best ? `已就绪：Java ${best.major}` : "尚未检测到可用的 Java")}</div>
         ${best
