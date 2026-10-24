@@ -311,6 +311,9 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「已装模组」/ list_installed_mods — 列出当前版本 mods；\
 · 「推荐模组 科技|魔法|生存|性能」/ suggest_mods — 按主题推荐互补模组；\
 · 「制作整合包」/ create_modpack — 从当前版本导出 Modrinth `.mrpack` 整合包；\
+· 「导入整合包 <路径>」/ import_mrpack — 把本地 `.mrpack` 装成新版本；\
+· 「禁用/启用 <模组>」/ toggle_mod — 启用或禁用模组；\
+· 「版本列表」/ list_instances — 列出已装版本；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
 不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
 }
@@ -387,6 +390,43 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
                 "name": "create_modpack",
                 "description": "从当前版本导出 Modrinth .mrpack 整合包（可被 Prism / Modrinth App 打开）。",
                 "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "toggle_mod",
+                "description": "按文件名关键词启用或禁用当前版本的模组（.jar ↔ .jar.disabled）。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "模组文件名关键词" },
+                        "enable": { "type": "boolean", "description": "true=启用，false=禁用；省略则切换" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_instances",
+                "description": "列出已安装的游戏版本。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "import_mrpack",
+                "description": "导入本地 Modrinth .mrpack（或 EasyMC 分享包）为新版本。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": ".mrpack / .zip / .json 路径" }
+                    },
+                    "required": ["path"]
+                }
             }
         },
         {
@@ -471,6 +511,39 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
             format!("推荐模组 {zh}")
         }
         "create_modpack" | "build_pack" | "export_modpack" => "制作整合包".into(),
+        "import_mrpack" | "import_modpack" => {
+            let path = args
+                .get("path")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if path.is_empty() {
+                "导入整合包".into()
+            } else {
+                format!("导入整合包 {path}")
+            }
+        }
+        "toggle_mod" | "enable_mod" | "disable_mod" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            let enable = args.get("enable").and_then(|x| x.as_bool());
+            let verb = match enable {
+                Some(true) => "启用",
+                Some(false) => "禁用",
+                None => "切换模组",
+            };
+            if q.is_empty() {
+                format!("{verb}")
+            } else if enable.is_none() {
+                format!("切换模组 {q}")
+            } else {
+                format!("{verb} {q}")
+            }
+        }
+        "list_instances" | "list_versions" => "版本列表".into(),
         "ensure_java" => {
             let major = args.get("major").and_then(|x| x.as_u64()).unwrap_or(21);
             format!("确保 Java {major}")

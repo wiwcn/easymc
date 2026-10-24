@@ -25,6 +25,17 @@ pub enum Intent {
     OpenInstanceDir { instance_id: Option<String> },
     /// List jars in instance mods/ (player: 已装模组 / 检查模组).
     CheckMods { instance_id: Option<String> },
+    /// Enable / disable a mod jar (PCL/HMCL-style rename).
+    ToggleMod {
+        query: String,
+        /// Some(true)=enable, Some(false)=disable, None=flip.
+        enable: Option<bool>,
+        instance_id: Option<String>,
+    },
+    /// List installed instances / versions.
+    ListInstances,
+    /// Import a local Modrinth `.mrpack` (or EasyMC share) into a new version.
+    ImportMrpack { path: String },
     /// Search Modrinth (+ CF if key) without installing — structured hits for agent cite / InstallMod.
     SearchMods { query: String },
     /// Suggest complementary popular mods for a pack theme via Modrinth.
@@ -356,6 +367,121 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
+
+    // toggle / enable / disable mod
+    let toggle_enable_keys = ["启用模组", "开启模组", "打开模组", "enable mod", "enablemod"];
+    let toggle_disable_keys = ["禁用模组", "关闭模组", "停用模组", "disable mod", "disablemod"];
+    let toggle_flip_keys = ["切换模组", "toggle mod", "togglemod"];
+    for (keys, enable) in [
+        (&toggle_enable_keys[..], Some(true)),
+        (&toggle_disable_keys[..], Some(false)),
+        (&toggle_flip_keys[..], None),
+    ] {
+        for k in keys {
+            if t.contains(k) {
+                let idx = t.find(k).unwrap_or(0) + k.len();
+                let mut q = t[idx..].trim().trim_start_matches(['：', ':', ' ']).to_string();
+                if q.is_empty() {
+                    q = extract_mod_query(&t).unwrap_or_default();
+                }
+                return IntentResult {
+                    intent: Intent::ToggleMod {
+                        query: q,
+                        enable,
+                        instance_id: None,
+                    },
+                    confidence: 0.92,
+                    matched: (*k).into(),
+                    reply_zh: "正在改模组启用状态…".into(),
+                };
+            }
+        }
+    }
+    for (prefix, enable) in [
+        ("禁用 ", Some(false)),
+        ("启用 ", Some(true)),
+        ("disable ", Some(false)),
+        ("enable ", Some(true)),
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty()
+                && !q.contains("模组")
+                && !q.contains("内存")
+                && !q.contains("java")
+                && q.len() < 80
+            {
+                return IntentResult {
+                    intent: Intent::ToggleMod {
+                        query: q,
+                        enable,
+                        instance_id: None,
+                    },
+                    confidence: 0.85,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在改模组启用状态…".into(),
+                };
+            }
+        }
+    }
+
+    let list_inst_keys = [
+        "版本列表",
+        "列出版本",
+        "有哪些版本",
+        "已装版本",
+        "实例列表",
+        "list instances",
+        "list versions",
+        "我的版本",
+    ];
+    for k in list_inst_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::ListInstances,
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在列出已安装版本…".into(),
+            };
+        }
+    }
+
+    let import_keys = [
+        "导入整合包",
+        "安装整合包",
+        "导入 mrpack",
+        "导入.mrpack",
+        "import modpack",
+        "import mrpack",
+        "install mrpack",
+    ];
+    for k in import_keys {
+        if t.contains(k) {
+            let path = extract_log_path(&raw)
+                .or_else(|| extract_log_path(&t))
+                .or_else(|| {
+                    t.split_whitespace()
+                        .rev()
+                        .find(|w| {
+                            let wl = w.to_ascii_lowercase();
+                            wl.contains('.')
+                                && (w.contains('/')
+                                    || w.contains('\\')
+                                    || wl.ends_with("mrpack")
+                                    || wl.ends_with(".zip"))
+                        })
+                        .map(|s| s.trim_matches(|c| c == '"' || c == '\'').to_string())
+                })
+                .unwrap_or_default();
+            return IntentResult {
+                intent: Intent::ImportMrpack { path },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在导入整合包…".into(),
+            };
+        }
+    }
+
     // check mods
     let mods_keys = [
         "检查模组",
@@ -645,7 +771,10 @@ pub fn help_text() -> String {
 · 「搜模组 sodium」— 在 Modrinth 搜索，给你可选列表（再说「装 xxx」安装）
 · 「推荐模组 科技」— 按生存 / 科技 / 魔法等主题推荐互补模组
 · 「检查模组」/「已装模组」— 列出当前版本已装模组
-· 「制作整合包」— 从当前版本导出可分享的整合包草稿
+· 「禁用 sodium」/「启用 iris」— 启用或禁用模组（改名 .jar.disabled）
+· 「版本列表」— 看看已安装了哪些版本
+· 「导入整合包 /path/to/pack.mrpack」— 把本地 .mrpack 装成新版本
+· 「制作整合包」— 从当前版本导出 Modrinth .mrpack 整合包
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
 · 「优化配置」— 生成内存 / JVM 建议更改，你确认后再应用
 · 「切换 BMCLAPI 加速」— 换国内镜像下载
@@ -682,6 +811,18 @@ mod tests {
         }
         assert!(matches!(route("制作整合包").intent, Intent::BuildPack { .. }));
         assert!(matches!(route("已装模组").intent, Intent::CheckMods { .. }));
+        match route("禁用 sodium").intent {
+            Intent::ToggleMod { query, enable, .. } => {
+                assert!(query.contains("sodium"));
+                assert_eq!(enable, Some(false));
+            }
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(route("版本列表").intent, Intent::ListInstances));
+        match route("导入整合包 /tmp/demo.mrpack").intent {
+            Intent::ImportMrpack { path } => assert!(path.contains("mrpack")),
+            other => panic!("{:?}", other),
+        }
     }
 
     #[test]

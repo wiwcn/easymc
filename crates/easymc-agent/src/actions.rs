@@ -324,3 +324,264 @@ pub fn env_status_summary(paths: &Paths, instance_id: Option<&str>) -> ActionRes
         })),
     }
 }
+
+
+/// Enable or disable a mod jar by renaming `.jar` ↔ `.jar.disabled` (PCL/HMCL-style).
+/// `query` matches substring of filename (case-insensitive). `enable`: Some(true/false) or None to flip.
+pub fn toggle_mod(
+    paths: &Paths,
+    instance_id: Option<&str>,
+    query: &str,
+    enable: Option<bool>,
+) -> ActionResult {
+    let q = query.trim();
+    if q.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: "请告诉我模组文件名关键词，例如「禁用 sodium」或「启用 iris」。".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "toggle_mod".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: "还没有选版本。请先在启动页或助手顶部选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let mods_dir = PathBuf::from(&inst.game_dir).join("mods");
+    if !mods_dir.is_dir() {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!("版本「{}」还没有 mods 文件夹。", inst.name),
+            path: Some(mods_dir.display().to_string()),
+            value: None,
+        };
+    }
+    let q_l = q.to_ascii_lowercase();
+    let mut hits: Vec<PathBuf> = Vec::new();
+    if let Ok(rd) = fs::read_dir(&mods_dir) {
+        for ent in rd.flatten() {
+            let name = ent.file_name().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            if !(lower.ends_with(".jar") || lower.ends_with(".jar.disabled")) {
+                continue;
+            }
+            if lower.contains(&q_l) {
+                hits.push(ent.path());
+            }
+        }
+    }
+    hits.sort();
+    if hits.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!(
+                "在「{}」的模组里没找到包含「{q}」的文件。可以说「已装模组」先看列表。",
+                inst.name
+            ),
+            path: Some(mods_dir.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "query": q,
+            })),
+        };
+    }
+    if hits.len() > 1 {
+        let names: Vec<String> = hits
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        let preview = names.iter().take(8).cloned().collect::<Vec<_>>().join("\n");
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!(
+                "找到多个匹配「{q}」的模组，请说得更具体一点：\n{preview}"
+            ),
+            path: Some(mods_dir.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "query": q,
+                "matches": names,
+            })),
+        };
+    }
+    let src = &hits[0];
+    let name = src.file_name().unwrap().to_string_lossy().to_string();
+    let lower = name.to_ascii_lowercase();
+    let currently_disabled = lower.ends_with(".jar.disabled");
+    let want_enable = enable.unwrap_or(currently_disabled);
+    if want_enable && !currently_disabled {
+        return ActionResult {
+            ok: true,
+            action: "toggle_mod".into(),
+            message_zh: format!("「{name}」本来就是启用状态，不用改。"),
+            path: Some(src.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "filename": name,
+                "enabled": true,
+                "changed": false,
+            })),
+        };
+    }
+    if !want_enable && currently_disabled {
+        return ActionResult {
+            ok: true,
+            action: "toggle_mod".into(),
+            message_zh: format!("「{name}」本来就是禁用状态，不用改。"),
+            path: Some(src.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "filename": name,
+                "enabled": false,
+                "changed": false,
+            })),
+        };
+    }
+    let dest_name = if want_enable {
+        name.trim_end_matches(".disabled").to_string()
+    } else {
+        format!("{name}.disabled")
+    };
+    let dest = mods_dir.join(&dest_name);
+    if dest.exists() {
+        return ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!("目标文件已存在：{dest_name}，没法改名。"),
+            path: Some(mods_dir.display().to_string()),
+            value: None,
+        };
+    }
+    match fs::rename(src, &dest) {
+        Ok(()) => {
+            let verb = if want_enable { "已启用" } else { "已禁用" };
+            ActionResult {
+                ok: true,
+                action: "toggle_mod".into(),
+                message_zh: format!(
+                    "{verb}模组「{dest_name}」（版本「{}」）。下次启动游戏生效。",
+                    inst.name
+                ),
+                path: Some(dest.display().to_string()),
+                value: Some(serde_json::json!({
+                    "instance_id": inst.id,
+                    "instance_name": inst.name,
+                    "filename": dest_name,
+                    "previous": name,
+                    "enabled": want_enable,
+                    "changed": true,
+                })),
+            }
+        }
+        Err(e) => ActionResult {
+            ok: false,
+            action: "toggle_mod".into(),
+            message_zh: format!("改名失败：{e}"),
+            path: Some(src.display().to_string()),
+            value: None,
+        },
+    }
+}
+
+/// Summarize installed versions for the agent card (PCL-style quick glance).
+pub fn list_instances(paths: &Paths) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "list_instances".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    if store.instances.is_empty() {
+        return ActionResult {
+            ok: true,
+            action: "list_instances".into(),
+            message_zh: "还没有安装任何版本。去「下载」页装一个原版或加载器版本吧。".into(),
+            path: None,
+            value: Some(serde_json::json!({ "count": 0, "instances": [] })),
+        };
+    }
+    let active = store.active_id.clone();
+    let mut lines = Vec::new();
+    let mut items = Vec::new();
+    for inst in &store.instances {
+        let mark = if Some(&inst.id) == active.as_ref() {
+            "★ "
+        } else {
+            ""
+        };
+        let loader = inst.loader.as_str();
+        let line = format!(
+            "{mark}{} · {} · {}",
+            inst.name,
+            inst.version.0,
+            loader
+        );
+        lines.push(line);
+        items.push(serde_json::json!({
+            "id": inst.id,
+            "name": inst.name,
+            "version": inst.version.0,
+            "loader": loader,
+            "active": Some(&inst.id) == active.as_ref(),
+        }));
+    }
+    ActionResult {
+        ok: true,
+        action: "list_instances".into(),
+        message_zh: format!(
+            "已安装 {} 个版本（★ 为当前）：\n{}",
+            store.instances.len(),
+            lines.join("\n")
+        ),
+        path: None,
+        value: Some(serde_json::json!({
+            "count": store.instances.len(),
+            "active_id": active,
+            "instances": items,
+        })),
+    }
+}

@@ -79,6 +79,9 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_instance_dir" => ("打开版本文件夹", Some("文件")),
         "show_data_dir" => ("数据目录", Some("文件")),
         "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
+        "toggle_mod" | "enable_mod" | "disable_mod" => ("启用/禁用模组", Some("模组")),
+        "list_instances" | "list_versions" => ("版本列表", Some("版本")),
+        "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
         "diagnose" | "analyze_crash_log" | "analyze_launch_log" => ("查看崩溃", Some("诊断")),
@@ -203,6 +206,33 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("count", "模组数", format!("{c}")));
             }
         }
+        "toggle_mod" | "enable_mod" | "disable_mod" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(f) = v.get("filename").and_then(|x| x.as_str()) {
+                out.push(arg("mod", "模组", f));
+            }
+            if let Some(q) = v.get("query").and_then(|x| x.as_str()) {
+                out.push(arg("query", "关键词", q));
+            }
+            if let Some(e) = v.get("enabled").and_then(|x| x.as_bool()) {
+                out.push(arg("enabled", "状态", if e { "启用" } else { "禁用" }));
+            }
+        }
+        "list_instances" | "list_versions" => {
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "版本数", format!("{c}")));
+            }
+        }
+        "import_mrpack" | "import_modpack" => {
+            if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
+                out.push(arg("path", ".mrpack", p));
+            }
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "新版本", n));
+            }
+        }
         "build_pack" => {
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "版本", n));
@@ -271,12 +301,23 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
                 acts.push(ui("run_diagnose", "查看崩溃"));
             }
         }
-        "build_pack" | "diagnostics" if ok => {
-            acts.push(ui("reveal_path", if name == "build_pack" {
-                "打开整合包位置"
-            } else {
-                "打开报告位置"
-            }));
+        "build_pack" | "import_mrpack" | "diagnostics" if ok => {
+            acts.push(ui(
+                "reveal_path",
+                if name == "build_pack" {
+                    "打开整合包位置"
+                } else if name == "import_mrpack" {
+                    "打开版本文件夹"
+                } else {
+                    "打开报告位置"
+                },
+            ));
+        }
+        "toggle_mod" if ok => {
+            acts.push(ui("run_check_mods", "再看模组列表"));
+        }
+        "list_instances" if ok => {
+            acts.push(ui("open_home", "去启动页"));
         }
         _ => {}
     }

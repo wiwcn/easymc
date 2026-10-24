@@ -3,8 +3,8 @@
 use easymc_core::{load_settings, Paths, Result};
 
 use crate::actions::{
-    bump_memory, check_mods, env_status_summary, set_download_source, show_data_dir,
-    show_instance_dir, suggest_memory_text, write_diagnostic_bundle, ActionResult,
+    bump_memory, check_mods, env_status_summary, list_instances, set_download_source, show_data_dir,
+    show_instance_dir, suggest_memory_text, toggle_mod, write_diagnostic_bundle, ActionResult,
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
@@ -231,6 +231,47 @@ pub async fn execute_intent(
             let id = iid.clone().or(instance_id);
             let ar = check_mods(paths, id.as_deref());
             Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::ToggleMod {
+            query,
+            enable,
+            instance_id: iid,
+        } => {
+            let id = iid.clone().or(instance_id);
+            let ar = toggle_mod(paths, id.as_deref(), query, *enable);
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::ListInstances => {
+            let ar = list_instances(paths);
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::ImportMrpack { path } => {
+            let path = path.trim().to_string();
+            if path.is_empty() {
+                Ok((
+                    "请带上整合包路径，例如：导入整合包 /path/to/pack.mrpack".into(),
+                    None,
+                    Some(ActionResult {
+                        ok: false,
+                        action: "import_mrpack".into(),
+                        message_zh: "缺少 .mrpack 路径".into(),
+                        path: None,
+                        value: None,
+                    }),
+                ))
+            } else {
+                Ok((
+                    format!("正在导入整合包：{path} …"),
+                    None,
+                    Some(ActionResult {
+                        ok: true,
+                        action: "import_mrpack".into(),
+                        message_zh: "导入整合包".into(),
+                        path: Some(path.clone()),
+                        value: Some(serde_json::json!({ "path": path })),
+                    }),
+                ))
+            }
         }
         Intent::ShowDataDir => {
             let ar = show_data_dir(paths);

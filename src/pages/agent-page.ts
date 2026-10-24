@@ -57,6 +57,13 @@ const TOOL_TITLES: Record<string, string> = {
   show_data_dir: "数据目录",
   check_mods: "已装模组",
   list_installed_mods: "已装模组",
+  toggle_mod: "启用/禁用模组",
+  enable_mod: "启用模组",
+  disable_mod: "禁用模组",
+  list_instances: "版本列表",
+  list_versions: "版本列表",
+  import_mrpack: "导入整合包",
+  import_modpack: "导入整合包",
   build_pack: "制作整合包",
   create_modpack: "制作整合包",
   export_modpack: "制作整合包",
@@ -1164,6 +1171,16 @@ ${extraContent}` : t.content,
     }
     if (actionId === "run_diagnose") {
       await this.onDiagnose();
+      return;
+    }
+    if (actionId === "run_check_mods") {
+      await this.onAsk("已装模组", runningTool("check_mods"));
+      return;
+    }
+    if (actionId === "open_home") {
+      this.dispatchEvent(
+        new CustomEvent("nav-change", { detail: "home", bubbles: true, composed: true }),
+      );
     }
   }
 
@@ -1672,6 +1689,14 @@ ${extraContent}` : t.content,
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>
               <span class="tool-copy"><strong>导出整合包</strong><span>制作当前版本 Modrinth .mrpack</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button
+              class="tool"
+              ?disabled=${this.busy}
+              @click=${() => this.onAsk("版本列表", runningTool("list_instances"))}
+            >
+              <span class="tool-copy"><strong>版本列表</strong><span>看看已安装了哪些版本</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>

@@ -1584,6 +1584,82 @@ async fn agent_ask(
                     });
                 }
             }
+        } else if action.action == "import_mrpack" {
+            let path = action
+                .path
+                .clone()
+                .or_else(|| {
+                    action
+                        .value
+                        .as_ref()
+                        .and_then(|v| v.get("path"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_default();
+            let path = path.trim().to_string();
+            if path.is_empty() {
+                let msg = "请带上整合包路径，例如：导入整合包 /path/to/pack.mrpack".to_string();
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "import_mrpack".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: None,
+                });
+            } else {
+                match import_instance(
+                    &state.paths,
+                    std::path::Path::new(&path),
+                    ImportOptions {
+                        name: None,
+                        apply_memory: false,
+                        offline: false,
+                    },
+                )
+                .await
+                {
+                    Ok(r) => {
+                        let msg = format!(
+                            "整合包已导入为新版本「{}」。
+模组：下载 {} / 覆盖 {}；缺 {}。
+{}",
+                            r.instance_name,
+                            r.mods_downloaded,
+                            r.mods_copied,
+                            r.mods_missing.len(),
+                            r.message_zh
+                        );
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: true,
+                            action: "import_mrpack".into(),
+                            message_zh: msg,
+                            path: Some(r.path_loaded.clone()),
+                            value: Some(serde_json::json!({
+                                "path": r.path_loaded,
+                                "instance_id": r.instance_id,
+                                "instance_name": r.instance_name,
+                                "mods_downloaded": r.mods_downloaded,
+                                "mods_copied": r.mods_copied,
+                                "mods_missing": r.mods_missing,
+                            })),
+                        });
+                    }
+                    Err(e) => {
+                        let msg = format!("导入整合包失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "import_mrpack".into(),
+                            message_zh: msg,
+                            path: Some(path),
+                            value: None,
+                        });
+                    }
+                }
+            }
         }
     }
     resp.tool = refresh_ask_tool(resp.action.as_ref(), resp.report.as_ref());
