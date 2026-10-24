@@ -9,6 +9,7 @@ import {
   agentLlmStatus,
   curseforgeConfigured,
   detectJava,
+  detectMinecraftDirs,
   ensureJavaInstall,
   getSettings,
   listenLogs,
@@ -16,6 +17,7 @@ import {
   setCurseforgeKey,
   updateSettings,
   type JavaInstallDto,
+  type MinecraftDirDto,
 } from "../api";
 import type { AppMode, CurseForgeStatusDto, LlmConfigViewDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
@@ -42,6 +44,7 @@ export class SettingsPage extends LitElement {
   @state() private llmBusy = false;
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
   @state() private javaList: JavaInstallDto[] = [];
+  @state() private mcDirs: MinecraftDirDto[] = [];
   @state() private javaBusy = false;
   @state() private javaStatus = "";
   @state() private javaLog = "";
@@ -136,6 +139,25 @@ export class SettingsPage extends LitElement {
         font-size: var(--easymc-type-meta);
         word-break: break-all;
       }
+      .mc-dirs {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+      .mc-dirs li {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 12px;
+        border-radius: var(--md-sys-shape-corner-medium);
+        background: var(--md-sys-color-surface-container-lowest);
+      }
+      .mc-tag {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: var(--easymc-type-meta);
+      }
     `,
   ];
 
@@ -165,7 +187,7 @@ export class SettingsPage extends LitElement {
   }
 
   private async refresh() {
-    const [s, cf, msa, dir, llm, llmCfg, javas] = await Promise.all([
+    const [s, cf, msa, dir, llm, llmCfg, javas, mcDirs] = await Promise.all([
       getSettings(),
       curseforgeConfigured(),
       msaStatus(),
@@ -173,6 +195,7 @@ export class SettingsPage extends LitElement {
       agentLlmStatus(),
       agentLlmConfigGet(),
       detectJava(),
+      detectMinecraftDirs(),
     ]);
     this.settings = s;
     this.mem = Math.min(MEM_MAX, Math.max(MEM_MIN, s.memory_mb ?? 2048));
@@ -185,6 +208,7 @@ export class SettingsPage extends LitElement {
     this.llmModel = llmCfg.model || "deepseek-chat";
     this.llmKey = "";
     this.javaList = javas;
+    this.mcDirs = mcDirs;
     if (!this.javaBusy) {
       const best = javas.find((j) => j.major >= 21) ?? javas[0];
       this.javaStatus = best
@@ -309,6 +333,22 @@ export class SettingsPage extends LitElement {
           </button>
         </div>
         ${this.javaLog ? html`<div class="java-log" aria-live="polite">${this.javaLog}</div>` : nothing}
+      </div>
+      <div class="card">
+        <h2>已有 Minecraft 文件夹</h2>
+        <p>
+          自动扫描本机已存在的 <code class="path">.minecraft</code> 目录（官方启动器、Flatpak 等），方便沿用里面的版本、存档与设置。
+        </p>
+        ${this.mcDirs.length
+          ? html`<ul class="mc-dirs">
+              ${this.mcDirs.map(
+                (d) => html`<li>
+                  <code class="path">${d.path}</code>
+                  <span class="mc-tag">${d.version_count} 个版本 · ${d.source}</span>
+                </li>`,
+              )}
+            </ul>`
+          : html`<div class="java-warn">未检测到已有的 Minecraft 文件夹。</div>`}
       </div>
       <div class="card">
         <h2>账户</h2>

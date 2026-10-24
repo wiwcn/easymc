@@ -34,9 +34,14 @@ import type {
 import { loaderLabel, versionType } from "../types";
 import { showToast } from "../toast";
 import { syncIndicator } from "../lib/indicator";
+import { loaderIcon } from "../loader-icons";
+import "../components/install-progress";
 import "../components/empty-state";
 
 type DlTab = "vanilla" | "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
+
+/** Loader builds are numerous (Forge can be 100+); preview this many as cards. */
+const LOADER_VER_PREVIEW = 24;
 
 @customElement("easymc-download-page")
 export class DownloadPage extends LitElement {
@@ -66,6 +71,7 @@ export class DownloadPage extends LitElement {
   @state() private loader: LoaderId = "vanilla";
   @state() private loaderVers: { version: string; stable: boolean }[] = [];
   @state() private loaderVer = "";
+  @state() private loaderVerExpanded = false;
   @state() private newName = "";
   @state() private busy = false;
   @state() private vanillaLoading = false;
@@ -264,16 +270,56 @@ export class DownloadPage extends LitElement {
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
     }
+    .badge-stable {
+      font-size: var(--easymc-type-meta); font-weight: 650;
+      padding: 2px 7px; border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
+    }
+    /* Selected card: the pick needs to be legible at a glance, so the fill (not
+       just the border) changes. */
+    button.ver-card.on, button.loader-card.on {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+    }
+    button.ver-card.on .vid, button.ver-card.on .meta { color: var(--md-sys-color-on-primary-container); }
+    .panel-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: var(--easymc-space-2); margin-bottom: var(--easymc-space-3);
+      font-size: var(--easymc-type-label); font-weight: 650;
+    }
+    /* Loader builds as cards: scrolls instead of stretching the page when a
+       loader ships hundreds of builds. */
+    .ver-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
+      gap: var(--easymc-space-2);
+      max-height: 268px; overflow-y: auto;
+      scrollbar-gutter: stable; padding-right: 4px; margin-right: -4px;
+    }
+    button.ver-card.lv {
+      padding: 10px 12px; gap: var(--easymc-space-2); justify-content: space-between;
+    }
+    button.ver-card.lv .vid {
+      font-size: var(--easymc-type-label); font-weight: 650; letter-spacing: 0;
+      font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Official loader marks: monochrome paths tinted per loader, sitting on a
+       matching wash so the tile still reads as a coloured chip. */
     .loader-ico {
       width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium); flex-shrink: 0;
-      display: grid; place-items: center; font-weight: 800; font-size: var(--easymc-type-label);
-      color: white; letter-spacing: -0.04em;
+      display: grid; place-items: center;
+      background: color-mix(in oklch, currentColor 14%, transparent);
+      border: 1px solid color-mix(in oklch, currentColor 28%, transparent);
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    .loader-ico.vanilla { background: var(--easymc-loader-vanilla); }
-    .loader-ico.fabric { background: var(--easymc-loader-fabric); }
-    .loader-ico.quilt { background: var(--easymc-loader-quilt); }
-    .loader-ico.forge { background: var(--easymc-loader-forge); }
-    .loader-ico.neoforge { background: var(--easymc-loader-neoforge); }
+    .loader-ico svg { width: 22px; height: 22px; display: block; }
+    .loader-ico.vanilla { color: oklch(0.55 0.12 148); }
+    .loader-ico.fabric { color: oklch(0.62 0.13 78); }
+    .loader-ico.quilt { color: oklch(0.6 0.14 305); }
+    .loader-ico.forge { color: oklch(0.48 0.03 68); }
+    .loader-ico.neoforge { color: oklch(0.6 0.14 38); }
+    button.loader-card:hover .loader-ico { background: color-mix(in oklch, currentColor 20%, transparent); }
     button.loader-card .lname { font-weight: 700; font-size: var(--easymc-type-body); }
     button.loader-card .ldesc {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
@@ -476,6 +522,7 @@ export class DownloadPage extends LitElement {
         <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" role="tab" aria-selected=${this.tab === t.id} @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
+      <easymc-install-progress .progress=${this.progress}></easymc-install-progress>
       ${this.tab === "vanilla" ? this.renderVanilla() : this.renderMarket()}
     `;
   }
@@ -483,13 +530,14 @@ export class DownloadPage extends LitElement {
   private renderVanilla() {
     const filtered = this.mcVersions.filter((v) => !this.filter || v.id.includes(this.filter));
     if (this.vanillaStep === "loader") {
-      const loaders: { id: LoaderId; name: string; desc: string; mark: string }[] = [
-        { id: "vanilla", name: "原版", desc: "纯净 Minecraft，不加模组加载器", mark: "MC" },
-        { id: "fabric", name: "Fabric", desc: "轻量模组加载器，更新快", mark: "F" },
-        { id: "quilt", name: "Quilt", desc: "Fabric 兼容分支", mark: "Q" },
-        { id: "forge", name: "Forge", desc: "经典模组加载器，大整合常用", mark: "Fg" },
-        { id: "neoforge", name: "NeoForge", desc: "Forge 后续，适合新版本", mark: "NF" },
+      const loaders: { id: LoaderId; name: string; desc: string }[] = [
+        { id: "vanilla", name: "原版", desc: "纯净 Minecraft，不加模组加载器" },
+        { id: "fabric", name: "Fabric", desc: "轻量模组加载器，更新快" },
+        { id: "quilt", name: "Quilt", desc: "Fabric 兼容分支" },
+        { id: "forge", name: "Forge", desc: "经典模组加载器，大整合常用" },
+        { id: "neoforge", name: "NeoForge", desc: "Forge 后续，适合新版本" },
       ];
+      const shown = this.loaderVerExpanded ? this.loaderVers : this.loaderVers.slice(0, LOADER_VER_PREVIEW);
       return html`
         <div class="crumb">
           <button type="button" @click=${() => { this.vanillaStep = "version"; this.loader = "vanilla"; this.loaderVer = ""; }}>← 重选版本</button>
@@ -500,12 +548,13 @@ export class DownloadPage extends LitElement {
         <div class="loader-grid" role="listbox" aria-label="加载器">
           ${loaders.map(
             (l) => html`<button
-              class="loader-card"
+              class="loader-card ${this.loader === l.id ? "on" : ""}"
               type="button"
               role="option"
+              aria-selected=${this.loader === l.id}
               @click=${() => this.pickLoader(l.id)}
             >
-              <span class="loader-ico ${l.id}" aria-hidden="true">${l.mark}</span>
+              <span class="loader-ico ${l.id}" aria-hidden="true">${loaderIcon(l.id)}</span>
               <span>
                 <div class="lname">${l.name}</div>
                 <div class="ldesc">${l.desc}</div>
@@ -515,11 +564,30 @@ export class DownloadPage extends LitElement {
         </div>
         ${this.loader !== "vanilla" && this.loaderVers.length
           ? html`<div class="loader-panel">
-              <div class="muted">加载器版本（${loaderLabel(this.loader)}）</div>
+              <div class="panel-head">
+                <span>加载器版本 · ${loaderLabel(this.loader)}</span>
+                <span class="muted">共 ${this.loaderVers.length} 个</span>
+              </div>
+              <div class="ver-cards" role="listbox" aria-label="加载器版本">
+                ${shown.map(
+                  (v) => html`<button
+                    class="ver-card lv ${this.loaderVer === v.version ? "on" : ""}"
+                    type="button"
+                    role="option"
+                    aria-selected=${this.loaderVer === v.version}
+                    @click=${() => (this.loaderVer = v.version)}
+                  >
+                    <span class="vid">${v.version}</span>
+                    ${v.stable ? html`<span class="badge-stable">稳定</span>` : nothing}
+                  </button>`,
+                )}
+              </div>
+              ${this.loaderVers.length > LOADER_VER_PREVIEW
+                ? html`<button class="back" type="button" @click=${() => (this.loaderVerExpanded = !this.loaderVerExpanded)}>
+                    ${this.loaderVerExpanded ? "收起" : `显示全部 ${this.loaderVers.length} 个`}
+                  </button>`
+                : nothing}
               <div class="row">
-                <select .value=${this.loaderVer} @change=${(e: Event) => (this.loaderVer = (e.target as HTMLSelectElement).value)}>
-                  ${this.loaderVers.map((v) => html`<option value=${v.version}>${v.version}${v.stable ? "（稳定）" : ""}</option>`)}
-                </select>
                 <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="版本名称（可选）" style="flex:1;min-width:140px" />
                 <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
                   ${this.busy ? "安装中…" : "安装并添加版本"}
@@ -541,7 +609,6 @@ export class DownloadPage extends LitElement {
                   title="咦？这个加载器好像还没版本…"
                   description="换个游戏版本或加载器再试试"
                 ></easymc-empty-state></div>`}
-        ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
       `;
     }
 
@@ -603,11 +670,13 @@ export class DownloadPage extends LitElement {
     this.loader = "vanilla";
     this.loaderVer = "";
     this.loaderVers = [];
+    this.loaderVerExpanded = false;
     this.vanillaStep = "loader";
   }
 
   private async pickLoader(id: LoaderId) {
     this.loader = id;
+    this.loaderVerExpanded = false;
     if (id === "vanilla") {
       this.loaderVers = [];
       this.loaderVer = "";
@@ -692,7 +761,6 @@ export class DownloadPage extends LitElement {
             ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block card-skel"></div>`)}
           </div>`
         : nothing}
-      ${this.progress && this.installingId ? html`<p class="muted">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
       <div class="market-grid">
         ${this.results.map((p) => this.renderCard(p))}
       </div>
