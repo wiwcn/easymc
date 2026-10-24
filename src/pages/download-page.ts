@@ -83,9 +83,10 @@ export class DownloadPage extends LitElement {
       flex-direction: column;
       flex: 1 0 auto;
       min-height: 100%;
-      max-width: 1100px;
       width: 100%;
       box-sizing: border-box;
+      /* Column width comes from the shell (.page > * in app-shell.ts), so every
+         page shares one measure instead of its own ad-hoc max-width. */
     }
     /* h1 / .sub → pageChromeStyles */
     /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
@@ -93,8 +94,8 @@ export class DownloadPage extends LitElement {
       display: flex; gap: var(--easymc-space-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-3);
     }
     .search {
-      flex: 1; min-width: 200px; display: flex; align-items: center; gap: var(--easymc-space-2);
-      padding: 10px 16px; border-radius: 999px;
+      flex: 1; min-width: min(200px, 100%); display: flex; align-items: center; gap: var(--easymc-space-2);
+      padding: 10px 16px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-surface-container-lowest);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
       /* CF-1: border only, no elevation */
@@ -128,29 +129,29 @@ export class DownloadPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
-      border-radius: 999px; padding: 8px 14px; font-size: var(--easymc-type-label);
+      border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; font-size: var(--easymc-type-label);
     }
     /* primary / ghost → controlStyles (CMP-1) */
     button.outline-dl {
       border: 1.5px solid var(--md-sys-color-primary);
       background: transparent; color: var(--md-sys-color-primary);
-      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: var(--easymc-type-label);
+      border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: var(--easymc-type-label);
     }
     .market-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
       gap: var(--easymc-space-3);
     }
     .card {
       display: flex; flex-direction: column; gap: var(--easymc-space-3); padding: var(--easymc-space-4);
-      border-radius: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       align-items: stretch; min-height: 0;
     }
     .card-top { display: flex; gap: var(--easymc-space-3); align-items: flex-start; }
     .card img, .card .ph {
-      width: 48px; height: 48px; border-radius: 12px; object-fit: cover;
+      width: 48px; height: 48px; border-radius: var(--md-sys-shape-corner-medium); object-fit: cover;
       background: var(--md-sys-color-primary-container); flex-shrink: 0;
     }
     .card .body { flex: 1; min-width: 0; }
@@ -161,7 +162,7 @@ export class DownloadPage extends LitElement {
     }
     .tags { display: flex; flex-wrap: wrap; gap: var(--easymc-space-2); margin-top: var(--easymc-space-2); }
     .tag {
-      font-size: var(--easymc-type-meta); font-weight: 600; padding: 2px 8px; border-radius: 999px;
+      font-size: var(--easymc-type-meta); font-weight: 600; padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
@@ -172,14 +173,14 @@ export class DownloadPage extends LitElement {
     /* .muted → pageChromeStyles */
     .market-skel {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
       gap: var(--easymc-space-3);
       margin-bottom: var(--easymc-space-3);
     }
-    .card-skel { height: 140px; border-radius: 16px; }
-    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--easymc-space-3); }
+    .card-skel { height: 140px; border-radius: var(--md-sys-shape-corner-large); }
+    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: var(--easymc-space-3); }
     .ver-expand-skel { display: flex; flex-direction: column; gap: var(--easymc-space-2); padding: var(--easymc-space-2) 0; }
-    .ver-skel { height: 72px; border-radius: 16px; }
+    .ver-skel { height: 72px; border-radius: var(--md-sys-shape-corner-large); }
     /* MI-3: in-place disclosure expands from the card's top edge (restrained). */
     .expand {
       transform-origin: top;
@@ -206,7 +207,7 @@ export class DownloadPage extends LitElement {
       min-height: 240px;
     }
     .panel {
-      padding: var(--easymc-space-4); border-radius: 18px;
+      padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }
@@ -228,13 +229,13 @@ export class DownloadPage extends LitElement {
     }
     .ver-grid, .loader-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
       gap: var(--easymc-space-3);
     }
     button.ver-card, button.loader-card {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
       display: flex; gap: var(--easymc-space-3); align-items: center;
-      padding: var(--easymc-space-4); border-radius: 16px;
+      padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
       /* CF-1: border only (selection affordance) */
@@ -247,6 +248,10 @@ export class DownloadPage extends LitElement {
       border-color: var(--md-sys-color-primary);
     }
     button.ver-card:active, button.loader-card:active { transform: scale(0.985); }
+    button.ver-card:focus-visible, button.loader-card:focus-visible {
+      outline: none; border-color: var(--md-sys-color-primary);
+      box-shadow: var(--easymc-focus-ring);
+    }
     button.ver-card .vid {
       font-weight: 700; font-size: var(--easymc-type-title); letter-spacing: -0.02em;
     }
@@ -255,12 +260,12 @@ export class DownloadPage extends LitElement {
     }
     .badge-inst {
       margin-left: auto; font-size: var(--easymc-type-meta); font-weight: 650;
-      padding: 3px 8px; border-radius: 999px;
+      padding: 3px 8px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
     }
     .loader-ico {
-      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium); flex-shrink: 0;
       display: grid; place-items: center; font-weight: 800; font-size: var(--easymc-type-label);
       color: white; letter-spacing: -0.04em;
     }
@@ -274,13 +279,17 @@ export class DownloadPage extends LitElement {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
     }
     .loader-panel {
-      padding: var(--easymc-space-4); border-radius: 18px; margin-top: var(--easymc-space-4);
+      padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large); margin-top: var(--easymc-space-4);
       background: var(--md-sys-color-surface-container-low);
     }
     .loader-panel .row { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; margin-top: var(--easymc-space-3); }
     button.back {
       border: none; background: transparent; color: var(--md-sys-color-primary);
       cursor: pointer; font: inherit; font-weight: 600; padding: 8px 4px;
+      border-radius: var(--md-sys-shape-corner-small);
+    }
+    button.back:focus-visible, .crumb button:focus-visible, button.outline-dl:focus-visible {
+      outline: none; box-shadow: var(--easymc-focus-ring);
     }
   `,
   ];

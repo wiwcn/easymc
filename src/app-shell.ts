@@ -30,6 +30,10 @@ export class EasyMcApp extends LitElement {
       height: 100vh;
       width: 100vw;
       background: var(--md-sys-color-surface);
+      /* LD-2: the app shell is the query container every breakpoint hangs off,
+         so layout reacts to the real window box (not the viewport) and stays
+         correct if the shell is ever embedded/hosted at less than full width. */
+      container: easymc-shell / inline-size;
     }
     .main {
       flex: 1;
@@ -39,14 +43,21 @@ export class EasyMcApp extends LitElement {
       overflow: hidden;
     }
     header.top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--easymc-space-2) var(--easymc-space-5);
-      min-height: 52px;
+      padding: var(--easymc-space-2) var(--easymc-page-pad-x);
       background: var(--md-sys-color-surface);
       border-bottom: 1px solid
         color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
+    }
+    /* The bar's contents share the page column, so the brand and the account
+       chip stay aligned with page content at every window width. */
+    .top-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--easymc-space-3);
+      min-height: 36px;
+      max-width: var(--easymc-content-max);
+      margin-inline: auto;
     }
     .brand {
       display: flex;
@@ -71,6 +82,9 @@ export class EasyMcApp extends LitElement {
     .account:hover {
       background: var(--md-sys-color-surface-container);
     }
+    .account:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
+    }
     .account easymc-skin-avatar {
       --easymc-skin-avatar-size: 34px;
       border-radius: 50%;
@@ -85,10 +99,16 @@ export class EasyMcApp extends LitElement {
       flex: 1;
       min-height: 0;
       overflow: auto;
+      /* Reserve the scrollbar gutter so the page column keeps the exact same
+         x-position whether or not the current page scrolls. */
+      scrollbar-gutter: stable;
       padding: var(--easymc-page-pad-y) var(--easymc-page-pad-x) var(--easymc-space-6);
       background: var(--md-sys-color-surface);
       display: flex;
       flex-direction: column;
+      /* LD-2: page-level breakpoints query this box, so a page reacts to the
+         width it actually has (shell minus nav), not the raw window width. */
+      container: easymc-page / inline-size;
     }
     .page {
       flex: 1 1 auto;
@@ -97,11 +117,16 @@ export class EasyMcApp extends LitElement {
       flex-direction: column;
       animation: page-in var(--easymc-dur-page) var(--easymc-ease-out) both;
     }
+    /* Every page opts into one shared content column: fills the shell until it
+       reaches --easymc-content-max, then centres. Keeping it here (rather than
+       per page) is why pages no longer carry their own ad-hoc max-width. */
     .page > * {
       flex: 1 0 auto;
       min-height: 100%;
       box-sizing: border-box;
       width: 100%;
+      max-width: var(--easymc-content-max);
+      margin-inline: auto;
     }
     /* MD3 top-level transition: fade-through, NO spatial displacement (C-3).
        Displacement is reserved for hierarchical (list → detail) navigation. */
@@ -203,17 +228,19 @@ export class EasyMcApp extends LitElement {
       ></easymc-side-nav>
       <div class="main">
         <header class="top">
-          <div class="brand">
-            <span>EasyMC</span>
+          <div class="top-inner">
+            <div class="brand">
+              <span>EasyMC</span>
+            </div>
+            <button class="account" type="button" title="账户" @click=${() => this.goAccounts()}>
+              <easymc-skin-avatar .account=${this.activeAccount} .size=${64}></easymc-skin-avatar>
+              <span class="chev" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </span>
+            </button>
           </div>
-          <button class="account" type="button" title="账户" @click=${() => this.goAccounts()}>
-            <easymc-skin-avatar .account=${this.activeAccount} .size=${64}></easymc-skin-avatar>
-            <span class="chev" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </span>
-          </button>
         </header>
         <div class="content">
           ${keyed(

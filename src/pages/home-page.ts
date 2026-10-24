@@ -122,11 +122,12 @@ export class HomePage extends LitElement {
       flex-direction: column;
       flex: 1 0 auto;
       min-height: 100%;
-      max-width: 980px;
       width: 100%;
       position: relative;
       box-sizing: border-box;
     }
+    /* Column width now comes from the shell (.page > * in app-shell.ts), so
+       every page shares one measure instead of its own ad-hoc max-width. */
     .page-head {
       display: flex;
       align-items: center;
@@ -148,10 +149,16 @@ export class HomePage extends LitElement {
       cursor: pointer;
       font-size: var(--easymc-type-label);
       font-weight: 600;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        color var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.manage:hover {
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface);
+    }
+    button.manage:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
     }
     button.manage svg { width: 16px; height: 16px; }
     /* primary / ghost / launch → controlStyles (CMP-1) */
@@ -163,6 +170,10 @@ export class HomePage extends LitElement {
       font-size: var(--easymc-type-label);
       cursor: pointer;
       padding: 6px 4px;
+      border-radius: var(--md-sys-shape-corner-small);
+    }
+    button.linkish:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
     }
 
     /* ——— Featured card (home-v1) ——— */
@@ -170,7 +181,7 @@ export class HomePage extends LitElement {
       display: flex;
       flex-direction: column;
       background: var(--md-sys-color-surface-container-lowest);
-      border-radius: 20px;
+      border-radius: var(--md-sys-shape-corner-extra-large);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       overflow: hidden;
       margin-bottom: var(--easymc-space-5);
@@ -200,7 +211,7 @@ export class HomePage extends LitElement {
     .art {
       width: 152px;
       height: 168px;
-      border-radius: 20px;
+      border-radius: var(--md-sys-shape-corner-extra-large);
       flex-shrink: 0;
       align-self: center;
       background:
@@ -215,7 +226,7 @@ export class HomePage extends LitElement {
     .featured.compact .art {
       width: 72px;
       height: 72px;
-      border-radius: 14px;
+      border-radius: var(--md-sys-shape-corner-medium);
     }
     .art::after {
       content: "";
@@ -336,6 +347,16 @@ export class HomePage extends LitElement {
       display: grid;
       place-items: center;
       padding: 0;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        color var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.icon-btn:hover {
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface);
+    }
+    button.icon-btn:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
     }
     button.icon-btn svg { width: 18px; height: 18px; }
     .menu-wrap { position: relative; }
@@ -405,9 +426,10 @@ export class HomePage extends LitElement {
       cursor: pointer;
     }
     .status-agent:hover { filter: brightness(1.05); }
+    .status-agent:focus-visible { box-shadow: var(--easymc-focus-ring); }
     .bar {
       height: 6px;
-      border-radius: 999px;
+      border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-surface-container-high);
       overflow: hidden;
       margin-top: 6px;
@@ -447,16 +469,16 @@ export class HomePage extends LitElement {
       margin-right: -4px;
       scrollbar-gutter: stable;
     }
+    /* Fluid instance grid: tracks add/remove themselves with the column width,
+       so no breakpoint is needed and wide windows get more cards per row. */
     .grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(272px, 100%), 1fr));
       gap: var(--easymc-space-3);
     }
-    @media (max-width: 860px) {
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 560px) {
-      .grid { grid-template-columns: 1fr; }
+    /* Only the hero art needs an explicit narrow rule: everything else in the
+       featured card is already fluid. */
+    @container easymc-page (max-width: 560px) {
       .art { width: 120px; height: 132px; }
       .featured-top { min-height: 0; }
     }
@@ -470,7 +492,7 @@ export class HomePage extends LitElement {
       padding: var(--easymc-space-4);
       min-height: 88px;
       border: 1.5px solid transparent;
-      border-radius: 18px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
       cursor: pointer;
@@ -485,6 +507,9 @@ export class HomePage extends LitElement {
       box-shadow: var(--md-sys-elevation-2);
     }
     button.vcard:active { transform: scale(0.985); }
+    button.vcard:focus-visible {
+      box-shadow: var(--easymc-focus-ring), var(--md-sys-elevation-1);
+    }
     button.vcard.selected {
       /* quieter (P2): container tint + border, no elevation (CF-1 XOR) */
       border-color: var(--md-sys-color-primary);
@@ -503,7 +528,7 @@ export class HomePage extends LitElement {
     .tile {
       width: 48px;
       height: 48px;
-      border-radius: 14px;
+      border-radius: var(--md-sys-shape-corner-medium);
       display: grid;
       place-items: center;
       flex-shrink: 0;
@@ -574,16 +599,21 @@ export class HomePage extends LitElement {
     .vcard .more:hover {
       background: var(--md-sys-color-surface-container);
     }
+    .vcard .more:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
+    }
     .vcard .more svg { width: 16px; height: 16px; }
 
 
     .home-skel { display: flex; flex-direction: column; gap: var(--easymc-space-5); padding-top: var(--easymc-space-2); }
-    .featured-skel { height: 220px; border-radius: 20px; }
-    .skel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--easymc-space-3); }
-    .vcard-skel { height: 88px; border-radius: 18px; }
-    @media (max-width: 720px) {
-      .skel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .featured-skel { height: 220px; border-radius: var(--md-sys-shape-corner-extra-large); }
+    /* Mirrors .grid so the skeleton reserves the same tracks as real content. */
+    .skel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(272px, 100%), 1fr));
+      gap: var(--easymc-space-3);
     }
+    .vcard-skel { height: 88px; border-radius: var(--md-sys-shape-corner-large); }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }
     .empty-wrap {
       flex: 1 1 auto;
@@ -611,12 +641,12 @@ export class HomePage extends LitElement {
       font-size: var(--easymc-type-meta);
       background: var(--md-sys-color-surface-container);
       padding: 10px;
-      border-radius: 8px;
+      border-radius: var(--md-sys-shape-corner-small);
     }
     .create {
       margin-top: 14px;
       padding: 16px;
-      border-radius: 18px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }

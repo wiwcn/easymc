@@ -199,7 +199,12 @@ export const controlStyles = css`
     position: relative;
     display: flex;
     gap: 2px;
-    flex-wrap: wrap;
+    /* LD-2: one scrolling row instead of wrapping. A wrapped set would split
+       the sliding indicator's track in two and read as broken at narrow
+       widths, so the row scrolls (scrollbar hidden — it is a pill). */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
     align-items: center;
     padding: 3px;
     margin-bottom: var(--easymc-space-4);
@@ -208,6 +213,11 @@ export const controlStyles = css`
     width: fit-content;
     max-width: 100%;
     isolation: isolate;
+    scrollbar-width: none;
+  }
+  .md-tabs::-webkit-scrollbar,
+  .md-segmented::-webkit-scrollbar {
+    display: none;
   }
   .md-tabs .md-tab-ind,
   .md-segmented .md-tab-ind {
@@ -231,7 +241,13 @@ export const controlStyles = css`
     border: none;
     background: transparent;
     cursor: pointer;
+    flex: 0 0 auto; /* keep label width so the row scrolls instead of squashing */
+    white-space: nowrap;
     padding: 8px 16px;
+    /* Explicit line box: Latin and CJK labels otherwise get different "normal"
+       line heights, so a Latin tab ("Mod") would be a few px shorter than its
+       neighbours and the sliding indicator would jump height when it lands. */
+    line-height: 20px;
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant);
     font-family: inherit;
@@ -376,11 +392,11 @@ export const controlStyles = css`
   input.md-slider:focus-visible {
     outline: 2px solid var(--md-sys-color-primary);
     outline-offset: 4px;
-    border-radius: 8px;
+    border-radius: var(--md-sys-shape-corner-small);
   }
   input.md-slider::-webkit-slider-runnable-track {
     height: 4px;
-    border-radius: 999px;
+    border-radius: var(--md-sys-shape-corner-full);
     background: var(--md-sys-color-surface-container-highest);
   }
   input.md-slider::-webkit-slider-thumb {
@@ -396,7 +412,7 @@ export const controlStyles = css`
   }
   input.md-slider::-moz-range-track {
     height: 4px;
-    border-radius: 999px;
+    border-radius: var(--md-sys-shape-corner-full);
     background: var(--md-sys-color-surface-container-highest);
     border: none;
   }

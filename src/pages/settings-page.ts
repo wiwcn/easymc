@@ -53,7 +53,7 @@ export class SettingsPage extends LitElement {
     css`
       :host {
         display: block;
-        max-width: 720px;
+        /* Column width comes from the shell (.page > * in app-shell.ts). */
       }
       h1 {
         font-size: var(--easymc-type-title);
@@ -92,7 +92,7 @@ export class SettingsPage extends LitElement {
         border: 1px solid var(--md-sys-color-outline-variant);
         background: var(--md-sys-color-surface-container-lowest);
         color: var(--md-sys-color-on-surface);
-        border-radius: 999px;
+        border-radius: var(--md-sys-shape-corner-full);
         padding: 8px 14px;
         font-size: var(--easymc-type-body);
       }

@@ -140,13 +140,14 @@ export class AgentPage extends LitElement {
     css`
     :host {
       display: block;
-      max-width: 1080px;
-      height: calc(100vh - 100px);
+      /* Column width comes from the shell (.page > * in app-shell.ts).
+         Fill the page box instead of guessing chrome height with 100vh. */
+      height: 100%;
       min-height: 480px;
     }
     .layout {
       display: grid;
-      grid-template-columns: 1fr 260px;
+      grid-template-columns: minmax(0, 1fr) 260px;
       gap: var(--easymc-space-4);
       height: 100%;
       min-height: 0;
@@ -207,6 +208,10 @@ export class AgentPage extends LitElement {
     button.primary { border-color: transparent; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:active:not(:disabled), .chip:active { transform: scale(0.98); }
+    button:focus-visible, .chip:focus-visible {
+      outline: none;
+      box-shadow: var(--easymc-focus-ring);
+    }
     select {
       padding: 8px 12px;
       border-radius: var(--md-sys-shape-corner-small);
@@ -229,7 +234,7 @@ export class AgentPage extends LitElement {
       gap: var(--easymc-space-3);
       overflow: auto;
       padding: var(--easymc-space-4);
-      border-radius: 18px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
       margin-bottom: var(--easymc-space-3);
@@ -263,7 +268,7 @@ export class AgentPage extends LitElement {
     }
     .bubble {
       padding: 11px 15px;
-      border-radius: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
       white-space: pre-wrap;
       font-size: var(--easymc-type-body);
       line-height: 1.45;
@@ -288,7 +293,7 @@ export class AgentPage extends LitElement {
     .tool-card {
       margin-top: var(--easymc-space-3);
       padding: var(--easymc-space-4);
-      border-radius: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
       border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
@@ -394,7 +399,7 @@ export class AgentPage extends LitElement {
     .proposal {
       margin-top: var(--easymc-space-3);
       padding: var(--easymc-space-4);
-      border-radius: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
       border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
@@ -480,7 +485,7 @@ export class AgentPage extends LitElement {
     .composer input {
       flex: 1;
       padding: 13px 16px;
-      border-radius: 999px;
+      border-radius: var(--md-sys-shape-corner-full);
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
@@ -574,8 +579,10 @@ export class AgentPage extends LitElement {
       gap: var(--easymc-space-2);
       margin-bottom: var(--easymc-space-3);
     }
-    @media (max-width: 820px) {
-      .layout { grid-template-columns: 1fr; }
+    /* Queried against the page column, so the sidebar drops out when the page
+       itself gets narrow — not merely when the window does. */
+    @container easymc-page (max-width: 820px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
       .tools { display: none; }
     }
     .findings {
@@ -586,7 +593,7 @@ export class AgentPage extends LitElement {
     }
     .card {
       padding: var(--easymc-space-4);
-      border-radius: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }
@@ -645,7 +652,7 @@ export class AgentPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
-      border-radius: 999px;
+      border-radius: var(--md-sys-shape-corner-full);
       padding: 8px 14px;
       font: inherit;
       min-width: 0;

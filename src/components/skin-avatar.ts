@@ -23,7 +23,7 @@ export class SkinAvatar extends LitElement {
       width: var(--easymc-skin-avatar-size, 36px);
       height: var(--easymc-skin-avatar-size, 36px);
       flex-shrink: 0;
-      border-radius: 8px;
+      border-radius: var(--md-sys-shape-corner-small);
       overflow: hidden;
       background: transparent;
       image-rendering: pixelated;

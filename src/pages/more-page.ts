@@ -11,7 +11,8 @@ export class MorePage extends LitElement {
     controlStyles,
     pageChromeStyles,
     css`
-      :host { display: block; max-width: 640px; }
+      /* Column width comes from the shell (.page > * in app-shell.ts). */
+      :host { display: block; }
       .grid { display: grid; gap: var(--easymc-space-3); }
       button.tile {
         display: flex; flex-direction: column; align-items: flex-start; gap: var(--easymc-space-1);

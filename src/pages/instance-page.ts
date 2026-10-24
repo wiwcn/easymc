@@ -93,6 +93,7 @@ export class InstancePage extends LitElement {
     .row-item {
       display: flex; align-items: center; gap: 12px;
       padding: 12px 14px;
+      box-sizing: border-box; /* width:100% + padding must not overflow the list */
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
       border: 1px solid transparent;
@@ -104,7 +105,7 @@ export class InstancePage extends LitElement {
     .row-item:hover { background: var(--md-sys-color-surface-container); }
     .row-item.active { border-color: var(--md-sys-color-primary); }
     .icon {
-      width: 40px; height: 40px; border-radius: 10px;
+      width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
@@ -134,8 +135,9 @@ export class InstancePage extends LitElement {
         transform var(--easymc-dur-med) var(--easymc-ease-out),
         visibility 0s;
     }
-    .menu-panel button { border: none; background: transparent; text-align: left; border-radius: 6px; padding: 8px 10px; }
+    .menu-panel button { border: none; background: transparent; text-align: left; border-radius: var(--md-sys-shape-corner-small); padding: 8px 10px; }
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
+    .menu-panel button:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
     .back { margin-bottom: 8px; }
     /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
     .panel {
@@ -275,8 +277,8 @@ export class InstancePage extends LitElement {
     if (this.loading) {
       return html`<div class="inst-skel" aria-busy="true" aria-label="正在加载">
         <div class="skel skel-line w40"></div>
-        <div class="skel skel-block" style="height:120px;margin-top:12px;border-radius:16px"></div>
-        <div class="skel skel-block" style="height:80px;margin-top:10px;border-radius:16px"></div>
+        <div class="skel skel-block" style="height:120px;margin-top:12px;border-radius:var(--md-sys-shape-corner-large)"></div>
+        <div class="skel skel-block" style="height:80px;margin-top:10px;border-radius:var(--md-sys-shape-corner-large)"></div>
       </div>`;
     }
     if (this.detailId && this.detail) return this.renderDetail(this.detail);

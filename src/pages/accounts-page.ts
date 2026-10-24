@@ -37,7 +37,7 @@ export class AccountsPage extends LitElement {
         flex-direction: column;
         flex: 1 0 auto;
         min-height: 100%;
-        max-width: 720px;
+        /* Column width comes from the shell (.page > * in app-shell.ts). */
         width: 100%;
         min-width: 0;
         box-sizing: border-box;
@@ -90,7 +90,7 @@ export class AccountsPage extends LitElement {
         color: inherit;
         cursor: pointer;
         padding: 12px 14px;
-        border-radius: 16px;
+        border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface);
         border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 45%, transparent);
         transition:
@@ -100,6 +100,10 @@ export class AccountsPage extends LitElement {
       .acct:hover {
         background: var(--md-sys-color-surface-container);
       }
+      .acct:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
+      }
       .acct.active {
         border-color: var(--md-sys-color-primary);
         background: var(--md-sys-color-primary-container);
@@ -108,7 +112,7 @@ export class AccountsPage extends LitElement {
       .skin-ph {
         width: 44px;
         height: 44px;
-        border-radius: 10px;
+        border-radius: var(--md-sys-shape-corner-medium);
         flex-shrink: 0;
         background: var(--easymc-skin-ph-base);
         box-shadow: var(--md-sys-elevation-1);
@@ -119,7 +123,7 @@ export class AccountsPage extends LitElement {
         content: "";
         position: absolute;
         inset: 8px 14px 10px;
-        border-radius: 4px;
+        border-radius: var(--md-sys-shape-corner-extra-small);
         background: var(--easymc-skin-ph-face);
       }
       .skin-ph.ms {
@@ -153,7 +157,7 @@ export class AccountsPage extends LitElement {
         font-size: var(--easymc-type-meta);
         font-weight: 700;
         padding: 2px 8px;
-        border-radius: 999px;
+        border-radius: var(--md-sys-shape-corner-full);
         background: var(--md-sys-color-secondary-container);
         color: var(--md-sys-color-on-secondary-container);
       }
@@ -179,13 +183,17 @@ export class AccountsPage extends LitElement {
         background: transparent;
         cursor: pointer;
         padding: 6px 10px;
-        border-radius: 999px;
+        border-radius: var(--md-sys-shape-corner-full);
         font-size: var(--easymc-type-meta);
         font-weight: var(--easymc-weight-medium);
         color: var(--md-sys-color-on-surface-variant);
       }
       .acct-actions button:hover {
         background: var(--md-sys-color-surface-container-highest);
+      }
+      .acct-actions button:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
       }
       .acct-actions button.danger:hover {
         color: var(--md-sys-color-error);
@@ -203,7 +211,7 @@ export class AccountsPage extends LitElement {
         color: inherit;
         cursor: pointer;
         padding: 14px 16px;
-        border-radius: 16px;
+        border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface);
         border: 1.5px solid var(--md-sys-color-outline-variant);
         width: 100%;
@@ -214,6 +222,10 @@ export class AccountsPage extends LitElement {
       button.choice:hover {
         border-color: var(--md-sys-color-primary);
         background: var(--md-sys-color-surface-container);
+      }
+      button.choice:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
       }
       button.choice strong {
         display: block;
@@ -228,7 +240,7 @@ export class AccountsPage extends LitElement {
       .form-card {
         margin-top: 10px;
         padding: 14px;
-        border-radius: 16px;
+        border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface-container-low);
       }
       .form-card label {
@@ -241,7 +253,7 @@ export class AccountsPage extends LitElement {
       }
       .form-card input {
         border: 1px solid var(--md-sys-color-outline-variant);
-        border-radius: 12px;
+        border-radius: var(--md-sys-shape-corner-medium);
         padding: 8px 12px;
         background: var(--md-sys-color-surface-container-lowest);
         color: var(--md-sys-color-on-surface);
@@ -336,7 +348,7 @@ export class AccountsPage extends LitElement {
       <div class="surf" ?aria-busy=${this.loading}>
         ${this.loading
           ? html`<div class="acct-list" aria-label="正在加载账户">
-              ${[1, 2, 3].map(() => html`<div class="skel skel-block" style="height:68px;border-radius:16px"></div>`)}
+              ${[1, 2, 3].map(() => html`<div class="skel skel-block" style="height:68px;border-radius:var(--md-sys-shape-corner-large)"></div>`)}
             </div>`
           : this.panel === null
             ? this.renderList()
@@ -462,7 +474,7 @@ export class AccountsPage extends LitElement {
         <div style="display:flex;justify-content:center;margin-bottom:12px">
           <span
             class="skin-ph off"
-            style="width:64px;height:64px;border-radius:12px"
+            style="width:64px;height:64px;border-radius:var(--md-sys-shape-corner-medium)"
             aria-hidden="true"
           ></span>
         </div>

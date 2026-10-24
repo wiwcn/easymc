@@ -63,7 +63,7 @@ export class OnboardingPage extends LitElement {
     .wrap { width: min(640px, calc(100vw - 48px)); }
     .brand { font-weight: 700; font-size: var(--easymc-type-display); letter-spacing: -0.02em; margin-bottom: 4px; }
     .steps { display: flex; gap: 6px; margin: 0 0 24px; }
-    .steps i { flex: 1; height: 4px; border-radius: 999px; background: var(--md-sys-color-surface-container-highest); }
+    .steps i { flex: 1; height: 4px; border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-surface-container-highest); }
     .steps i.on { background: var(--md-sys-color-primary); }
     h1 { margin: 0 0 6px; font-size: var(--easymc-type-display); }
     p.sub { margin: 0 0 20px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
@@ -104,7 +104,7 @@ export class OnboardingPage extends LitElement {
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: var(--easymc-type-label); font-weight: 500; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
     input, select {
-      padding: 11px 14px; border-radius: 12px;
+      padding: 11px 14px; border-radius: var(--md-sys-shape-corner-medium);
       border: 1px solid var(--md-sys-color-outline-variant);
       font: inherit;
       background: var(--md-sys-color-surface-container-lowest);
@@ -113,7 +113,7 @@ export class OnboardingPage extends LitElement {
     input.bad { border-color: var(--md-sys-color-error); }
     .err { color: var(--md-sys-color-error); font-size: var(--easymc-type-label); margin: -4px 0 8px; }
     .tip { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
-    .notice { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-surface-container); font-size: var(--easymc-type-body); line-height: 1.5; margin-bottom: 12px; }
+    .notice { padding: 12px 14px; border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-surface-container); font-size: var(--easymc-type-body); line-height: 1.5; margin-bottom: 12px; }
     .checklist { display: grid; gap: 10px; margin-bottom: 16px; }
     .check {
       display: grid;
@@ -145,7 +145,7 @@ export class OnboardingPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
-      border-radius: 999px;
+      border-radius: var(--md-sys-shape-corner-full);
       padding: 7px 14px;
       font: inherit;
       cursor: pointer;
@@ -159,7 +159,7 @@ export class OnboardingPage extends LitElement {
     .java-log {
       margin-top: 10px;
       padding: 10px 12px;
-      border-radius: 12px;
+      border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-surface-container-lowest);
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);

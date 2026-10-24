@@ -252,6 +252,36 @@ export class SideNav extends LitElement {
         transition: none;
       }
     }
+
+    /* ——— LD-2: rail mode ————————————————————————————————————————
+       Below MD3 "expanded" (840) the shell is too narrow to give 212px to
+       chrome, so the nav collapses to an icon rail and the labels move into
+       tooltips / aria-labels. Queried against the shell container, so it
+       tracks the real window box as it is dragged. */
+    @container easymc-shell (max-width: 839px) {
+      :host {
+        width: var(--easymc-nav-rail-width);
+        padding: 14px 10px;
+        align-items: center;
+      }
+      button.item {
+        justify-content: center;
+        gap: 0;
+        padding: 12px;
+      }
+      button.item .label,
+      .pill {
+        display: none;
+      }
+      button.acct-card {
+        justify-content: center;
+        padding: 6px;
+      }
+      .acct-body,
+      .acct-chev {
+        display: none;
+      }
+    }
   `;
 
   render() {
@@ -267,6 +297,8 @@ export class SideNav extends LitElement {
             <button
               class="item ${on ? "active" : ""}"
               type="button"
+              title=${it.label}
+              aria-label=${it.label}
               aria-current=${on ? "page" : "false"}
               @click=${() => this.select(it.id)}
             >
@@ -275,7 +307,7 @@ export class SideNav extends LitElement {
                   ${on ? ICONS_FILLED[it.icon] : ICONS_OUTLINE[it.icon]}
                 </svg></span
               >
-              <span>${it.label}</span>
+              <span class="label">${it.label}</span>
               ${it.id === "agent" && this.mode === "agent"
                 ? html`<span class="pill">已开启</span>`
                 : nothing}

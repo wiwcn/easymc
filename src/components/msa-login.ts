@@ -29,12 +29,12 @@ export class MsaLogin extends LitElement {
     .code {
       font: 700 2rem/1.2 ui-monospace, "SFMono-Regular", Menlo, monospace; letter-spacing: 0.18em;
       color: var(--md-sys-color-on-primary-container); background: var(--md-sys-color-primary-container);
-      padding: 12px 18px; border-radius: 12px; user-select: all;
+      padding: 12px 18px; border-radius: var(--md-sys-shape-corner-medium); user-select: all;
     }
     .wait { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
     .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--md-sys-color-outline-variant); border-top-color: var(--md-sys-color-primary); animation: spin 900ms linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .err { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
+    .err { padding: 12px 14px; border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
     .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     button { padding: 10px 20px; border: none; border-radius: var(--md-sys-shape-corner-full, 999px); font: inherit; font-weight: 600; cursor: pointer; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
     /* ghost → controlStyles; tonal surface override if needed */
