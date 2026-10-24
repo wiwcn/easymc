@@ -2,9 +2,14 @@ name: Build Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub Release tag (empty = artifact only)"
+        required: false
+        default: "v0.1.0"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -45,22 +50,37 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist-windows | Out-Null
-          $nsis = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*-setup.exe" -ErrorAction SilentlyContinue
-          if ($nsis) {
-            Copy-Item $nsis.FullName -Destination "dist-windows/" -Force
-            Write-Host "NSIS:" $nsis.Name
-          } else {
-            Write-Host "WARN: no NSIS setup.exe found"
+          # Workspace Cargo target lives at repo-root /target (not src-tauri/target)
+          $search = @(
+            "target/release/bundle/nsis",
+            "src-tauri/target/release/bundle/nsis"
+          )
+          $found = $false
+          foreach ($dir in $search) {
+            if (Test-Path $dir) {
+              Get-ChildItem -Path $dir -Filter "*-setup.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+                Copy-Item $_.FullName -Destination "dist-windows/" -Force
+                Write-Host "NSIS:" $_.FullName
+                $found = $true
+              }
+            }
+          }
+          if (-not $found) {
+            Write-Host "ERROR: no NSIS setup.exe found; listing bundles:"
+            Get-ChildItem -Recurse "target/release/bundle" -ErrorAction SilentlyContinue | Select-Object FullName
             Get-ChildItem -Recurse "src-tauri/target/release/bundle" -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 1
           }
           $exeCandidates = @(
+            "target/release/easymc-app.exe",
             "src-tauri/target/release/easymc-app.exe",
-            "src-tauri/target/release/EasyMC.exe"
+            "target/release/EasyMC.exe"
           )
           foreach ($p in $exeCandidates) {
             if (Test-Path $p) {
-              Copy-Item $p -Destination "dist-windows/" -Force
+              Copy-Item $p -Destination "dist-windows/easymc-app.exe" -Force
               Write-Host "EXE:" $p
+              break
             }
           }
           Get-ChildItem dist-windows | Format-Table Name, Length
@@ -71,4 +91,40 @@ jobs:
           name: easymc-windows-0.1.0
           path: dist-windows/*
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.release_tag }}"
+          NOTES="$(cat <<'MD'
+          ## EasyMC ${TAG}（Windows）
+
+          桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。
+
+          ### 下载
+          - **EasyMC_0.1.0_x64-setup.exe** — NSIS 安装程序（推荐）
+          - **easymc-app.exe** — 免安装便携版（需自行放置；一般用 setup）
+
+          ### 说明
+          - Java Edition 启动器（Rust + Lit + Tauri）
+          - 含助手 / 下载 / 账户 / 一键环境等桌面 M1 能力
+          - 默认窗口 1100×700
+          MD
+          )"
+          # Normalize tag interpolation (heredoc was literal)
+          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。" "" "### 下载" "- **EasyMC_0.1.0_x64-setup.exe** — NSIS 安装程序（推荐）" "- **easymc-app.exe** — 免安装便携主程序" "" "### 说明" "- Java Edition 启动器（Rust + Lit + Tauri）" "- 含助手 / 下载 / 账户 / 一键环境等桌面 M1 能力" "- 默认窗口 1100×700")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist-windows/* --clobber
+            gh release edit "$TAG" --title "EasyMC ${TAG}" --notes "$NOTES"
+          else
+            gh release create "$TAG" dist-windows/* \
+              --title "EasyMC ${TAG}" \
+              --notes "$NOTES" \
+              --latest
+          fi
+          echo "Release: https://github.com/wiwcn/easymc/releases/tag/${TAG}"
