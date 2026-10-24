@@ -1,8 +1,6 @@
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import type { AccountDto, AppMode, NavId } from "../types";
-import { accountKindBadgeClass, accountKindLabel } from "../lib/skin-avatar";
-import "./skin-avatar";
+import type { AppMode, NavId } from "../types";
 
 type Item = { id: NavId; label: string; icon: string };
 
@@ -41,8 +39,6 @@ const NAV: Item[] = [
 export class SideNav extends LitElement {
   @property({ type: String }) active: NavId = "home";
   @property({ type: String }) mode: AppMode = "standard";
-  /** Active account from shell (`list_accounts` / active). Null = empty state. */
-  @property({ attribute: false }) account: AccountDto | null = null;
 
   static styles = css`
     :host {
@@ -114,96 +110,14 @@ export class SideNav extends LitElement {
       color: var(--md-sys-color-on-primary);
       font-weight: 600;
     }
-    button.acct-card {
-      margin-top: auto;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      width: 100%;
-      padding: 12px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      color: var(--md-sys-color-on-surface);
-      cursor: pointer;
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
-      text-align: left;
-      font: inherit;
-      transition:
-        background var(--easymc-dur-press) var(--easymc-ease-out),
-        transform var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    button.acct-card:hover {
-      background: var(--md-sys-color-surface-container);
-    }
-    button.acct-card:active {
-      transform: scale(0.98);
-    }
-    button.acct-card:focus-visible {
-      box-shadow: var(--easymc-focus-ring);
-    }
-    button.acct-card easymc-skin-avatar {
-      --easymc-skin-avatar-size: 36px;
-    }
-    .acct-body {
-      flex: 1;
-      min-width: 0;
-    }
-    .acct-name {
-      display: block;
-      font-size: var(--easymc-type-label);
-      font-weight: 650;
-      letter-spacing: -0.01em;
-      margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .acct-meta {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--easymc-type-meta);
-      color: var(--md-sys-color-on-surface-variant);
-      line-height: 1.35;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 1px 7px;
-      border-radius: var(--md-sys-shape-corner-full);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-    }
-    .badge.ms {
-      background: var(--easymc-acct-ms-bg);
-      color: var(--easymc-acct-ms-fg);
-    }
-    .badge.off {
-      background: var(--easymc-acct-off-bg);
-      color: var(--easymc-acct-off-fg);
-    }
-    .badge.skin {
-      background: var(--easymc-acct-skin-bg);
-      color: var(--easymc-acct-skin-fg);
-    }
-    .acct-chev {
-      color: var(--md-sys-color-on-surface-variant);
-      opacity: 0.7;
-      flex-shrink: 0;
-    }
     @media (prefers-reduced-motion: reduce) {
-      button.item:active,
-      button.acct-card:active {
+      button.item:active {
         transform: none;
       }
     }
   `;
 
   render() {
-    const acct = this.account;
-    const empty = !acct;
-
     return html`
       <nav aria-label="主导航">
         ${NAV.map((it) => {
@@ -228,34 +142,6 @@ export class SideNav extends LitElement {
           `;
         })}
       </nav>
-      <button
-        class="acct-card"
-        type="button"
-        title=${empty ? "添加账户" : "账户管理"}
-        @click=${() => this.select("accounts")}
-      >
-        <easymc-skin-avatar .account=${acct} .size=${64}></easymc-skin-avatar>
-        <span class="acct-body">
-          ${empty
-            ? html`
-                <span class="acct-name">添加账户</span>
-                <span class="acct-meta">登录后可开玩</span>
-              `
-            : html`
-                <span class="acct-name">${acct.username}</span>
-                <span class="acct-meta">
-                  <span class="badge ${accountKindBadgeClass(acct.kind)}"
-                    >${accountKindLabel(acct.kind)}</span
-                  >
-                </span>
-              `}
-        </span>
-        <span class="acct-chev" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </span>
-      </button>
     `;
   }
 

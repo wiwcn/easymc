@@ -199,7 +199,6 @@ export class EasyMcApp extends LitElement {
       <easymc-side-nav
         .active=${this.route}
         .mode=${this.mode}
-        .account=${this.activeAccount}
       ></easymc-side-nav>
       <div class="main">
         <header class="top">
