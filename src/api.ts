@@ -1,4 +1,4 @@
-import type { AccountDto, AgentAskResponse, AppMode, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -68,6 +68,15 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
           description: "试玩快照功能。",
           version_ready: true,
         },
+        {
+          id: "preview-1192-quilt",
+          name: "旧版怀旧",
+          version: "1.19.2",
+          loader: "quilt",
+          loader_version: "0.20.0",
+          description: "怀旧生存。",
+          version_ready: true,
+        },
       ],
       active_id: "preview-1211-fabric",
     };
@@ -116,27 +125,129 @@ export async function setActiveInstance(instanceId: string): Promise<InstancesSt
   return { instances: st.instances, active_id: instanceId };
 }
 
+
+const PREVIEW_ACCOUNTS: AccountDto[] = [
+  {
+    id: "preview-ms",
+    username: "SteveMC",
+    kind: "microsoft",
+    uuid: "00000000-0000-0000-0000-0000000000aa",
+  },
+  {
+    id: "preview-offline",
+    username: "EasyPlayer",
+    kind: "offline",
+    uuid: "00000000-0000-0000-0000-000000000001",
+  },
+  {
+    id: "preview-skin",
+    username: "LittleSkinUser",
+    kind: "skin_station",
+    uuid: "00000000-0000-0000-0000-0000000000bb",
+  },
+];
+
+const PREVIEW_ACTIVE_KEY = "easymc.previewActiveAccount";
+const PREVIEW_EXTRA_KEY = "easymc.previewExtraAccounts";
+
+function previewAccountsState(): AccountsState {
+  let extra: AccountDto[] = [];
+  try {
+    extra = JSON.parse(localStorage.getItem(PREVIEW_EXTRA_KEY) || "[]");
+  } catch { /* ignore */ }
+  const accounts = [...PREVIEW_ACCOUNTS, ...extra];
+  let active_id = localStorage.getItem(PREVIEW_ACTIVE_KEY) || accounts[0]?.id || null;
+  if (active_id && !accounts.some((a) => a.id === active_id)) active_id = accounts[0]?.id ?? null;
+  return { accounts, active_id };
+}
+
+function savePreviewAccounts(st: AccountsState) {
+  try {
+    localStorage.setItem(PREVIEW_ACTIVE_KEY, st.active_id ?? "");
+    const extra = st.accounts.filter((a) => !PREVIEW_ACCOUNTS.some((p) => p.id === a.id));
+    localStorage.setItem(PREVIEW_EXTRA_KEY, JSON.stringify(extra));
+  } catch { /* ignore */ }
+}
+
+export async function listAccountsState(): Promise<AccountsState> {
+  const raw = await invokeSafe<AccountsState | AccountDto[]>("list_accounts_state");
+  if (raw && !Array.isArray(raw) && Array.isArray(raw.accounts)) {
+    return { accounts: raw.accounts, active_id: raw.active_id ?? raw.accounts[0]?.id ?? null };
+  }
+  if (Array.isArray(raw)) {
+    return { accounts: raw, active_id: raw[0]?.id ?? null };
+  }
+  // fall through: try legacy list_accounts
+  const legacy = await invokeSafe<AccountDto[]>("list_accounts");
+  if (legacy && legacy.length) {
+    return { accounts: legacy, active_id: legacy[0]?.id ?? null };
+  }
+  return previewAccountsState();
+}
+
 export async function listAccounts(): Promise<AccountDto[]> {
-  return (
-    (await invokeSafe<AccountDto[]>("list_accounts")) ?? [
-      {
-        id: "preview-offline",
-        username: "EasyPlayer",
-        kind: "offline",
-        uuid: "00000000-0000-0000-0000-000000000001",
-      },
-    ]
-  );
+  return (await listAccountsState()).accounts;
+}
+
+export async function setActiveAccount(accountId: string): Promise<AccountsState> {
+  const raw = await invokeSafe<AccountsState>("set_active_account", { accountId });
+  if (raw) return raw;
+  const st = previewAccountsState();
+  if (!st.accounts.some((a) => a.id === accountId)) return st;
+  st.active_id = accountId;
+  savePreviewAccounts(st);
+  return st;
+}
+
+export async function removeAccount(accountId: string): Promise<AccountsState> {
+  const raw = await invokeSafe<AccountsState>("remove_account", { accountId });
+  if (raw) return raw;
+  const st = previewAccountsState();
+  st.accounts = st.accounts.filter((a) => a.id !== accountId);
+  if (st.active_id === accountId) st.active_id = st.accounts[0]?.id ?? null;
+  savePreviewAccounts(st);
+  return st;
 }
 
 export async function createOffline(username: string): Promise<AccountDto | null> {
-  return invokeSafe<AccountDto>("create_offline", { username });
+  const acc = await invokeSafe<AccountDto>("create_offline", { username });
+  if (acc) return acc;
+  // browser preview
+  const name = username.trim();
+  if (!name || [...name].length < 2 || [...name].length > 16) return null;
+  const id = `preview-offline-${Date.now()}`;
+  const dto: AccountDto = {
+    id,
+    username: name,
+    kind: "offline",
+    uuid: `00000000-0000-0000-0000-${String(Date.now()).slice(-12).padStart(12, "0")}`,
+  };
+  const st = previewAccountsState();
+  st.accounts = st.accounts.filter((a) => a.username !== name);
+  st.accounts.push(dto);
+  st.active_id = dto.id;
+  savePreviewAccounts(st);
+  return dto;
 }
 
 export async function listVersions(includeSnapshots = false): Promise<VersionSummary[]> {
-  return (
-    (await invokeSafe<VersionSummary[]>("list_versions", { includeSnapshots })) ?? []
-  );
+  const remote = await invokeSafe<VersionSummary[]>("list_versions", { includeSnapshots });
+  if (remote && remote.length) return remote;
+  const preview: VersionSummary[] = [
+    { id: "1.21.1", type: "release", url: "", installed: true },
+    { id: "1.21", type: "release", url: "", installed: false },
+    { id: "1.20.4", type: "release", url: "", installed: true },
+    { id: "1.20.1", type: "release", url: "", installed: false },
+    { id: "1.19.4", type: "release", url: "", installed: false },
+    { id: "1.19.2", type: "release", url: "", installed: false },
+    { id: "1.18.2", type: "release", url: "", installed: false },
+    { id: "1.16.5", type: "release", url: "", installed: false },
+    { id: "1.12.2", type: "release", url: "", installed: false },
+    { id: "1.8.9", type: "release", url: "", installed: false },
+    { id: "24w44a", type: "snapshot", url: "", installed: false },
+    { id: "24w40a", type: "snapshot", url: "", installed: false },
+  ];
+  return includeSnapshots ? preview : preview.filter((v) => (v.type ?? v.version_type) !== "snapshot");
 }
 
 export async function installVersion(version: string, withAssets = true): Promise<string> {
@@ -147,12 +258,25 @@ export async function listLoaderVersions(
   loader: string,
   gameVersion: string,
 ): Promise<LoaderVersionItem[]> {
-  return (
-    (await invokeSafe<LoaderVersionItem[]>("list_loader_versions", {
-      loader,
-      gameVersion,
-    })) ?? []
-  );
+  const remote = await invokeSafe<LoaderVersionItem[]>("list_loader_versions", { loader, gameVersion });
+  if (remote && remote.length) return remote;
+  void gameVersion;
+  if (loader === "vanilla") return [];
+  const presets: Record<string, string> = {
+    fabric: "0.16.9",
+    quilt: "0.26.1",
+    forge: "47.3.0",
+    neoforge: "21.1.0",
+  };
+  const base = presets[loader] ?? "1.0.0";
+  const parts = base.split(".");
+  const last = Number(parts[parts.length - 1] || 0);
+  const prev = [...parts.slice(0, -1), String(Math.max(0, last - 1))].join(".");
+  return [
+    { version: base, stable: true, intermediary: "" },
+    { version: prev, stable: true, intermediary: "" },
+    { version: `${base}-beta`, stable: false, intermediary: "" },
+  ];
 }
 
 export async function installLoaderVersion(
@@ -440,7 +564,13 @@ export async function msaStatus(): Promise<MsaStatusDto> {
 }
 
 export async function createOfflineOrThrow(username: string): Promise<AccountDto> {
-  return invokeOrThrow<AccountDto>("create_offline", { username });
+  try {
+    return await invokeOrThrow<AccountDto>("create_offline", { username });
+  } catch {
+    const acc = await createOffline(username);
+    if (!acc) throw new Error("请输入 2–16 个字符的名字");
+    return acc;
+  }
 }
 
 export async function startMicrosoftLogin(): Promise<AccountDto> {

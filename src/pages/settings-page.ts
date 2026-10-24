@@ -5,8 +5,10 @@ import {
   createOfflineOrThrow,
   curseforgeConfigured,
   getSettings,
-  listAccounts,
+  listAccountsState,
   msaStatus,
+  removeAccount,
+  setActiveAccount,
   setCurseforgeKey,
   updateSettings,
 } from "../api";
@@ -26,6 +28,13 @@ export class SettingsPage extends LitElement {
   @state() private msaDraft = "";
   @state() private dataDir = "";
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
+  @state() private activeAccountId: string | null = null;
+  /** null = list; chooser = add type; offline/microsoft/skin = forms */
+  @state() private accountPanel: null | "chooser" | "offline" | "microsoft" | "skin" = null;
+  @state() private skinServer = "";
+  @state() private skinUser = "";
+  @state() private skinNote = "";
+  @state() private nameError = "";
 
   static styles = css`
     :host { display: block; max-width: 720px; }
@@ -60,6 +69,78 @@ export class SettingsPage extends LitElement {
     details.card summary { cursor: pointer; font-weight: 600; }
     ul { margin: 8px 0 0; padding-left: 18px; color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+
+    .acct-list { display: grid; gap: 8px; margin-top: 10px; }
+    button.acct {
+      display: flex; align-items: center; gap: 12px; width: 100%;
+      text-align: left; font: inherit; color: inherit; cursor: pointer;
+      padding: 12px 14px; border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 45%, transparent);
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+    button.acct:hover { background: var(--md-sys-color-surface-container); }
+    button.acct.active {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+    .skin-ph {
+      width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+      background:
+        linear-gradient(180deg, oklch(0.78 0.06 70) 0 38%, oklch(0.55 0.1 220) 38% 62%, oklch(0.45 0.08 250) 62% 100%);
+      box-shadow: var(--md-sys-elevation-1);
+      position: relative; overflow: hidden;
+    }
+    .skin-ph::after {
+      content: ""; position: absolute; inset: 8px 14px 10px;
+      border-radius: 4px;
+      background: oklch(0.92 0.03 90 / 0.35);
+    }
+    .skin-ph.ms { background: linear-gradient(135deg, oklch(0.55 0.12 250), oklch(0.45 0.1 220)); }
+    .skin-ph.skin { background: linear-gradient(135deg, oklch(0.62 0.14 330), oklch(0.5 0.12 300)); }
+    .acct-body { flex: 1; min-width: 0; }
+    .acct-name { font-weight: 650; font-size: 0.98rem; letter-spacing: -0.01em; }
+    .acct-meta { font-size: 0.78rem; opacity: 0.8; margin-top: 2px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .badge {
+      font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .badge.ms { background: oklch(0.55 0.12 250 / 0.2); color: oklch(0.4 0.1 250); }
+    .badge.off { background: oklch(0.7 0.05 150 / 0.25); color: oklch(0.4 0.08 150); }
+    .badge.skin { background: oklch(0.65 0.12 330 / 0.22); color: oklch(0.42 0.12 330); }
+    .acct-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .acct-actions button {
+      border: none; background: transparent; cursor: pointer;
+      padding: 6px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .acct-actions button:hover { background: var(--md-sys-color-surface-container-highest); }
+    .acct-actions button.danger:hover { color: var(--md-sys-color-error); }
+    .chooser { display: grid; gap: 10px; margin-top: 8px; }
+    button.choice {
+      text-align: left; font: inherit; color: inherit; cursor: pointer;
+      padding: 14px 16px; border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1.5px solid var(--md-sys-color-outline-variant);
+    }
+    button.choice:hover { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-surface-container); }
+    button.choice strong { display: block; font-size: 0.98rem; margin-bottom: 4px; }
+    button.choice span { font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.4; }
+    .form-card {
+      margin-top: 10px; padding: 14px; border-radius: 16px;
+      background: var(--md-sys-color-surface-container-low);
+    }
+    .form-card label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
+    .form-card input { border-radius: 12px; }
+    .err { color: var(--md-sys-color-error); font-size: 0.85rem; margin: -4px 0 8px; }
+    .tip { font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.45; margin-bottom: 8px; }
+    .empty-soft {
+      text-align: center; padding: 28px 16px; margin: 8px 0;
+      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    }
+    .empty-soft span { font-size: 0.82rem; opacity: 0.85; }
   `;
 
   connectedCallback() {
@@ -70,18 +151,41 @@ export class SettingsPage extends LitElement {
   private async refresh() {
     const [s, a, cf, msa, dir] = await Promise.all([
       getSettings(),
-      listAccounts(),
+      listAccountsState(),
       curseforgeConfigured(),
       msaStatus(),
       agentDataDir(),
     ]);
     this.settings = s;
     this.mem = String(s.memory_mb ?? 2048);
-    this.accounts = a;
+    this.accounts = a.accounts;
+    this.activeAccountId = a.active_id;
     this.cf = cf;
     this.msa = msa;
     this.dataDir = dir.path;
   }
+
+  private kindLabel(kind: string): string {
+    if (kind === "microsoft") return "正版";
+    if (kind === "skin_station") return "皮肤站";
+    return "离线";
+  }
+
+  private kindBadgeClass(kind: string): string {
+    if (kind === "microsoft") return "ms";
+    if (kind === "skin_station") return "skin";
+    return "off";
+  }
+
+  private validateName(raw: string): string {
+    const n = raw.trim();
+    const len = [...n].length;
+    if (!n) return "请输入游戏里显示的名字";
+    if (len < 2) return "名字至少 2 个字符";
+    if (len > 16) return "名字最多 16 个字符";
+    return "";
+  }
+
 
   private get mode(): AppMode {
     return this.settings?.mode === "agent" ? "agent" : "standard";
@@ -110,24 +214,13 @@ export class SettingsPage extends LitElement {
   private renderLaunch() {
     return html`
       <div class="card">
-        <h2>默认账户</h2>
-        <p>启动游戏时用哪个名字进游戏。正版服请用微软账户。</p>
-        <div class="row">
-          <input maxlength="16" placeholder="离线名字" .value=${this.name} @input=${(e: Event) => (this.name = (e.target as HTMLInputElement).value)} />
-          <button class="primary" type="button" @click=${async () => {
-            try {
-              const acc = await createOfflineOrThrow(this.name.trim());
-              showToast(`已切换到 ${acc.username}`);
-              await this.refresh();
-            } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
-          }}>添加离线账户</button>
-        </div>
-        <ul>${this.accounts.map((a) => html`<li>${a.username} · ${a.kind === "microsoft" ? "正版" : "离线"}</li>`)}</ul>
-      </div>
-      <div class="card">
-        <h2>正版微软账户</h2>
-        <p>使用微软账户登录 Minecraft，可进入正版服务器。</p>
-        <easymc-msa-login @msa-done=${async (e: CustomEvent) => { showToast(`已登录 ${e.detail.username}`); await this.refresh(); }}></easymc-msa-login>
+        <h2>账户</h2>
+        <p>启动游戏时用哪个名字进游戏。点选切换当前账户；正版服请用微软账户。</p>
+        ${this.accountPanel === null ? this.renderAccountList() : nothing}
+        ${this.accountPanel === "chooser" ? this.renderAddChooser() : nothing}
+        ${this.accountPanel === "offline" ? this.renderOfflineForm() : nothing}
+        ${this.accountPanel === "microsoft" ? this.renderMsForm() : nothing}
+        ${this.accountPanel === "skin" ? this.renderSkinForm() : nothing}
       </div>
       <div class="card">
         <h2>游戏内存</h2>
@@ -161,6 +254,156 @@ export class SettingsPage extends LitElement {
           <button class="ghost" type="button" @click=${async () => { await setCurseforgeKey(null); this.cf = await curseforgeConfigured(); showToast("已清除"); }}>清除</button>
         </div>
       </details>
+    `;
+  }
+
+
+  private renderAccountList() {
+    return html`
+      <div class="acct-list" role="listbox" aria-label="账户列表">
+        ${this.accounts.map((a) => {
+          const active = a.id === this.activeAccountId;
+          return html`<button
+            class="acct ${active ? "active" : ""}"
+            type="button"
+            role="option"
+            aria-selected=${active}
+            @click=${async () => {
+              const st = await setActiveAccount(a.id);
+              this.accounts = st.accounts;
+              this.activeAccountId = st.active_id;
+              showToast(`已切换到 ${a.username}`);
+            }}
+          >
+            <span class="skin-ph ${this.kindBadgeClass(a.kind)}" aria-hidden="true" title="皮肤预览"></span>
+            <span class="acct-body">
+              <div class="acct-name">${a.username}</div>
+              <div class="acct-meta">
+                <span class="badge ${this.kindBadgeClass(a.kind)}">${this.kindLabel(a.kind)}</span>
+                ${active ? html`<span>当前使用</span>` : nothing}
+              </div>
+            </span>
+            <span class="acct-actions" @click=${(e: Event) => e.stopPropagation()}>
+              <button
+                class="danger"
+                type="button"
+                title="移除"
+                @click=${async () => {
+                  if (!confirm(`移除账户「${a.username}」？`)) return;
+                  const st = await removeAccount(a.id);
+                  this.accounts = st.accounts;
+                  this.activeAccountId = st.active_id;
+                  showToast("已移除");
+                }}
+              >移除</button>
+            </span>
+          </button>`;
+        })}
+      </div>
+      ${!this.accounts.length
+        ? html`<div class="empty-soft">咦？还没有账户呢…<br /><span>点下面加一个，就能开玩啦</span></div>`
+        : nothing}
+      <div class="row" style="margin-top:12px">
+        <button class="primary" type="button" @click=${() => (this.accountPanel = "chooser")}>添加账户</button>
+      </div>
+    `;
+  }
+
+  private renderAddChooser() {
+    return html`
+      <div class="row" style="margin-bottom:8px">
+        <button class="ghost" type="button" @click=${() => (this.accountPanel = null)}>← 返回列表</button>
+      </div>
+      <p class="muted" style="margin-top:0">选择登录方式</p>
+      <div class="chooser">
+        <button class="choice" type="button" @click=${() => (this.accountPanel = "microsoft")}>
+          <strong>正版微软账户</strong>
+          <span>使用微软账户登录，可进入正版服务器。</span>
+        </button>
+        <button class="choice" type="button" @click=${() => { this.name = ""; this.nameError = ""; this.accountPanel = "offline"; }}>
+          <strong>离线游玩</strong>
+          <span>输入游戏里显示的名字，马上就能玩单人或离线服。</span>
+        </button>
+        <button class="choice" type="button" @click=${() => (this.accountPanel = "skin")}>
+          <strong>第三方皮肤站</strong>
+          <span>Authlib / 统一通行证等皮肤站账号（即将支持完整登录）。</span>
+        </button>
+      </div>
+    `;
+  }
+
+  private renderOfflineForm() {
+    return html`
+      <div class="row" style="margin-bottom:8px">
+        <button class="ghost" type="button" @click=${() => (this.accountPanel = "chooser")}>← 返回</button>
+      </div>
+      <div class="form-card">
+        <div style="display:flex;justify-content:center;margin-bottom:12px">
+          <span class="skin-ph off" style="width:64px;height:64px;border-radius:12px" aria-hidden="true"></span>
+        </div>
+        <label>游戏用户名
+          <input maxlength="16" placeholder="例如：Steve" .value=${this.name}
+            @input=${(e: Event) => { this.name = (e.target as HTMLInputElement).value; this.nameError = ""; }}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.submitOffline(); }} />
+        </label>
+        ${this.nameError ? html`<div class="err" role="alert">${this.nameError}</div>` : html`<div class="tip">2–16 个字符。离线可用中文名；进多数服务器建议只用英文字母、数字和下划线。</div>`}
+        <div class="row">
+          <button class="primary" type="button" @click=${() => this.submitOffline()}>添加并使用</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async submitOffline() {
+    const err = this.validateName(this.name);
+    this.nameError = err;
+    if (err) return;
+    try {
+      const acc = await createOfflineOrThrow(this.name.trim());
+      showToast(`已切换到 ${acc.username}`);
+      this.accountPanel = null;
+      await this.refresh();
+    } catch (e) {
+      this.nameError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  private renderMsForm() {
+    return html`
+      <div class="row" style="margin-bottom:8px">
+        <button class="ghost" type="button" @click=${() => (this.accountPanel = "chooser")}>← 返回</button>
+      </div>
+      <div class="form-card">
+        <p class="tip" style="margin-top:0">用浏览器登录微软账户，EasyMC 不会看到你的密码。</p>
+        <easymc-msa-login @msa-done=${async (e: CustomEvent) => {
+          showToast(`已登录 ${e.detail.username}`);
+          this.accountPanel = null;
+          await this.refresh();
+        }}></easymc-msa-login>
+      </div>
+    `;
+  }
+
+  private renderSkinForm() {
+    return html`
+      <div class="row" style="margin-bottom:8px">
+        <button class="ghost" type="button" @click=${() => (this.accountPanel = "chooser")}>← 返回</button>
+      </div>
+      <div class="form-card">
+        <p class="tip" style="margin-top:0">皮肤站登录即将支持。可先填信息并起一个离线名字进入游戏。</p>
+        <label>皮肤站地址<input .value=${this.skinServer} placeholder="例如：https://littleskin.cn" @input=${(e: Event) => (this.skinServer = (e.target as HTMLInputElement).value)} /></label>
+        <label>账号（邮箱或用户名）<input .value=${this.skinUser} @input=${(e: Event) => (this.skinUser = (e.target as HTMLInputElement).value)} /></label>
+        <label>游戏里显示的名字<input maxlength="16" .value=${this.name} @input=${(e: Event) => { this.name = (e.target as HTMLInputElement).value; this.nameError = ""; }} /></label>
+        ${this.nameError ? html`<div class="err">${this.nameError}</div>` : nothing}
+        ${this.skinNote ? html`<div class="tip">${this.skinNote}</div>` : nothing}
+        <div class="row">
+          <button class="ghost" type="button" @click=${() => {
+            this.skinNote = "已记下，皮肤站登录上线后会提醒你完成。";
+            try { localStorage.setItem("easymc.skinStationDraft", JSON.stringify({ server: this.skinServer, user: this.skinUser })); } catch { /* */ }
+          }}>稍后再说</button>
+          <button class="primary" type="button" @click=${() => this.submitOffline()}>添加离线名并使用</button>
+        </div>
+      </div>
     `;
   }
 

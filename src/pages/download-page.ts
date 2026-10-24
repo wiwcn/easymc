@@ -65,6 +65,8 @@ export class DownloadPage extends LitElement {
   @state() private loaderVer = "";
   @state() private newName = "";
   @state() private busy = false;
+  /** Vanilla install wizard: pick MC version → pick loader. */
+  @state() private vanillaStep: "version" | "loader" = "version";
 
   private unprog?: () => void;
 
@@ -168,6 +170,11 @@ export class DownloadPage extends LitElement {
     }
     .dl-stat { font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+    .empty-soft {
+      text-align: center; padding: 36px 16px; margin: 12px 0;
+      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    }
+    .empty-soft span { display: block; font-size: 0.82rem; opacity: 0.85; margin-top: 6px; }
     .panel {
       padding: 18px; border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
@@ -175,6 +182,76 @@ export class DownloadPage extends LitElement {
     }
     .field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; max-width: 480px; }
     .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
+
+    .toolbar {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px;
+    }
+    .toolbar .grow { flex: 1; min-width: 160px; }
+    .crumb {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px;
+    }
+    .crumb strong { color: var(--md-sys-color-on-surface); font-weight: 650; }
+    .crumb button {
+      border: none; background: transparent; color: var(--md-sys-color-primary);
+      cursor: pointer; font: inherit; font-weight: 600; padding: 0;
+    }
+    .ver-grid, .loader-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    button.ver-card, button.loader-card {
+      text-align: left; font: inherit; color: inherit; cursor: pointer;
+      display: flex; gap: 12px; align-items: center;
+      padding: 14px 16px; border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
+      box-shadow: var(--md-sys-elevation-1);
+      transition: border-color var(--easymc-dur-press) var(--easymc-ease-out),
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.ver-card:hover, button.loader-card:hover {
+      background: var(--md-sys-color-surface-container);
+      border-color: var(--md-sys-color-primary);
+    }
+    button.ver-card:active, button.loader-card:active { transform: scale(0.985); }
+    button.ver-card .vid {
+      font-weight: 700; font-size: 1.05rem; letter-spacing: -0.02em;
+    }
+    button.ver-card .meta {
+      font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
+    }
+    .badge-inst {
+      margin-left: auto; font-size: 0.7rem; font-weight: 650;
+      padding: 3px 8px; border-radius: 999px;
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
+    }
+    .loader-ico {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      display: grid; place-items: center; font-weight: 800; font-size: 0.85rem;
+      color: white; letter-spacing: -0.04em;
+    }
+    .loader-ico.vanilla { background: linear-gradient(135deg, oklch(0.62 0.12 145), oklch(0.48 0.1 150)); }
+    .loader-ico.fabric { background: linear-gradient(135deg, oklch(0.72 0.14 85), oklch(0.55 0.12 70)); }
+    .loader-ico.quilt { background: linear-gradient(135deg, oklch(0.65 0.14 310), oklch(0.5 0.12 300)); }
+    .loader-ico.forge { background: linear-gradient(135deg, oklch(0.55 0.08 60), oklch(0.4 0.06 50)); }
+    .loader-ico.neoforge { background: linear-gradient(135deg, oklch(0.58 0.14 35), oklch(0.45 0.12 25)); }
+    button.loader-card .lname { font-weight: 700; font-size: 0.98rem; }
+    button.loader-card .ldesc {
+      font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
+    }
+    .loader-panel {
+      padding: 16px; border-radius: 18px; margin-top: 14px;
+      background: var(--md-sys-color-surface-container-low);
+    }
+    .loader-panel .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    button.back {
+      border: none; background: transparent; color: var(--md-sys-color-primary);
+      cursor: pointer; font: inherit; font-weight: 600; padding: 8px 4px;
+    }
   `;
 
   connectedCallback() {
@@ -213,6 +290,7 @@ export class DownloadPage extends LitElement {
 
   private async setTab(t: DlTab) {
     this.tab = t;
+    if (t === "vanilla") this.vanillaStep = "version";
     this.results = [];
     this.error = "";
     this.expandedId = null;
@@ -318,15 +396,18 @@ export class DownloadPage extends LitElement {
       { id: "shader", label: "光影" },
       { id: "datapack", label: "数据包" },
     ];
-    return html`
-      <h1>下载</h1>
-      <p class="sub">
-        ${this.tab === "modpack"
+    const sub =
+      this.tab === "vanilla"
+        ? this.vanillaStep === "version"
+          ? "选择游戏版本"
+          : `为 ${this.pick} 选择加载器`
+        : this.tab === "modpack"
           ? "一键装好整套模组包（会新建一个版本）"
           : this.active
             ? `装进当前版本：${this.active.name}`
-            : "先在启动页选一个版本，或直接装整合包"}
-      </p>
+            : "先在启动页选一个版本，或直接装整合包";
+    return html`
+      <p class="sub">${sub}</p>
       <div class="tabs">
         ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
@@ -336,30 +417,120 @@ export class DownloadPage extends LitElement {
 
   private renderVanilla() {
     const filtered = this.mcVersions.filter((v) => !this.filter || v.id.includes(this.filter));
-    return html`<div class="panel">
-      <p class="muted">选择游戏版本，创建或装进本地版本。</p>
-      <div class="field"><label>名称（可选）</label><input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="我的生存世界" /></div>
-      <div class="bar">
-        <input placeholder="筛选…" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
-        <label class="muted"><input type="checkbox" .checked=${this.snapshots} @change=${async (e: Event) => { this.snapshots = (e.target as HTMLInputElement).checked; await this.loadVanilla(); }} /> 含快照</label>
+    if (this.vanillaStep === "loader") {
+      const loaders: { id: LoaderId; name: string; desc: string; mark: string }[] = [
+        { id: "vanilla", name: "原版", desc: "纯净 Minecraft，不加模组加载器", mark: "MC" },
+        { id: "fabric", name: "Fabric", desc: "轻量模组加载器，更新快", mark: "F" },
+        { id: "quilt", name: "Quilt", desc: "Fabric 兼容分支", mark: "Q" },
+        { id: "forge", name: "Forge", desc: "经典模组加载器，大整合常用", mark: "Fg" },
+        { id: "neoforge", name: "NeoForge", desc: "Forge 后续，适合新版本", mark: "NF" },
+      ];
+      return html`
+        <div class="crumb">
+          <button type="button" @click=${() => { this.vanillaStep = "version"; this.loader = "vanilla"; this.loaderVer = ""; }}>← 重选版本</button>
+          <span>/</span>
+          <strong>${this.pick}</strong>
+          <span>· 选择加载器</span>
+        </div>
+        <div class="loader-grid" role="listbox" aria-label="加载器">
+          ${loaders.map(
+            (l) => html`<button
+              class="loader-card"
+              type="button"
+              role="option"
+              @click=${() => this.pickLoader(l.id)}
+            >
+              <span class="loader-ico ${l.id}" aria-hidden="true">${l.mark}</span>
+              <span>
+                <div class="lname">${l.name}</div>
+                <div class="ldesc">${l.desc}</div>
+              </span>
+            </button>`,
+          )}
+        </div>
+        ${this.loader !== "vanilla" && this.loaderVers.length
+          ? html`<div class="loader-panel">
+              <div class="muted">加载器版本（${loaderLabel(this.loader)}）</div>
+              <div class="row">
+                <select .value=${this.loaderVer} @change=${(e: Event) => (this.loaderVer = (e.target as HTMLSelectElement).value)}>
+                  ${this.loaderVers.map((v) => html`<option value=${v.version}>${v.version}${v.stable ? "（稳定）" : ""}</option>`)}
+                </select>
+                <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="版本名称（可选）" style="flex:1;min-width:140px" />
+                <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
+                  ${this.busy ? "安装中…" : "安装并添加版本"}
+                </button>
+              </div>
+            </div>`
+          : this.loader === "vanilla"
+            ? html`<div class="loader-panel">
+                <div class="muted">将安装原版 ${this.pick}</div>
+                <div class="row">
+                  <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="版本名称（可选）" style="flex:1;min-width:140px" />
+                  <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
+                    ${this.busy ? "安装中…" : "安装并添加版本"}
+                  </button>
+                </div>
+              </div>`
+            : html`<div class="empty-soft">咦？这个加载器好像还没版本…<span>换个游戏版本或加载器再试试</span></div>`}
+        ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
+      `;
+    }
+
+    const typeLabel = (v: VersionSummary) => {
+      const ty = versionType(v);
+      if (ty === "snapshot") return "快照";
+      if (ty === "old_beta" || ty === "old_alpha") return "远古";
+      return "正式版";
+    };
+
+    return html`
+      <div class="toolbar">
+        <div class="search grow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input placeholder="筛选版本号…" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
+        </div>
+        <label class="muted" style="display:inline-flex;align-items:center;gap:6px">
+          <input type="checkbox" .checked=${this.snapshots} @change=${async (e: Event) => { this.snapshots = (e.target as HTMLInputElement).checked; await this.loadVanilla(); }} />
+          含快照
+        </label>
       </div>
-      <div class="field"><label>游戏版本</label>
-        <select .value=${this.pick} @change=${async (e: Event) => { this.pick = (e.target as HTMLSelectElement).value; if (this.loader !== "vanilla") { this.loaderVers = await listLoaderVersions(this.loader, this.pick); this.loaderVer = this.loaderVers[0]?.version ?? ""; } }}>
-          ${filtered.slice(0, 80).map((v) => html`<option value=${v.id}>${v.id} · ${versionType(v)}</option>`)}
-        </select>
+      <div class="ver-grid" role="listbox" aria-label="游戏版本">
+        ${filtered.slice(0, 48).map(
+          (v) => html`<button
+            class="ver-card"
+            type="button"
+            role="option"
+            @click=${() => this.pickVersion(v.id)}
+          >
+            <span>
+              <div class="vid">${v.id}</div>
+              <div class="meta">${typeLabel(v)}</div>
+            </span>
+            ${v.installed ? html`<span class="badge-inst">已安装</span>` : nothing}
+          </button>`,
+        )}
       </div>
-      <div class="field"><label>加载器</label>
-        <select .value=${this.loader} @change=${async (e: Event) => { this.loader = (e.target as HTMLSelectElement).value as LoaderId; this.loaderVers = this.loader === "vanilla" ? [] : await listLoaderVersions(this.loader, this.pick); this.loaderVer = this.loaderVers[0]?.version ?? ""; }}>
-          <option value="vanilla">原版</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option>
-        </select>
-      </div>
-      ${this.loader !== "vanilla" ? html`<div class="field"><label>加载器版本</label>
-        <select .value=${this.loaderVer} @change=${(e: Event) => (this.loaderVer = (e.target as HTMLSelectElement).value)}>
-          ${this.loaderVers.map((v) => html`<option value=${v.version}>${v.version}${v.stable ? "（稳定）" : ""}</option>`)}
-        </select></div>` : nothing}
-      <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>安装并添加版本</button>
-      ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
-    </div>`;
+      ${!filtered.length ? html`<div class="empty-soft">咦？似乎什么都没有…<span>换个筛选试试，或者打开「含快照」看看</span></div>` : nothing}
+    `;
+  }
+
+  private async pickVersion(id: string) {
+    this.pick = id;
+    this.loader = "vanilla";
+    this.loaderVer = "";
+    this.loaderVers = [];
+    this.vanillaStep = "loader";
+  }
+
+  private async pickLoader(id: LoaderId) {
+    this.loader = id;
+    if (id === "vanilla") {
+      this.loaderVers = [];
+      this.loaderVer = "";
+      return;
+    }
+    this.loaderVers = await listLoaderVersions(id, this.pick);
+    this.loaderVer = this.loaderVers[0]?.version ?? "";
   }
 
   private async installVanilla() {
@@ -437,7 +608,7 @@ export class DownloadPage extends LitElement {
       <div class="market-grid">
         ${this.results.map((p) => this.renderCard(p))}
       </div>
-      ${!this.loading && this.results.length === 0 && !this.error ? html`<p class="muted">输入关键词搜索，或留空看热门。</p>` : nothing}
+      ${!this.loading && this.results.length === 0 && !this.error ? html`<div class="empty-soft">咦？似乎什么都没有…<span>输入关键词搜索，或留空看看热门</span></div>` : nothing}
     `;
   }
 

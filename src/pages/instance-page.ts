@@ -134,6 +134,11 @@ export class InstancePage extends LitElement {
     .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-width: 420px; }
     .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
     .field input, .field select { border-radius: var(--md-sys-shape-corner-small); }
+    .empty-soft {
+      text-align: center; padding: 28px 16px; margin: 8px 0;
+      color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem; line-height: 1.55;
+    }
+    .empty-soft span { display: block; font-size: 0.82rem; opacity: 0.85; margin-top: 6px; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -239,7 +244,7 @@ export class InstancePage extends LitElement {
       </div>
       <div class="list">
         ${this.instances.length === 0
-          ? html`<p class="muted">还没有版本。点「添加版本」，或 <button class="ghost" type="button" style="padding:0 4px;display:inline;border:none;text-decoration:underline;cursor:pointer" @click=${() => this.goDownload("modpack")}>去下载整合包</button>（会新建一个版本）。</p>`
+          ? html`<div class="empty-soft">咦？似乎什么都没有…<span>点「添加版本」，或 <button class="ghost" type="button" style="padding:0 4px;display:inline;border:none;text-decoration:underline;cursor:pointer;font:inherit;color:var(--md-sys-color-primary)" @click=${() => this.goDownload("modpack")}>去下载整合包</button></span></div>`
           : this.instances.map((i) => this.renderRow(i))}
       </div>
       ${this.showCreate ? this.renderCreate() : nothing}
@@ -350,7 +355,7 @@ export class InstancePage extends LitElement {
         return html`<div class="panel">
           <h2>已安装的模组</h2>
           ${this.mods.length === 0
-            ? html`<p class="muted">还没有模组。</p><button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>`
+            ? html`<div class="empty-soft">咦？还没有模组呢…<span></span></div><div style="text-align:center"><button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button></div>`
             : this.mods.map((m) => {
                 const disabled = m.endsWith(".disabled");
                 return html`<div class="mod-row">
@@ -361,11 +366,11 @@ export class InstancePage extends LitElement {
               })}
         </div>`;
       case "worlds":
-        return this.renderLocals(d, "saves", "世界 / 存档", "还没有存档。进游戏创建世界后会出现在这里。");
+        return this.renderLocals(d, "saves", "世界 / 存档", "咦？还没有存档呢… 进游戏创建世界后会出现在这里");
       case "resourcepacks":
-        return this.renderLocals(d, "resourcepacks", "资源包", "还没有资源包。", "resourcepack");
+        return this.renderLocals(d, "resourcepacks", "资源包", "咦？还没有资源包呢…", "resourcepack");
       case "shaders":
-        return this.renderLocals(d, "shaderpacks", "光影", "还没有光影包。", "shader");
+        return this.renderLocals(d, "shaderpacks", "光影", "咦？还没有光影呢…", "shader");
       case "export":
         return html`<div class="panel">
           <h2>发给好友</h2>
@@ -387,7 +392,7 @@ export class InstancePage extends LitElement {
         ${downloadTab ? html`<button class="primary" type="button" @click=${() => this.goDownload(downloadTab)}>去下载</button>` : nothing}
       </div>
       ${this.locals.length === 0
-        ? html`<p class="muted">${empty}</p>`
+        ? html`<div class="empty-soft">${empty}</div>`
         : this.locals.map((e) => html`<div class="local-row">
             <span>${e.name}${e.is_dir ? "/" : ""} <span class="muted">${Math.round(e.size / 1024)} KB</span></span>
             <button class="danger ghost" type="button" @click=${() => this.act(async () => {

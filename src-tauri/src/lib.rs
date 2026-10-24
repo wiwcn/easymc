@@ -168,6 +168,56 @@ fn create_offline(state: State<'_, AppState>, username: String) -> Result<Accoun
     Ok(acc)
 }
 
+
+#[derive(serde::Serialize)]
+struct AccountsStateDto {
+    accounts: Vec<Account>,
+    active_id: Option<String>,
+}
+
+#[tauri::command]
+fn list_accounts_state(state: State<'_, AppState>) -> Result<AccountsStateDto, String> {
+    let (_, store) = ensure_defaults(state_paths(&state)).map_err(|e| e.to_string())?;
+    Ok(AccountsStateDto {
+        accounts: store.accounts,
+        active_id: store.active_id,
+    })
+}
+
+#[tauri::command]
+fn set_active_account(state: State<'_, AppState>, account_id: String) -> Result<AccountsStateDto, String> {
+    let paths = state_paths(&state);
+    let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+    if !store.accounts.iter().any(|a| a.id == account_id) {
+        return Err("账户不存在".into());
+    }
+    store.active_id = Some(account_id);
+    save_accounts(paths, &store).map_err(|e| e.to_string())?;
+    Ok(AccountsStateDto {
+        accounts: store.accounts,
+        active_id: store.active_id,
+    })
+}
+
+#[tauri::command]
+fn remove_account(state: State<'_, AppState>, account_id: String) -> Result<AccountsStateDto, String> {
+    let paths = state_paths(&state);
+    let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+    let before = store.accounts.len();
+    store.accounts.retain(|a| a.id != account_id);
+    if store.accounts.len() == before {
+        return Err("账户不存在".into());
+    }
+    if store.active_id.as_deref() == Some(account_id.as_str()) {
+        store.active_id = store.accounts.first().map(|a| a.id.clone());
+    }
+    save_accounts(paths, &store).map_err(|e| e.to_string())?;
+    Ok(AccountsStateDto {
+        accounts: store.accounts,
+        active_id: store.active_id,
+    })
+}
+
 #[tauri::command]
 async fn start_microsoft_login(state: State<'_, AppState>) -> Result<Account, String> {
     let settings = load_settings(state_paths(&state)).map_err(|e| e.to_string())?;
@@ -1170,6 +1220,9 @@ pub fn run() {
             create_instance,
             set_active_instance_cmd,
             list_accounts,
+            list_accounts_state,
+            set_active_account,
+            remove_account,
             create_offline,
             start_microsoft_login,
             update_settings_cmd,

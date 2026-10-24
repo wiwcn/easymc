@@ -91,6 +91,8 @@ export class HomePage extends LitElement {
   @state() private logs: string[] = [];
   @state() private menuOpenId: string | null = null;
   @state() private featuredMenu = false;
+  @state() private manageMenu = false;
+  @state() private instancesExpanded = false;
   @state() private showCreate = false;
   @state() private newName = "";
   @state() private newVersion = "1.21.1";
@@ -113,14 +115,33 @@ export class HomePage extends LitElement {
       max-width: 980px;
       position: relative;
     }
-    .toolbar {
+    .page-head {
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
       align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 12px;
+      min-height: 36px;
     }
-    .toolbar .grow { flex: 1; }
+    .page-head .grow { flex: 1; }
+    button.manage {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface-variant);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 7px 14px 7px 16px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    button.manage:hover {
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface);
+    }
+    button.manage svg { width: 16px; height: 16px; }
     button.primary {
       border: none;
       background: var(--md-sys-color-primary);
@@ -161,6 +182,11 @@ export class HomePage extends LitElement {
       overflow: hidden;
       margin-bottom: 22px;
       animation: focal-in var(--easymc-dur-focal) var(--easymc-ease-out) both;
+      transition:
+        margin var(--easymc-dur-med) var(--easymc-ease-out);
+    }
+    .featured.compact {
+      margin-bottom: 14px;
     }
     @keyframes focal-in {
       from { opacity: 0; transform: translateY(8px); }
@@ -168,20 +194,40 @@ export class HomePage extends LitElement {
     }
     .featured-top {
       display: flex;
-      gap: 20px;
-      padding: 22px 22px 18px;
-      align-items: flex-start;
+      gap: 24px;
+      padding: 28px 28px 22px;
+      align-items: stretch;
+      min-height: 196px;
+      transition:
+        padding var(--easymc-dur-med) var(--easymc-ease-out),
+        min-height var(--easymc-dur-med) var(--easymc-ease-out),
+        gap var(--easymc-dur-med) var(--easymc-ease-out);
+    }
+    .featured.compact .featured-top {
+      padding: 14px 18px 12px;
+      gap: 16px;
+      min-height: 0;
+      align-items: center;
     }
     .art {
-      width: 112px;
-      height: 112px;
-      border-radius: 18px;
+      width: 152px;
+      height: 168px;
+      border-radius: 20px;
       flex-shrink: 0;
+      align-self: center;
       background:
         radial-gradient(circle at 70% 28%, oklch(0.95 0.04 95), transparent 40%),
         linear-gradient(165deg, oklch(0.88 0.05 186), oklch(0.82 0.06 175));
       position: relative;
       overflow: hidden;
+      transition:
+        width var(--easymc-dur-med) var(--easymc-ease-out),
+        height var(--easymc-dur-med) var(--easymc-ease-out);
+    }
+    .featured.compact .art {
+      width: 72px;
+      height: 72px;
+      border-radius: 14px;
     }
     .art::after {
       content: "";
@@ -204,15 +250,27 @@ export class HomePage extends LitElement {
       right: 22%;
       box-shadow: 0 0 0 6px oklch(0.92 0.06 95 / 0.25);
     }
-    .feat-body { flex: 1; min-width: 0; }
+    .feat-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
     .feat-title {
-      margin: 0 0 10px;
-      font-size: 1.45rem;
+      margin: 0 0 12px;
+      font-size: 1.55rem;
       font-weight: 700;
       letter-spacing: -0.03em;
       color: var(--md-sys-color-on-surface);
       line-height: 1.2;
     }
+    .featured.compact .feat-title {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+    }
+    .featured.compact .feat-desc { display: none; }
+    .featured.compact .chips { margin-bottom: 0; }
     .chips {
       display: flex;
       flex-wrap: wrap;
@@ -248,9 +306,12 @@ export class HomePage extends LitElement {
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
-      padding: 14px 22px;
+      padding: 16px 26px;
       border-top: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       background: color-mix(in oklch, var(--md-sys-color-surface-container-low) 55%, transparent);
+    }
+    .featured.compact .featured-bar {
+      padding: 10px 16px;
     }
     .feat-meta {
       font-size: 0.85rem;
@@ -265,24 +326,40 @@ export class HomePage extends LitElement {
     button.launch {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       border: none;
-      background: var(--md-sys-color-primary);
+      /* Soft teal → green gradient — CTA only; no gradient text */
+      background: linear-gradient(
+        135deg,
+        oklch(0.52 0.09 186) 0%,
+        oklch(0.50 0.11 165) 55%,
+        oklch(0.48 0.12 150) 100%
+      );
       color: var(--md-sys-color-on-primary);
       border-radius: var(--md-sys-shape-corner-full);
-      padding: 12px 22px;
-      font-size: 1rem;
-      font-weight: 650;
+      padding: 15px 28px;
+      font-size: 1.08rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
       cursor: pointer;
-      box-shadow: var(--md-sys-elevation-1);
+      box-shadow:
+        var(--md-sys-elevation-2),
+        0 1px 0 oklch(1 0 0 / 0.18) inset;
       transition:
         filter var(--easymc-dur-press) var(--easymc-ease-out),
-        transform var(--easymc-dur-press) var(--easymc-ease-out);
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    button.launch:hover { filter: brightness(1.05); }
+    .featured.compact button.launch {
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      gap: 8px;
+    }
+    button.launch:hover { filter: brightness(1.06); }
     button.launch:active { transform: scale(0.985); }
     button.launch:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-    button.launch svg { width: 18px; height: 18px; }
+    button.launch svg { width: 20px; height: 20px; }
+    .featured.compact button.launch svg { width: 16px; height: 16px; }
     button.icon-btn {
       width: 40px;
       height: 40px;
@@ -356,10 +433,30 @@ export class HomePage extends LitElement {
       font-weight: 650;
       letter-spacing: -0.02em;
     }
+    .instances-area {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .instances-area.expanded {
+      max-height: min(42vh, 360px);
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-right: -4px;
+      scrollbar-gutter: stable;
+    }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
+    }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+      .art { width: 120px; height: 132px; }
+      .featured-top { min-height: 0; }
     }
     button.vcard {
       position: relative;
@@ -471,16 +568,26 @@ export class HomePage extends LitElement {
     .vcard .more svg { width: 16px; height: 16px; }
 
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+    .empty {
+      text-align: center;
+      padding: 48px 20px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
     .empty h1 {
-      font-size: 1.35rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      margin: 0 0 6px;
+      font-size: 1.25rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      margin: 0 0 8px;
     }
     .empty .sub {
       color: var(--md-sys-color-on-surface-variant);
-      margin: 0 0 16px;
+      margin: 0 0 20px;
+      max-width: 28em;
+      line-height: 1.5;
     }
+    .empty .row { justify-content: center; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .card {
       margin-top: 14px;
@@ -513,6 +620,7 @@ export class HomePage extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       .featured { animation: none; }
+      .featured, .featured-top, .art, button.launch { transition: none; }
       button.vcard:active, button.launch:active { transform: none; }
       .bar > i { transition: none; }
     }
@@ -534,9 +642,10 @@ export class HomePage extends LitElement {
     super.disconnectedCallback();
   }
   private onDocClick = () => {
-    if (this.menuOpenId || this.featuredMenu) {
+    if (this.menuOpenId || this.featuredMenu || this.manageMenu) {
       this.menuOpenId = null;
       this.featuredMenu = false;
+      this.manageMenu = false;
     }
   };
 
@@ -688,8 +797,9 @@ export class HomePage extends LitElement {
       acc ? `以 ${acc.username} 进入` : null,
     ].filter(Boolean);
 
+    const compact = this.instancesExpanded;
     return html`
-      <section class="featured" aria-label="当前版本">
+      <section class="featured ${compact ? "compact" : ""}" aria-label="当前版本">
         <div class="featured-top">
           <div class="art" aria-hidden="true"></div>
           <div class="feat-body">
@@ -872,8 +982,8 @@ export class HomePage extends LitElement {
     if (!f) {
       return html`
         <div class="empty">
-          <h1>还没有可玩的版本</h1>
-          <p class="sub">先添加一个游戏版本，就可以启动游戏了。</p>
+          <h1>咦？似乎什么都没有…</h1>
+          <p class="sub">还没有可玩的版本。加一个，或者去下载中心逛逛？</p>
           <div class="row">
             <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
             <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
@@ -883,25 +993,91 @@ export class HomePage extends LitElement {
       `;
     }
     const others = this.instances;
+    const visible = this.instancesExpanded ? others : others.slice(0, 3);
+    const canExpand = others.length > 3;
     return html`
-      <div class="toolbar">
-        <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
-        <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
+      <div class="page-head">
         <span class="grow"></span>
-        <button class="ghost" type="button" @click=${() => this.go("instances")}>管理版本</button>
+        <div class="menu-wrap">
+          <button
+            class="manage"
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded=${this.manageMenu ? "true" : "false"}
+            title="管理"
+            @click=${(e: Event) => {
+              e.stopPropagation();
+              this.manageMenu = !this.manageMenu;
+              this.featuredMenu = false;
+              this.menuOpenId = null;
+            }}
+          >
+            管理
+            <svg viewBox="0 0 24 24">${MORE}</svg>
+          </button>
+          ${this.manageMenu
+            ? html`<div
+                class="menu-panel"
+                role="menu"
+                @click=${(e: Event) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  @click=${() => {
+                    this.manageMenu = false;
+                    void this.openCreate();
+                  }}
+                >
+                  添加版本
+                </button>
+                <button
+                  type="button"
+                  @click=${() => {
+                    this.manageMenu = false;
+                    this.go("download");
+                  }}
+                >
+                  去下载中心
+                </button>
+                <button
+                  type="button"
+                  @click=${() => {
+                    this.manageMenu = false;
+                    this.go("instances");
+                  }}
+                >
+                  管理版本
+                </button>
+              </div>`
+            : nothing}
+        </div>
       </div>
       ${this.renderFeatured(f)}
       <div class="section-head">
         <h2>你的版本</h2>
-        <button class="linkish" type="button" @click=${() => this.go("instances")}>查看全部</button>
+        ${canExpand
+          ? html`<button
+              class="linkish"
+              type="button"
+              @click=${() => {
+                this.instancesExpanded = !this.instancesExpanded;
+              }}
+            >
+              ${this.instancesExpanded ? "收起" : "显示全部"}
+            </button>`
+          : html`<button class="linkish" type="button" @click=${() => this.go("instances")}>
+              查看全部
+            </button>`}
       </div>
-      <div class="grid" role="listbox" aria-label="版本列表">
-        ${others.map((i) => this.renderCard(i))}
+      <div class="instances-area ${this.instancesExpanded ? "expanded" : ""}">
+        <div class="grid" role="listbox" aria-label="版本列表">
+          ${visible.map((i) => this.renderCard(i))}
+        </div>
       </div>
       ${this.showLogs
         ? html`<div class="card">
             <h2>启动日志</h2>
-            <pre class="logs">${this.logs.join("\n") || "（暂无）"}</pre>
+            <pre class="logs">${this.logs.join("\n") || "（还没动静）"}</pre>
           </div>`
         : nothing}
       ${this.showCreate ? this.renderCreate() : nothing}

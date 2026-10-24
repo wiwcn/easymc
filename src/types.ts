@@ -63,6 +63,11 @@ export interface AccountDto {
   uuid: string;
 }
 
+export interface AccountsState {
+  accounts: AccountDto[];
+  active_id: string | null;
+}
+
 export interface VersionSummary {
   id: string;
   /** Backend serializes as `type` (piston-meta) or `version_type`. */
