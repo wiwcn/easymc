@@ -26,6 +26,8 @@ import type {
   InstanceDto,
   LlmConfigViewDto,
   LlmStatusDto,
+  ToolCallDto,
+  ToolStatus,
 } from "../types";
 
 type ChatTurn = {
@@ -35,7 +37,69 @@ type ChatTurn = {
   proposal?: ChangeProposalDto | null;
   /** applied | undone | pending */
   proposalStatus?: "pending" | "applied" | "undone";
+  /** Normalized tool card (one per assistant turn that ran a tool). */
+  tool?: ToolCallDto | null;
 };
+
+
+const TOOL_TITLES: Record<string, string> = {
+  ensure_java: "准备 Java",
+  setup_env: "一键环境",
+  install_mod: "安装模组",
+  open_store: "打开下载",
+  install_mod_hint: "打开下载",
+  bump_memory: "调整内存",
+  propose_changes: "建议更改",
+  set_download_source: "切换下载源",
+  open_instance_dir: "打开版本文件夹",
+  show_data_dir: "数据目录",
+  check_mods: "检查模组",
+  build_pack: "生成整合包",
+  diagnostics: "导出问题报告",
+  diagnose: "查看崩溃",
+  suggest_memory: "内存建议",
+};
+
+function runningTool(name: string, args: { key: string; label_zh: string; value: string }[] = []): ToolCallDto {
+  return {
+    id: `local-running-${name}-${Date.now()}`,
+    name,
+    title_zh: TOOL_TITLES[name] || "工具",
+    status: "running",
+    args,
+    result_zh: "正在执行…",
+    path: null,
+    payload: null,
+    ui_actions: [],
+    tag_zh: null,
+  };
+}
+
+function asTool(value: unknown): ToolCallDto | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as ToolCallDto;
+  if (!v.id || !v.name || !v.title_zh || !v.status) return null;
+  return {
+    ...v,
+    args: Array.isArray(v.args) ? v.args : [],
+    ui_actions: Array.isArray(v.ui_actions) ? v.ui_actions : [],
+  };
+}
+
+function statusLabel(s: ToolStatus): string {
+  switch (s) {
+    case "pending":
+      return "待确认";
+    case "running":
+      return "进行中";
+    case "ok":
+      return "完成";
+    case "error":
+      return "失败";
+    default:
+      return s;
+  }
+}
 
 function asProposal(value: unknown): ChangeProposalDto | null {
   if (!value || typeof value !== "object") return null;
@@ -211,6 +275,113 @@ export class AgentPage extends LitElement {
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       margin-top: 4px;
+    }
+
+    /* Normalized tool card */
+    .tool-card {
+      margin-top: var(--easymc-space-3);
+      padding: var(--easymc-space-4);
+      border-radius: 16px;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+      border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+    }
+    .tool-card.running {
+      border-color: color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent);
+    }
+    .tool-card.error {
+      border-color: color-mix(in srgb, var(--md-sys-color-error) 55%, transparent);
+    }
+    .tool-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--easymc-space-3);
+      margin-bottom: var(--easymc-space-3);
+    }
+    .tool-card-head h3 {
+      margin: 0;
+      font-size: var(--easymc-type-title);
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tool-chip {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-size: var(--easymc-type-meta);
+      font-weight: 600;
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .tool-chip.ok {
+      background: var(--md-sys-color-success-container, var(--md-sys-color-primary-container));
+      color: var(--md-sys-color-on-success-container, var(--md-sys-color-on-primary-container));
+    }
+    .tool-chip.running {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .tool-chip.error {
+      background: var(--md-sys-color-error-container, #fce8e6);
+      color: var(--md-sys-color-on-error-container, var(--md-sys-color-error));
+    }
+    .tool-chip.pending {
+      background: var(--md-sys-color-tertiary-container, var(--md-sys-color-secondary-container));
+      color: var(--md-sys-color-on-tertiary-container, var(--md-sys-color-on-secondary-container));
+    }
+    .tool-args {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      margin-bottom: var(--easymc-space-3);
+      font-size: var(--easymc-type-label);
+    }
+    .tool-args dt {
+      margin: 0;
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: 600;
+      font-size: var(--easymc-type-meta);
+    }
+    .tool-args dd {
+      margin: 0;
+      word-break: break-word;
+    }
+    .tool-result {
+      margin: 0 0 var(--easymc-space-3);
+      font-size: var(--easymc-type-body);
+      line-height: 1.45;
+      white-space: pre-wrap;
+      color: var(--md-sys-color-on-surface);
+    }
+    .tool-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--easymc-space-2);
+    }
+    .tool-progress {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: var(--easymc-space-2);
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .tool-progress .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--md-sys-color-primary);
+      animation: tool-pulse 1s ease-in-out infinite;
+    }
+    @keyframes tool-pulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tool-progress .dot { animation: none; opacity: 1; }
     }
     /* Proposal card (ghost card toward agent-v1) */
     .proposal {
@@ -523,20 +694,11 @@ export class AgentPage extends LitElement {
   }
 
   private async onDiagnose() {
-    this.busy = true;
-    this.error = "";
-    try {
-      // Prefer ask path so OOM can attach propose_changes.
-      await this.onAsk("查看崩溃");
-    } catch (e) {
-      this.error = String(e);
-    } finally {
-      this.busy = false;
-    }
+    await this.onAsk("查看崩溃", runningTool("diagnose"));
   }
 
 
-  private async onAsk(text?: string) {
+  private async onAsk(text?: string, runningHint?: ToolCallDto) {
     if (!this.requireCloud()) return;
     const q = (text ?? this.input).trim();
     if (!q || this.busy) return;
@@ -544,9 +706,22 @@ export class AgentPage extends LitElement {
     this.busy = true;
     this.error = "";
     this.turns = [...this.turns, { role: "user", content: q }];
+    // Optimistic running card so every tool path shows a complete card immediately.
+    if (runningHint) {
+      this.turns = [
+        ...this.turns,
+        {
+          role: "assistant",
+          content: "好的，我来处理。",
+          mode: "running",
+          tool: runningHint,
+        },
+      ];
+    }
     try {
       const history = this.turns
         .filter((t) => t.role === "user" || t.role === "assistant")
+        .filter((t) => t.mode !== "running")
         .slice(-10)
         .map((t) => ({ role: t.role, content: t.content }));
       const resp: AgentAskResponse = await agentAsk(q, {
@@ -557,29 +732,76 @@ export class AgentPage extends LitElement {
       let content = resp.reply_zh;
       let proposal: ChangeProposalDto | null = null;
       let proposalStatus: ChatTurn["proposalStatus"];
+      let tool = asTool(resp.tool) ?? (resp.action ? asTool({
+        id: `from-action-${Date.now()}`,
+        name: resp.action.action,
+        title_zh: TOOL_TITLES[resp.action.action] || "工具",
+        status: resp.action.ok ? "ok" : "error",
+        args: [],
+        result_zh: resp.action.message_zh,
+        path: resp.action.path,
+        payload: resp.action.value,
+        ui_actions: [],
+        tag_zh: null,
+      }) : null);
       if (resp.action) {
         if (resp.action.action === "propose_changes") {
-          proposal = asProposal(resp.action.value);
+          proposal = asProposal(resp.action.value) ?? asProposal(tool?.payload);
           proposalStatus = proposal ? "pending" : undefined;
-          // Don't run silent side effects for proposals.
+          if (tool && proposal) {
+            tool = {
+              ...tool,
+              status: "pending",
+              title_zh: proposal.title_zh || tool.title_zh,
+              tag_zh: proposal.tag_zh || tool.tag_zh,
+              payload: proposal,
+              ui_actions: [
+                { id: "apply_proposal", label_zh: "应用更改" },
+                { id: "undo_proposal", label_zh: "撤销" },
+              ],
+            };
+          }
         } else {
           content = this.enrichActionReply(content, resp.action);
           void this.applyAction(resp.action);
         }
       }
-      this.turns = [
-        ...this.turns,
-        {
-          role: "assistant",
-          content,
-          mode: resp.mode,
-          proposal,
-          proposalStatus,
-        },
-      ];
+      // Prefer short bubble when the tool card already carries the result body.
+      if (tool?.result_zh && content.trim() === tool.result_zh.trim()) {
+        content = tool.status === "error" ? "这次没做成。" : "好了。";
+      }
+      const assistantTurn: ChatTurn = {
+        role: "assistant",
+        content,
+        mode: resp.mode,
+        proposal,
+        proposalStatus,
+        tool,
+      };
+      if (runningHint) {
+        // Replace the optimistic running turn.
+        this.turns = this.turns.map((t, i) =>
+          i === this.turns.length - 1 && t.tool?.status === "running" ? assistantTurn : t,
+        );
+      } else {
+        this.turns = [...this.turns, assistantTurn];
+      }
     } catch (e) {
       this.error = String(e);
-      this.turns = [...this.turns, { role: "assistant", content: `错误：${e}` }];
+      const errTurn: ChatTurn = {
+        role: "assistant",
+        content: `出错了：${e}`,
+        tool: runningHint
+          ? { ...runningHint, status: "error", result_zh: String(e) }
+          : null,
+      };
+      if (runningHint) {
+        this.turns = this.turns.map((t, i) =>
+          i === this.turns.length - 1 && t.tool?.status === "running" ? errTurn : t,
+        );
+      } else {
+        this.turns = [...this.turns, errTurn];
+      }
     } finally {
       this.busy = false;
     }
@@ -678,10 +900,29 @@ export class AgentPage extends LitElement {
   private patchTurnProposal(turnIndex: number, status: ChatTurn["proposalStatus"], extraContent?: string) {
     this.turns = this.turns.map((t, i) => {
       if (i !== turnIndex) return t;
+      const toolStatus: ToolStatus | undefined =
+        status === "applied" || status === "undone"
+          ? "ok"
+          : status === "pending"
+            ? "pending"
+            : t.tool?.status;
       return {
         ...t,
         proposalStatus: status,
-        content: extraContent ? `${t.content}\n\n${extraContent}` : t.content,
+        content: extraContent ? `${t.content}
+
+${extraContent}` : t.content,
+        tool: t.tool
+          ? {
+              ...t.tool,
+              status: toolStatus || t.tool.status,
+              result_zh: extraContent || t.tool.result_zh,
+              ui_actions:
+                status === "pending"
+                  ? t.tool.ui_actions
+                  : (t.tool.ui_actions || []).filter((a) => a.id !== "apply_proposal"),
+            }
+          : t.tool,
       };
     });
   }
@@ -719,31 +960,36 @@ export class AgentPage extends LitElement {
   }
 
   private async onEnsureJava() {
-    await this.onAsk("修好 Java");
+    await this.onAsk("修好 Java", runningTool("ensure_java"));
   }
 
   private async onSetupEnv() {
-    await this.onAsk("一键环境");
+    await this.onAsk("一键环境", runningTool("setup_env"));
   }
 
   private async onTuneConfig() {
-    await this.onAsk("优化配置");
+    await this.onAsk("优化配置", runningTool("propose_changes"));
   }
 
   private async onBuildPack() {
-    await this.onAsk("生成整合包");
+    await this.onAsk("生成整合包", runningTool("build_pack"));
   }
 
   private async onBmclapi() {
-    await this.onAsk("切换 BMCLAPI 加速");
+    await this.onAsk(
+      "切换 BMCLAPI 加速",
+      runningTool("set_download_source", [
+        { key: "source", label_zh: "目标", value: "BMCLAPI" },
+      ]),
+    );
   }
 
   private async onOpenInstanceDir() {
-    await this.onAsk("打开版本文件夹");
+    await this.onAsk("打开版本文件夹", runningTool("open_instance_dir"));
   }
 
   private async onCheckMods() {
-    await this.onAsk("检查模组");
+    await this.onAsk("检查模组", runningTool("check_mods"));
   }
 
   private async onDataDir() {
@@ -751,7 +997,19 @@ export class AgentPage extends LitElement {
     this.turns = [...this.turns, { role: "user", content: "游戏文件夹在哪" }];
     const r = await agentDataDir();
     showToast(r.message.slice(0, 60));
-    this.turns = [...this.turns, { role: "assistant", content: r.message, mode: "rules" }];
+    const tool: ToolCallDto = {
+      id: `data-dir-${Date.now()}`,
+      name: "show_data_dir",
+      title_zh: "数据目录",
+      status: "ok",
+      args: r.path ? [{ key: "path", label_zh: "路径", value: String(r.path) }] : [],
+      result_zh: r.message,
+      path: r.path ?? null,
+      payload: null,
+      ui_actions: [],
+      tag_zh: "文件",
+    };
+    this.turns = [...this.turns, { role: "assistant", content: "在这儿。", mode: "rules", tool }];
   }
 
   private async onBumpMem() {
@@ -759,12 +1017,32 @@ export class AgentPage extends LitElement {
     this.busy = true;
     try {
       this.turns = [...this.turns, { role: "user", content: "内存调到 4 GB" }];
+      const run = runningTool("bump_memory", [
+        { key: "memory", label_zh: "目标内存", value: "4096 MB" },
+      ]);
+      this.turns = [
+        ...this.turns,
+        { role: "assistant", content: "好的，我来调内存。", mode: "running", tool: run },
+      ];
       const r = await agentBumpMemory(4096);
-      const content = r.ok
-        ? `${r.message}\n\n下一步：回到启动页，重新点「启动游戏」。`
-        : r.message;
       showToast(r.ok ? "内存已调整" : "调整失败");
-      this.turns = [...this.turns, { role: "assistant", content, mode: "rules" }];
+      const tool: ToolCallDto = {
+        ...run,
+        status: r.ok ? "ok" : "error",
+        result_zh: r.ok
+          ? `${r.message}\n\n下一步：回到启动页，重新点「启动游戏」。`
+          : r.message,
+        payload: { memory_mb: 4096 },
+      };
+      const turn: ChatTurn = {
+        role: "assistant",
+        content: r.ok ? "内存已改好。" : "这次没调成。",
+        mode: "rules",
+        tool,
+      };
+      this.turns = this.turns.map((x, i) =>
+        i === this.turns.length - 1 && x.tool?.status === "running" ? turn : x,
+      );
     } catch (e) {
       this.error = String(e);
     } finally {
@@ -777,9 +1055,29 @@ export class AgentPage extends LitElement {
     this.busy = true;
     try {
       this.turns = [...this.turns, { role: "user", content: "导出问题报告" }];
+      const run = runningTool("diagnostics");
+      this.turns = [
+        ...this.turns,
+        { role: "assistant", content: "正在整理问题报告…", mode: "running", tool: run },
+      ];
       const r = await agentExportDiagnostics(this.instanceId);
       showToast(r.ok ? "报告已导出" : "导出失败");
-      this.turns = [...this.turns, { role: "assistant", content: r.message, mode: "rules" }];
+      const tool: ToolCallDto = {
+        ...run,
+        status: r.ok ? "ok" : "error",
+        result_zh: r.message,
+        path: r.path ?? null,
+        args: r.path ? [{ key: "path", label_zh: "报告", value: String(r.path) }] : [],
+      };
+      const turn: ChatTurn = {
+        role: "assistant",
+        content: r.ok ? "报告已写好。" : "导出失败。",
+        mode: "rules",
+        tool,
+      };
+      this.turns = this.turns.map((x, i) =>
+        i === this.turns.length - 1 && x.tool?.status === "running" ? turn : x,
+      );
     } catch (e) {
       this.error = String(e);
     } finally {
@@ -791,6 +1089,151 @@ export class AgentPage extends LitElement {
     if (f.severity === "error") return "error";
     if (f.severity === "warn") return "warn";
     return "";
+  }
+
+
+  private async onToolUiAction(turnIndex: number, actionId: string, tool: ToolCallDto) {
+    if (actionId === "apply_proposal" && this.turns[turnIndex]?.proposal) {
+      await this.onAcceptProposal(turnIndex, this.turns[turnIndex].proposal!);
+      return;
+    }
+    if (actionId === "undo_proposal" && this.turns[turnIndex]?.proposal) {
+      await this.onUndoProposal(turnIndex, this.turns[turnIndex].proposal!);
+      return;
+    }
+    if (actionId === "open_download") {
+      const payload = tool.payload as { query?: string; tab?: string } | null;
+      const q = payload?.query?.trim() || "";
+      if (q) this.goDownloadSearch(q, payload?.tab || "mod");
+      return;
+    }
+    if (actionId === "open_folder" || actionId === "reveal_path") {
+      if (this.instanceId) {
+        try {
+          await openInstanceFolder(this.instanceId, "root");
+          showToast("已打开文件夹");
+        } catch (e) {
+          showToast(String(e));
+        }
+      } else if (tool.path) {
+        showToast(`路径：${tool.path}`);
+      }
+      return;
+    }
+    if (actionId === "run_diagnose") {
+      await this.onDiagnose();
+    }
+  }
+
+  private renderToolCard(turn: ChatTurn, index: number) {
+    const tool = turn.tool;
+    if (!tool) return nothing;
+    const st = tool.status;
+    const chipClass =
+      st === "ok" ? "ok" : st === "error" ? "error" : st === "running" ? "running" : "pending";
+    const isPropose = tool.name === "propose_changes" && turn.proposal;
+    return html`
+      <div
+        class="tool-card ${st === "error" ? "error" : ""} ${st === "running" ? "running" : ""}"
+        data-tool-id=${tool.id}
+        data-tool-name=${tool.name}
+      >
+        <div class="tool-card-head">
+          <div>
+            <h3>${isPropose ? "✨ " : ""}${tool.title_zh}</h3>
+            ${tool.tag_zh ? html`<p class="proposal-sub">${tool.tag_zh}</p>` : nothing}
+          </div>
+          <span class="tool-chip ${chipClass}">${statusLabel(st)}</span>
+        </div>
+        ${st === "running"
+          ? html`<div class="tool-progress"><span class="dot" aria-hidden="true"></span>进行中…</div>`
+          : nothing}
+        ${!isPropose && tool.args?.length
+          ? html`<dl class="tool-args">
+              ${tool.args.map(
+                (a) => html`<dt>${a.label_zh}</dt><dd>${a.value}</dd>`,
+              )}
+            </dl>`
+          : nothing}
+        ${isPropose
+          ? this.renderProposalBody(turn, index)
+          : tool.result_zh
+            ? html`<p class="tool-result">${tool.result_zh}</p>`
+            : nothing}
+        ${!isPropose && tool.ui_actions?.length
+          ? html`<div class="tool-card-actions">
+              ${tool.ui_actions.map(
+                (a) => html`
+                  <button
+                    class=${a.id === "apply_proposal" || a.id === "open_download" ? "primary" : "ghost"}
+                    type="button"
+                    ?disabled=${this.busy || st === "running"}
+                    @click=${() => void this.onToolUiAction(index, a.id, tool)}
+                  >
+                    ${a.label_zh}
+                  </button>
+                `,
+              )}
+            </div>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private renderProposalBody(turn: ChatTurn, index: number) {
+    const p = turn.proposal;
+    if (!p) return nothing;
+    const pending = turn.proposalStatus === "pending" || !turn.proposalStatus;
+    const applied = turn.proposalStatus === "applied";
+    const undone = turn.proposalStatus === "undone";
+    return html`
+      ${p.subtitle_zh ? html`<p class="proposal-sub">${p.subtitle_zh}</p>` : nothing}
+      <table class="proposal-table">
+        <thead>
+          <tr>
+            <th>设置</th>
+            <th>当前</th>
+            <th>建议</th>
+            <th>变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(p.items ?? []).map(
+            (it) => html`
+              <tr>
+                <td>${it.label_zh}</td>
+                <td>${it.current}</td>
+                <td class="proposed">${it.proposed}</td>
+                <td class="delta">${it.delta_zh}</td>
+              </tr>
+            `,
+          )}
+        </tbody>
+      </table>
+      <div class="proposal-actions tool-card-actions">
+        <button
+          class="primary"
+          type="button"
+          ?disabled=${this.busy || !pending}
+          @click=${() => void this.onAcceptProposal(index, p)}
+        >
+          ✓ 应用更改
+        </button>
+        <button
+          class="ghost"
+          type="button"
+          ?disabled=${this.busy || (!applied && !pending)}
+          @click=${() => void this.onUndoProposal(index, p)}
+        >
+          ↺ 撤销
+        </button>
+      </div>
+      ${applied
+        ? html`<p class="proposal-status ok">已应用更改，下次启动生效</p>`
+        : undone
+          ? html`<p class="proposal-status">已撤销，恢复为应用前的设置</p>`
+          : nothing}
+    `;
   }
 
   private renderProposal(turn: ChatTurn, index: number) {
@@ -1114,7 +1557,7 @@ export class AgentPage extends LitElement {
                       <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
                       <div>
                         <div class="bubble">${t.content}</div>
-                        ${t.role === "assistant" ? this.renderProposal(t, idx) : nothing}
+                        ${t.role === "assistant" ? (t.tool ? this.renderToolCard(t, idx) : this.renderProposal(t, idx)) : nothing}
                         ${t.mode
                           ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
                           : null}

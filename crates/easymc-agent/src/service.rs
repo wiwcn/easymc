@@ -32,6 +32,8 @@ pub struct AskResponse {
     pub reply_zh: String,
     pub report: Option<DiagnoseReport>,
     pub action: Option<ActionResult>,
+    /// Normalized tool card for the UI (derived from action / diagnose).
+    pub tool: Option<crate::tool::ToolCall>,
     pub llm: LlmStatus,
 }
 
@@ -233,6 +235,27 @@ pub async fn execute_intent(
     }
 }
 
+
+fn make_ask_response(
+    mode: impl Into<String>,
+    intent: Option<IntentResult>,
+    reply_zh: String,
+    report: Option<DiagnoseReport>,
+    action: Option<ActionResult>,
+    llm: LlmStatus,
+) -> AskResponse {
+    let tool = crate::tool::attach_tool_to_ask(action.as_ref(), report.as_ref());
+    AskResponse {
+        mode: mode.into(),
+        intent,
+        reply_zh,
+        report,
+        action,
+        tool,
+        llm,
+    }
+}
+
 pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
     let status = llm_status();
     let intent = route(&req.text);
@@ -285,14 +308,14 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                                 .map(|r| r.summary_zh.as_str())
                                 .unwrap_or("")
                         );
-                        return Ok(AskResponse {
-                            mode: "rules+llm".into(),
-                            intent: Some(intent),
-                            reply_zh: reply,
+                        return Ok(make_ask_response(
+                            "rules+llm",
+                            Some(intent),
+                            reply,
                             report,
                             action,
-                            llm: status,
-                        });
+                            status,
+                        ));
                     }
                     Err(e) => {
                         reply.push_str(&format!("\n\n（LLM 调用失败，已回退规则结果：{e}）"));
@@ -300,14 +323,14 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 }
             }
         }
-        return Ok(AskResponse {
-            mode: "rules".into(),
-            intent: Some(intent),
-            reply_zh: reply,
+        return Ok(make_ask_response(
+            "rules",
+            Some(intent),
+            reply,
             report,
             action,
-            llm: status,
-        });
+            status,
+        ));
     }
 
     // Other concrete intents → local
@@ -319,14 +342,14 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
             req.instance_id,
         )
         .await?;
-        return Ok(AskResponse {
-            mode: "rules".into(),
-            intent: Some(intent),
-            reply_zh: reply,
+        return Ok(make_ask_response(
+            "rules",
+            Some(intent),
+            reply,
             report,
             action,
-            llm: status,
-        });
+            status,
+        ));
     }
 
     // Help / Unknown → LLM chat if configured
@@ -351,25 +374,25 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
             let msgs = build_messages(&req.history, &user);
             match provider.complete(&msgs).await {
                 Ok(AgentReply { content, .. }) => {
-                    return Ok(AskResponse {
-                        mode: "llm".into(),
-                        intent: Some(intent),
-                        reply_zh: content,
-                        report: None,
-                        action: None,
-                        llm: status,
-                    });
+                    return Ok(make_ask_response(
+                        "llm",
+                        Some(intent),
+                        content,
+                        None,
+                        None,
+                        status,
+                    ));
                 }
                 Err(e) => {
                     let fallback = intent.reply_zh.clone();
-                    return Ok(AskResponse {
-                        mode: "rules_fallback".into(),
-                        intent: Some(intent),
-                        reply_zh: format!("LLM 不可用（{e}）。\n{fallback}"),
-                        report: None,
-                        action: None,
-                        llm: status,
-                    });
+                    return Ok(make_ask_response(
+                        "rules_fallback",
+                        Some(intent),
+                        format!("LLM 不可用（{e}）。\n{fallback}"),
+                        None,
+                        None,
+                        status,
+                    ));
                 }
             }
         }
@@ -377,14 +400,14 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
 
     let (reply, report, action) =
         execute_intent(paths, &intent.intent, req.process_logs, req.instance_id).await?;
-    Ok(AskResponse {
-        mode: "rules".into(),
-        intent: Some(intent),
-        reply_zh: reply,
+    Ok(make_ask_response(
+        "rules",
+        Some(intent),
+        reply,
         report,
         action,
-        llm: status,
-    })
+        status,
+    ))
 }
 
 fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {

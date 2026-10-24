@@ -9,6 +9,7 @@ pub mod llm;
 mod patterns;
 mod propose;
 mod service;
+mod tool;
 
 pub use actions::{
     bump_memory, check_mods, env_status_summary, set_download_source, show_data_dir,
@@ -29,6 +30,10 @@ pub use propose::{
 pub use service::{
     ask, execute_intent, memory_suggestion, run_diagnose, tune_proposal, AskRequest, AskResponse,
     DisabledGguf, LocalGgufBackend,
+};
+pub use tool::{
+    attach_tool_to_ask, refresh_ask_tool, tool_call_from_action, tool_call_from_diagnose, tool_meta, tool_running,
+    ToolArg, ToolCall, ToolStatus, ToolUiAction,
 };
 
 use async_trait::async_trait;

@@ -238,11 +238,40 @@ export interface ChangeProposalDto {
   };
 }
 
+
+export type ToolStatus = "pending" | "running" | "ok" | "error";
+
+export interface ToolArgDto {
+  key: string;
+  label_zh: string;
+  value: string;
+}
+
+export interface ToolUiActionDto {
+  id: string;
+  label_zh: string;
+}
+
+/** Normalized tool invocation for chat tool cards (rules + cloud paths). */
+export interface ToolCallDto {
+  id: string;
+  name: string;
+  title_zh: string;
+  status: ToolStatus;
+  args: ToolArgDto[];
+  result_zh?: string | null;
+  path?: string | null;
+  payload?: unknown;
+  ui_actions: ToolUiActionDto[];
+  tag_zh?: string | null;
+}
+
 export interface AgentAskResponse {
   mode: string;
   reply_zh: string;
   report?: DiagnoseReportDto | null;
   action?: AgentActionDto | null;
+  tool?: ToolCallDto | null;
   llm: LlmStatusDto;
 }
 

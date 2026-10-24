@@ -23,7 +23,7 @@ use easymc_share::{
 use easymc_agent::{
     apply_proposal, ask, bump_memory, clear_llm_config, llm_status, parse_proposal, read_llm_config,
     run_diagnose, save_llm_config, show_data_dir, try_load_dotenv_llm, undo_proposal,
-    write_diagnostic_bundle, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
+    write_diagnostic_bundle, refresh_ask_tool, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
     LlmConfigView, LlmStatus,
 };
 use easymc_mods::{
@@ -1306,6 +1306,7 @@ async fn agent_ask(
             }
         }
     }
+    resp.tool = refresh_ask_tool(resp.action.as_ref(), resp.report.as_ref());
     Ok(resp)
 }
 

@@ -840,6 +840,22 @@ async fn real_main() -> easymc_core::Result<()> {
                     .await?;
                     println!("mode={} llm={}", resp.mode, resp.llm.mode);
                     println!("{}", resp.reply_zh);
+                    if let Some(tool) = &resp.tool {
+                        println!(
+                            "→ tool={} status={:?} title={}",
+                            tool.name, tool.status, tool.title_zh
+                        );
+                        if !tool.args.is_empty() {
+                            for a in &tool.args {
+                                println!("  · {}: {}", a.label_zh, a.value);
+                            }
+                        }
+                        if let Some(r) = &tool.result_zh {
+                            if r != &resp.reply_zh {
+                                println!("  result: {r}");
+                            }
+                        }
+                    }
                     if let Some(action) = &resp.action {
                         if action.action == "propose_changes" {
                             println!("→ action=propose_changes (需确认后应用)");
