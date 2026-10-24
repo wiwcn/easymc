@@ -231,6 +231,8 @@ export type AppMode = "agent" | "standard";
 
 export type PreferredLogin = "microsoft" | "offline" | "skin_station";
 
+export type DownloadSourceId = "official" | "bmclapi";
+
 export interface SettingsDto {
   msa_client_id?: string | null;
   preferred_java?: string | null;
@@ -239,6 +241,8 @@ export interface SettingsDto {
   mode: AppMode;
   onboarding_complete: boolean;
   preferred_login?: PreferredLogin | string | null;
+  /** Game file download source: official Mojang or BMCLAPI mirror. */
+  download_source?: DownloadSourceId | string;
 }
 
 export interface MsaStatusDto {

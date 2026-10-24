@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 
-use easymc_core::{EasyMcError, McVersion, Paths, Result};
+use easymc_core::{DownloadSource, EasyMcError, McVersion, Paths, Result};
 use serde::Deserialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::download::download_file;
+use crate::download::{download_with_source, get_with_source};
 use crate::fabric::{IntermediaryBuild, LoaderBuild, LoaderKind, LoaderVersionInfo};
 use crate::install::{install_version, InstallOptions, InstallProgress};
 
@@ -103,15 +103,18 @@ fn neoforge_installer_url(loader: &str) -> String {
 /// List Forge builds for a Minecraft version (newest first). `loader.version` is the
 /// Forge build only (e.g. `52.1.20`); `intermediary.version` echoes the game version.
 pub async fn list_forge_versions(game: &str) -> Result<Vec<LoaderVersionInfo>> {
+    list_forge_versions_with_source(game, DownloadSource::Official).await
+}
+
+pub async fn list_forge_versions_with_source(
+    game: &str,
+    source: DownloadSource,
+) -> Result<Vec<LoaderVersionInfo>> {
     let url = format!("{FORGE_MAVEN}/net/minecraftforge/forge/maven-metadata.xml");
     let client = http_client()?;
-    let text = client
-        .get(&url)
-        .send()
+    let text = get_with_source(&client, &url, source)
         .await
         .map_err(|e| EasyMcError::Http(format!("请求 Forge maven-metadata 失败: {e}")))?
-        .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("Forge maven-metadata HTTP 错误: {e}")))?
         .text()
         .await
         .map_err(|e| EasyMcError::Http(format!("读取 Forge maven-metadata 失败: {e}")))?;
@@ -162,15 +165,19 @@ pub async fn list_forge_versions(game: &str) -> Result<Vec<LoaderVersionInfo>> {
 
 /// List NeoForge builds for a Minecraft version (newest first).
 pub async fn list_neoforge_versions(game: &str) -> Result<Vec<LoaderVersionInfo>> {
+    list_neoforge_versions_with_source(game, DownloadSource::Official).await
+}
+
+pub async fn list_neoforge_versions_with_source(
+    game: &str,
+    source: DownloadSource,
+) -> Result<Vec<LoaderVersionInfo>> {
     let prefix = neoforge_version_prefix(game)?;
     let client = http_client()?;
-    let api: NeoForgeVersionsApi = client
-        .get(NEOFORGE_VERSIONS_API)
-        .send()
+    // NeoForge versions API is not mirrored on BMCLAPI — get_with_source leaves it official.
+    let api: NeoForgeVersionsApi = get_with_source(&client, NEOFORGE_VERSIONS_API, source)
         .await
         .map_err(|e| EasyMcError::Http(format!("请求 NeoForge 版本列表失败: {e}")))?
-        .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("NeoForge 版本列表 HTTP 错误: {e}")))?
         .json()
         .await
         .map_err(|e| EasyMcError::Http(format!("解析 NeoForge 版本列表失败: {e}")))?;
@@ -208,9 +215,18 @@ pub async fn resolve_forge_family_version(
     game: &str,
     prefer: Option<&str>,
 ) -> Result<String> {
+    resolve_forge_family_version_with_source(kind, game, prefer, DownloadSource::Official).await
+}
+
+pub async fn resolve_forge_family_version_with_source(
+    kind: LoaderKind,
+    game: &str,
+    prefer: Option<&str>,
+    source: DownloadSource,
+) -> Result<String> {
     let list = match kind {
-        LoaderKind::Forge => list_forge_versions(game).await?,
-        LoaderKind::NeoForge => list_neoforge_versions(game).await?,
+        LoaderKind::Forge => list_forge_versions_with_source(game, source).await?,
+        LoaderKind::NeoForge => list_neoforge_versions_with_source(game, source).await?,
         _ => {
             return Err(EasyMcError::msg(
                 "resolve_forge_family_version 仅用于 Forge/NeoForge",
@@ -368,8 +384,14 @@ pub async fn install_forge_family(
         Some(1),
         format!("解析 {}（游戏 {}）", kind.label_zh(), game),
     ));
-    let loader_ver =
-        resolve_forge_family_version(kind, game.as_str(), loader_version.as_deref()).await?;
+    let source = vanilla.download_source;
+    let loader_ver = resolve_forge_family_version_with_source(
+        kind,
+        game.as_str(),
+        loader_version.as_deref(),
+        source,
+    )
+    .await?;
     emit(InstallProgress::new(
         "meta",
         1,
@@ -411,7 +433,7 @@ pub async fn install_forge_family(
         format!("下载 {} installer…", kind.label_zh()),
     ));
     let client = http_client()?;
-    download_file(&client, &url, &installer_jar, None, None, |_, _| {})
+    download_with_source(&client, &url, &installer_jar, None, None, source, |_, _| {})
         .await
         .map_err(|e| {
             EasyMcError::msg(format!(

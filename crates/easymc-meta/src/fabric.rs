@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
-use easymc_core::{EasyMcError, McVersion, Paths, Result};
+use easymc_core::{DownloadSource, EasyMcError, McVersion, Paths, Result};
 use serde::Deserialize;
 
-use crate::download::{download_file, FetchResult};
+use crate::download::{download_with_source, get_with_source, FetchResult};
 use crate::install::{
     install_version, library_relative_path, maven_path_from_name, InstallOptions, InstallProgress,
 };
@@ -116,20 +116,27 @@ fn http_client() -> Result<reqwest::Client> {
 
 /// List loader builds for a game version (stable / newest first).
 pub async fn list_loaders(kind: LoaderKind, game: &str) -> Result<Vec<LoaderVersionInfo>> {
+    list_loaders_with_source(kind, game, DownloadSource::Official).await
+}
+
+/// List loader builds using the chosen download source (mirror + Official fallback).
+pub async fn list_loaders_with_source(
+    kind: LoaderKind,
+    game: &str,
+    source: DownloadSource,
+) -> Result<Vec<LoaderVersionInfo>> {
     match kind {
-        LoaderKind::Forge => return crate::forge::list_forge_versions(game).await,
-        LoaderKind::NeoForge => return crate::forge::list_neoforge_versions(game).await,
+        LoaderKind::Forge => return crate::forge::list_forge_versions_with_source(game, source).await,
+        LoaderKind::NeoForge => {
+            return crate::forge::list_neoforge_versions_with_source(game, source).await
+        }
         LoaderKind::Fabric | LoaderKind::Quilt => {}
     }
     let url = format!("{}/versions/loader/{game}", kind.meta_base()?);
     let client = http_client()?;
-    let list: Vec<LoaderVersionInfo> = client
-        .get(&url)
-        .send()
+    let list: Vec<LoaderVersionInfo> = get_with_source(&client, &url, source)
         .await
         .map_err(|e| EasyMcError::Http(format!("请求 {} 失败: {e}", kind.label_zh())))?
-        .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("{} meta HTTP 错误: {e}", kind.label_zh())))?
         .json()
         .await
         .map_err(|e| EasyMcError::Http(format!("解析 {} loader 列表失败: {e}", kind.label_zh())))?;
@@ -144,10 +151,20 @@ pub async fn list_loaders(kind: LoaderKind, game: &str) -> Result<Vec<LoaderVers
 
 /// Pick stable loader, else newest (first entry — Fabric sorts newest first).
 pub async fn resolve_loader_version(kind: LoaderKind, game: &str, prefer: Option<&str>) -> Result<String> {
+    resolve_loader_version_with_source(kind, game, prefer, DownloadSource::Official).await
+}
+
+pub async fn resolve_loader_version_with_source(
+    kind: LoaderKind,
+    game: &str,
+    prefer: Option<&str>,
+    source: DownloadSource,
+) -> Result<String> {
     if kind.is_forge_family() {
-        return crate::forge::resolve_forge_family_version(kind, game, prefer).await;
+        return crate::forge::resolve_forge_family_version_with_source(kind, game, prefer, source)
+            .await;
     }
-    let list = list_loaders(kind, game).await?;
+    let list = list_loaders_with_source(kind, game, source).await?;
     if let Some(p) = prefer {
         if list.iter().any(|l| l.loader.version == p) {
             return Ok(p.to_string());
@@ -163,19 +180,20 @@ pub async fn resolve_loader_version(kind: LoaderKind, game: &str, prefer: Option
     Ok(list[0].loader.version.clone())
 }
 
-async fn fetch_profile_json(kind: LoaderKind, game: &str, loader: &str) -> Result<VersionInfo> {
+async fn fetch_profile_json(
+    kind: LoaderKind,
+    game: &str,
+    loader: &str,
+    source: DownloadSource,
+) -> Result<VersionInfo> {
     let url = format!(
         "{}/versions/loader/{game}/{loader}/profile/json",
         kind.meta_base()?
     );
     let client = http_client()?;
-    let profile: VersionInfo = client
-        .get(&url)
-        .send()
+    let profile: VersionInfo = get_with_source(&client, &url, source)
         .await
         .map_err(|e| EasyMcError::Http(format!("获取 {} profile 失败: {e}", kind.label_zh())))?
-        .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("{} profile HTTP 错误: {e}", kind.label_zh())))?
         .json()
         .await
         .map_err(|e| EasyMcError::Http(format!("解析 {} profile 失败: {e}", kind.label_zh())))?;
@@ -251,8 +269,14 @@ pub async fn install_loader(
         Some(1),
         format!("解析 {} loader（游戏 {}）", kind.label_zh(), game),
     ));
-    let loader_ver =
-        resolve_loader_version(kind, game.as_str(), opts.loader_version.as_deref()).await?;
+    let source = opts.vanilla.download_source;
+    let loader_ver = resolve_loader_version_with_source(
+        kind,
+        game.as_str(),
+        opts.loader_version.as_deref(),
+        source,
+    )
+    .await?;
     emit(InstallProgress::new(
         "meta",
         1,
@@ -270,7 +294,7 @@ pub async fn install_loader(
     };
     install_version(paths, &game_clone, opts.vanilla, emit_vanilla).await?;
 
-    let mut profile = fetch_profile_json(kind, game.as_str(), &loader_ver).await?;
+    let mut profile = fetch_profile_json(kind, game.as_str(), &loader_ver, source).await?;
     if profile.inherits_from.is_none() {
         profile.inherits_from = Some(game.0.clone());
     }
@@ -313,7 +337,7 @@ pub async fn install_loader(
             Some(art.sha1.as_str())
         };
         let size = if art.size == 0 { None } else { Some(art.size) };
-        let res = download_file(&client, &art.url, &dest, sha, size, |_, _| {}).await;
+        let res = download_with_source(&client, &art.url, &dest, sha, size, source, |_, _| {}).await;
         match res {
             Ok(FetchResult::Skipped) => skipped += 1,
             Ok(FetchResult::Downloaded) => downloaded += 1,

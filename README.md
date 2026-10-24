@@ -11,6 +11,7 @@ Open-source **Minecraft Java Edition** launcher — Tauri 2 + Lit + Vite + Rust.
 - Local JSON persistence for instances & accounts (`EASYMC_DATA_DIR` or platform data dir `/EasyMC`)
 - Default offline account (`EasyPlayer`) + Settings UI to create more
 - Mojang piston-meta: list / resolve / install client + libraries + natives (+ assets)
+- Download sources: **官方** (default) or **BMCLAPI 加速** (`bmclapi2.bangbang93.com`), with Official fallback on mirror failure. Set in Settings → 下载源, or `easymc download-source set bmclapi`.
 - System Java detection; Temurin JDK download into `runtimes/` when missing
 - Desktop launch: classpath, natives, argument templates, process + log streaming
 - Home **启动** wires to real install/launch; log panel in UI
@@ -207,7 +208,7 @@ Verified with `EASYMC_DATA_DIR=/workspace/easymc-data`:
 
 - Full MSA login (needs Azure client id + OAuth → Xbox → Minecraft services finish)
 - Mod update/remove UI polish; NeoForge 1.20.1 transitional artifact; cloud pastebin hosting (local path share is enough)
-- Asset download progress UI polish; optional mirror CDNs
+- Asset download progress UI polish
 - Windows JDK zip extract path (Linux tar.gz path works)
 - Real audio device for OpenAL (optional)
 - GPU/display for the game window itself

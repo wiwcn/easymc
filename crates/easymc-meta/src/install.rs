@@ -2,12 +2,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use easymc_core::{EasyMcError, McVersion, Paths, Result};
+use easymc_core::{DownloadSource, EasyMcError, McVersion, Paths, Result};
 use serde::Serialize;
 use tokio::task::JoinSet;
 use zip::ZipArchive;
 
-use crate::download::{download_file, FetchResult};
+use crate::download::{download_with_source, FetchResult};
 use crate::rules::{is_native_library, rules_allow};
 use crate::types::{AssetIndex, Library, VersionInfo};
 use crate::{MetaProvider, PistonMetaProvider};
@@ -110,6 +110,8 @@ pub struct InstallOptions {
     pub assets: bool,
     /// Extract natives-* jars into natives/<version>. Default true.
     pub natives: bool,
+    /// Official or BMCLAPI (with Official fallback on mirror failure).
+    pub download_source: DownloadSource,
 }
 
 impl Default for InstallOptions {
@@ -117,6 +119,7 @@ impl Default for InstallOptions {
         Self {
             assets: true,
             natives: true,
+            download_source: DownloadSource::Official,
         }
     }
 }
@@ -148,7 +151,7 @@ pub async fn install_version(
     paths.ensure()?;
     let phase_total = phase_plan(&opts);
     let mut phase = 1u32;
-    let provider = PistonMetaProvider::new();
+    let provider = PistonMetaProvider::with_source(opts.download_source);
 
     let emit_err = |stage: &str, phase: u32, e: &EasyMcError| {
         let mut p = InstallProgress::new("error", phase, phase_total, 0, None, e.to_string());
@@ -201,12 +204,14 @@ pub async fn install_version(
         Some(client.size),
         format!("下载客户端 {}", info.id),
     ));
-    let client_res = download_file(
+    let source = opts.download_source;
+    let client_res = download_with_source(
         provider.client(),
         &client.url,
         &jar_path,
         Some(&client.sha1),
         Some(client.size),
+        source,
         |c, t| {
             on_progress(InstallProgress::new(
                 "client",
@@ -276,12 +281,13 @@ pub async fn install_version(
                 .clone()
                 .unwrap_or_else(|| maven_path_from_name(&lib.name));
             let dest = paths.library_path(&rel);
-            let res = download_file(
+            let res = download_with_source(
                 provider.client(),
                 &artifact.url,
                 &dest,
                 Some(&artifact.sha1),
                 Some(artifact.size),
+                source,
                 |_, _| {},
             )
             .await;
@@ -301,12 +307,13 @@ pub async fn install_version(
                     if let Some(art) = classifiers.get(&key) {
                         let rel = art.path.clone().unwrap_or_else(|| format!("{key}.jar"));
                         let dest = paths.library_path(&rel);
-                        let res = download_file(
+                        let res = download_with_source(
                             provider.client(),
                             &art.url,
                             &dest,
                             Some(&art.sha1),
                             Some(art.size),
+                            source,
                             |_, _| {},
                         )
                         .await;
@@ -379,8 +386,16 @@ pub async fn install_version(
     // —— assets ——
     if opts.assets {
         phase += 1;
-        if let Err(e) =
-            install_assets(paths, &info, provider.client(), phase, phase_total, &on_progress).await
+        if let Err(e) = install_assets(
+            paths,
+            &info,
+            provider.client(),
+            source,
+            phase,
+            phase_total,
+            &on_progress,
+        )
+        .await
         {
             let e = map_stage_err("assets", e);
             emit_err("assets", phase, &e);
@@ -403,6 +418,7 @@ async fn install_assets(
     paths: &Paths,
     info: &VersionInfo,
     client: &reqwest::Client,
+    source: DownloadSource,
     phase: u32,
     phase_total: u32,
     on_progress: &(impl Fn(InstallProgress) + Send + Sync),
@@ -423,12 +439,13 @@ async fn install_assets(
         Some(1),
         format!("获取资源索引 {}", idx_ref.id),
     ));
-    download_file(
+    download_with_source(
         client,
         &idx_ref.url,
         &idx_path,
         Some(&idx_ref.sha1),
         Some(idx_ref.size),
+        source,
         |_, _| {},
     )
     .await?;
@@ -468,7 +485,8 @@ async fn install_assets(
                 .acquire()
                 .await
                 .map_err(|e| EasyMcError::msg(e.to_string()))?;
-            download_file(&client, &url, &dest, Some(&hash), Some(size), |_, _| {}).await
+            download_with_source(&client, &url, &dest, Some(&hash), Some(size), source, |_, _| {})
+                .await
         });
     }
 

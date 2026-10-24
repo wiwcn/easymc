@@ -223,6 +223,24 @@ export class SettingsPage extends LitElement {
           <span>${MEM_MAX}</span>
         </div>
       </div>
+      <div class="card">
+        <h2>下载源</h2>
+        <p>游戏文件与版本列表的下载地址。网络较慢时可改用 BMCLAPI 加速；失败时会自动回退官方源。</p>
+        <div class="row">
+          <select
+            aria-label="下载源"
+            .value=${this.settings?.download_source === "bmclapi" ? "bmclapi" : "official"}
+            @change=${async (e: Event) => {
+              const v = (e.target as HTMLSelectElement).value;
+              this.settings = await updateSettings({ download_source: v });
+              showToast(v === "bmclapi" ? "已切换为 BMCLAPI 加速" : "已切换为官方源");
+            }}
+          >
+            <option value="official">官方</option>
+            <option value="bmclapi">BMCLAPI 加速</option>
+          </select>
+        </div>
+      </div>
       <details class="card">
         <summary>高级</summary>
         <p style="margin-top:12px">数据目录：<code>${this.dataDir || "（未知）"}</code></p>

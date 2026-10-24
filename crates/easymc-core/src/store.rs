@@ -48,6 +48,43 @@ impl AppMode {
 /// Preferred login path from onboarding / settings (`microsoft` | `offline` | `skin_station`).
 pub type PreferredLogin = String;
 
+
+/// Preferred Minecraft file download source (version list + install).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadSource {
+    /// Mojang / official Fabric / Forge / NeoForge hosts.
+    #[default]
+    Official,
+    /// BMCLAPI mirror (`bmclapi2.bangbang93.com`) — China-friendly accelerate.
+    Bmclapi,
+}
+
+impl DownloadSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Official => "official",
+            Self::Bmclapi => "bmclapi",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "official" | "mojang" | "default" => Some(Self::Official),
+            "bmclapi" | "bmcl" | "bmclapi2" => Some(Self::Bmclapi),
+            _ => None,
+        }
+    }
+
+    /// Player-facing Chinese label.
+    pub fn label_zh(self) -> &'static str {
+        match self {
+            Self::Official => "官方",
+            Self::Bmclapi => "BMCLAPI 加速",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub msa_client_id: Option<String>,
@@ -66,6 +103,9 @@ pub struct Settings {
     /// Last chosen login style: microsoft / offline / skin_station.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preferred_login: Option<PreferredLogin>,
+    /// Game file download source: official or BMCLAPI mirror.
+    #[serde(default)]
+    pub download_source: DownloadSource,
 }
 
 impl Default for Settings {
@@ -78,6 +118,7 @@ impl Default for Settings {
             mode: AppMode::Standard,
             onboarding_complete: false,
             preferred_login: None,
+            download_source: DownloadSource::Official,
         }
     }
 }

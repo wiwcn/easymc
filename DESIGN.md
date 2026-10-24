@@ -397,6 +397,7 @@ Easing：`--easymc-ease-out` = `cubic-bezier(0.16, 1, 0.3, 1)`。**仅 CSS**—�
 | LLM / OpenAI 兼容 / model@host | 「云端 AI 助手」「已连接」 |
 | uuid / kind / accounts.json | 「账户」「离线账户」 |
 | piston-meta / classpath / natives | 「下载游戏文件 / 依赖库」 |
+| BMCLAPI / mirror CDN | 「下载源」「BMCLAPI 加速」（设置页） |
 | Tauri / crate / Lit | 产品名 EasyMC；技术栈只在关于页小字 |
 | 快速安装（无资源）作主按钮 | 「高级：精简安装」 |
 | 导出元数据 | 「分享给好友（仅配置）」 |

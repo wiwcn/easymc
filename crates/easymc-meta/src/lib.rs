@@ -6,9 +6,11 @@ mod install;
 mod download;
 mod fabric;
 mod forge;
+mod source;
 
 pub use install::*;
-pub use download::{download_file, FetchResult};
+pub use download::{download_file, download_with_source, get_with_source, FetchResult};
+pub use source::{rewrite_url, BMCLAPI_BASE};
 pub use types::*;
 pub use rules::{rules_allow, current_os_name, is_native_library};
 pub use fabric::*;
@@ -19,6 +21,7 @@ pub use forge::{
 
 use async_trait::async_trait;
 use easymc_core::{EasyMcError, McVersion, Result};
+pub use easymc_core::DownloadSource;
 
 pub const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
@@ -31,6 +34,7 @@ pub trait MetaProvider: Send + Sync {
 
 pub struct PistonMetaProvider {
     client: reqwest::Client,
+    source: easymc_core::DownloadSource,
 }
 
 impl Default for PistonMetaProvider {
@@ -41,29 +45,31 @@ impl Default for PistonMetaProvider {
 
 impl PistonMetaProvider {
     pub fn new() -> Self {
+        Self::with_source(easymc_core::DownloadSource::Official)
+    }
+
+    pub fn with_source(source: easymc_core::DownloadSource) -> Self {
         let client = reqwest::Client::builder()
             .user_agent(concat!("EasyMC/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("reqwest client");
-        Self { client }
+        Self { client, source }
     }
 
     pub fn client(&self) -> &reqwest::Client {
         &self.client
+    }
+
+    pub fn source(&self) -> easymc_core::DownloadSource {
+        self.source
     }
 }
 
 #[async_trait]
 impl MetaProvider for PistonMetaProvider {
     async fn list_versions(&self) -> Result<Vec<VersionSummary>> {
-        let manifest: VersionManifest = self
-            .client
-            .get(VERSION_MANIFEST_URL)
-            .send()
-            .await
-            .map_err(|e| EasyMcError::Http(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| EasyMcError::Http(e.to_string()))?
+        let resp = download::get_with_source(&self.client, VERSION_MANIFEST_URL, self.source).await?;
+        let manifest: VersionManifest = resp
             .json()
             .await
             .map_err(|e| EasyMcError::Http(e.to_string()))?;
@@ -76,14 +82,9 @@ impl MetaProvider for PistonMetaProvider {
             .into_iter()
             .find(|v| v.id == version.0)
             .ok_or_else(|| EasyMcError::Missing(format!("version {}", version.0)))?;
-        let info: VersionInfo = self
-            .client
-            .get(&summary.url)
-            .send()
-            .await
-            .map_err(|e| EasyMcError::Http(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| EasyMcError::Http(e.to_string()))?
+        // Manifest may still point at Mojang hosts — remap + fallback again.
+        let resp = download::get_with_source(&self.client, &summary.url, self.source).await?;
+        let info: VersionInfo = resp
             .json()
             .await
             .map_err(|e| EasyMcError::Http(e.to_string()))?;

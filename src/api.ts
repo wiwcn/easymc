@@ -527,6 +527,7 @@ export async function getSettings(): Promise<SettingsDto> {
       memory_mb: 2048,
       mode: "standard",
       onboarding_complete: true, // browser preview skips gate
+      download_source: "official",
     }
   );
 }
@@ -538,6 +539,7 @@ export async function updateSettings(patch: {
   memory_mb?: number;
   msa_client_id?: string | null;
   clear_msa_client_id?: boolean;
+  download_source?: string;
 }): Promise<SettingsDto> {
   return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
 }

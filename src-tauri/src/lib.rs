@@ -4,8 +4,8 @@ use easymc_core::{
     begin_microsoft_login, create_named_instance_with, create_offline_account, duplicate_instance,
     ensure_defaults, load_accounts, load_instances, load_settings, remove_instance, save_accounts,
     save_instances, save_settings, set_active_instance, update_instance_fields, upsert_instance,
-    Account, AppMode, CreateInstanceOpts, Instance, McVersion, MicrosoftAuthConfig, ModLoader,
-    Paths, Settings,
+    Account, AppMode, CreateInstanceOpts, DownloadSource, Instance, McVersion,
+    MicrosoftAuthConfig, ModLoader, Paths, Settings,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, write_launch_script, JavaInstall, LaunchRequest,
@@ -13,8 +13,8 @@ use easymc_launch_desktop::{
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt, install_version,
-    is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
-    MetaProvider, PistonMetaProvider,
+    is_loader_installed, is_version_installed, list_loaders_with_source, InstallOptions,
+    LoaderKind, MetaProvider, PistonMetaProvider,
 };
 use easymc_share::{
     export_instance, import_instance, ExportOptions, ExportResult, ImportOptions, ImportResult,
@@ -259,6 +259,12 @@ async fn msa_poll_cmd(
     Ok(acc)
 }
 
+fn settings_download_source(paths: &Paths) -> DownloadSource {
+    load_settings(paths)
+        .map(|s| s.download_source)
+        .unwrap_or_default()
+}
+
 #[derive(serde::Deserialize)]
 struct UpdateSettingsPatch {
     mode: Option<String>,
@@ -267,6 +273,7 @@ struct UpdateSettingsPatch {
     memory_mb: Option<u32>,
     msa_client_id: Option<String>,
     clear_msa_client_id: Option<bool>,
+    download_source: Option<String>,
 }
 
 #[tauri::command]
@@ -294,6 +301,10 @@ fn update_settings_cmd(
     } else if let Some(id) = patch.msa_client_id {
         let t = id.trim().to_string();
         settings.msa_client_id = if t.is_empty() { None } else { Some(t) };
+    }
+    if let Some(src) = patch.download_source.as_deref() {
+        settings.download_source = DownloadSource::parse(src)
+            .ok_or_else(|| format!("未知下载源: {src}（official / bmclapi）"))?;
     }
     save_settings(paths, &settings).map_err(|e| e.to_string())?;
     Ok(settings)
@@ -343,7 +354,8 @@ async fn list_versions(
     include_snapshots: Option<bool>,
 ) -> Result<Vec<VersionListItem>, String> {
     let include_snapshots = include_snapshots.unwrap_or(false);
-    let p = PistonMetaProvider::new();
+    let paths = state_paths(&state);
+    let p = PistonMetaProvider::with_source(settings_download_source(paths));
     let mut list = p.list_versions().await.map_err(|e| e.to_string())?;
     if !include_snapshots {
         list.retain(|v| v.version_type == "release");
@@ -351,7 +363,6 @@ async fn list_versions(
     // Prefer recent entries; piston-meta is newest-first.
     let limit = if include_snapshots { 120 } else { 80 };
     list.truncate(limit);
-    let paths = state_paths(&state);
     Ok(list
         .into_iter()
         .map(|v| VersionListItem {
@@ -374,6 +385,7 @@ async fn install_mc_version(
     let opts = InstallOptions {
         assets: with_assets.unwrap_or(true),
         natives: true,
+        download_source: settings_download_source(&paths),
     };
     install_version(&paths, &McVersion(version.clone()), opts, move |p| {
         let _ = app.emit("install-progress", &p);
@@ -408,6 +420,7 @@ struct LoaderListItem {
 
 #[tauri::command]
 async fn list_loader_versions(
+    state: State<'_, AppState>,
     loader: String,
     game_version: String,
 ) -> Result<Vec<LoaderListItem>, String> {
@@ -422,7 +435,8 @@ async fn list_loader_versions(
             ))
         }
     };
-    let list = list_loaders(kind, &game_version)
+    let source = settings_download_source(state_paths(&state));
+    let list = list_loaders_with_source(kind, &game_version, source)
         .await
         .map_err(|e| e.to_string())?;
     Ok(list
@@ -456,6 +470,7 @@ async fn install_loader_version(
     let vanilla = InstallOptions {
         assets: with_assets.unwrap_or(true),
         natives: true,
+        download_source: settings_download_source(&paths),
     };
     let (profile_id, resolved) = match kind {
         LoaderKind::Fabric => {

@@ -3,15 +3,15 @@ use std::sync::Arc;
 use easymc_core::{
     create_named_instance_with, create_offline_account, ensure_defaults, load_accounts,
     load_instances, load_settings, save_accounts, save_instances, save_settings,
-    set_active_instance, CreateInstanceOpts, McVersion, ModLoader, Paths,
+    set_active_instance, CreateInstanceOpts, DownloadSource, McVersion, ModLoader, Paths,
 };
 use easymc_launch_desktop::{
     detect_java, ensure_java, prepare_and_launch, LaunchRequest, ProcessManager,
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt, install_version,
-    is_loader_installed, is_version_installed, list_loaders, InstallOptions, LoaderKind,
-    MetaProvider, PistonMetaProvider,
+    is_loader_installed, is_version_installed, list_loaders_with_source, InstallOptions,
+    LoaderKind, MetaProvider, PistonMetaProvider,
 };
 use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRequest};
 use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
@@ -66,7 +66,10 @@ async fn real_main() -> easymc_core::Result<()> {
             println!("OK {}", j.path.display());
         }
         "list-versions" => {
-            let p = PistonMetaProvider::new();
+            let source = load_settings(&paths)
+                .map(|s| s.download_source)
+                .unwrap_or_default();
+            let p = PistonMetaProvider::with_source(source);
             let list = p.list_versions().await?;
             let include_snapshots = args.iter().any(|a| a == "--snapshots" || a == "snapshot");
             let filter = args
@@ -105,7 +108,10 @@ async fn real_main() -> easymc_core::Result<()> {
                 .unwrap_or_else(|| "fabric".into());
             let game = args.get(1).cloned().unwrap_or_else(|| "1.21.1".into());
             let kind = parse_loader_kind(&kind_s)?;
-            let list = list_loaders(kind, &game).await?;
+            let source = load_settings(&paths)
+                .map(|s| s.download_source)
+                .unwrap_or_default();
+            let list = list_loaders_with_source(kind, &game, source).await?;
             for (i, l) in list.into_iter().take(20).enumerate() {
                 let mark = if l.loader.stable { "stable" } else { "-" };
                 let flag = if i == 0 || l.loader.stable { "*" } else { " " };
@@ -120,12 +126,16 @@ async fn real_main() -> easymc_core::Result<()> {
                 .first()
                 .ok_or_else(|| easymc_core::EasyMcError::msg("usage: install <version>"))?;
             let skip_assets = args.iter().any(|a| a == "--no-assets");
+            let source = load_settings(&paths)
+                .map(|s| s.download_source)
+                .unwrap_or_default();
             install_version(
                 &paths,
                 &McVersion(id.clone()),
                 InstallOptions {
                     assets: !skip_assets,
                     natives: true,
+                    download_source: source,
                 },
                 |p| {
                     eprintln!("{}", p.format_line());
@@ -160,9 +170,13 @@ async fn real_main() -> easymc_core::Result<()> {
                 })?;
             let skip_assets = args.iter().any(|a| a == "--no-assets");
             let loader_ver = flag_value(&args, "--loader");
+            let source = load_settings(&paths)
+                .map(|s| s.download_source)
+                .unwrap_or_default();
             let vanilla = InstallOptions {
                 assets: !skip_assets,
                 natives: true,
+                download_source: source,
             };
             let (profile_id, resolved_loader) = match kind {
                 LoaderKind::Fabric => {
@@ -537,6 +551,36 @@ async fn real_main() -> easymc_core::Result<()> {
                 other => {
                     return Err(easymc_core::EasyMcError::msg(format!(
                         "未知子命令: {other}（status|set|clear）"
+                    )));
+                }
+            }
+        }
+        "download-source" => {
+            let sub = args.first().map(|s| s.as_str()).unwrap_or("status");
+            match sub {
+                "status" | "get" | "show" => {
+                    let s = load_settings(&paths)?;
+                    println!("{}\t{}", s.download_source.as_str(), s.download_source.label_zh());
+                }
+                "set" => {
+                    let val = args.get(1).cloned().ok_or_else(|| {
+                        easymc_core::EasyMcError::msg(
+                            "usage: download-source set <official|bmclapi>",
+                        )
+                    })?;
+                    let src = DownloadSource::parse(&val).ok_or_else(|| {
+                        easymc_core::EasyMcError::msg(format!(
+                            "未知下载源: {val}（official / bmclapi）"
+                        ))
+                    })?;
+                    let mut settings = load_settings(&paths)?;
+                    settings.download_source = src;
+                    save_settings(&paths, &settings)?;
+                    println!("OK {} ({})", src.as_str(), src.label_zh());
+                }
+                other => {
+                    return Err(easymc_core::EasyMcError::msg(format!(
+                        "未知子命令: {other}（status|set）"
                     )));
                 }
             }
@@ -1011,10 +1055,12 @@ fn print_help() {
            disable-mod <filename.jar> [--instance id]\n\
            enable-mod <filename.jar> [--instance id]\n\
            curseforge-key [status|set <key>|clear]\n\
+           download-source [status|set <official|bmclapi>]\n\
            launch [instance-id]\n\
            export-instance <id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]\n\
            import-instance <file.json|zip> [--name NAME] [--apply-memory] [--offline]\n\
 \n\
+         下载源：设置页「下载源」，或 download-source set bmclapi（镜像失败自动回退官方）。\n\
          CurseForge：设置页粘贴 Key，或 curseforge-key set <key>，或环境变量 EASYMC_CURSEFORGE_API_KEY（https://console.curseforge.com/）。\n\
          Modrinth 无需 Key。\n\
          分享包：元数据 JSON 或含 mods/*.jar 的 zip；默认写入 $EASYMC_DATA_DIR/shares/。\n"

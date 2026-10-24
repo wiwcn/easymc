@@ -4,7 +4,9 @@ use futures_util::StreamExt;
 use sha1::{Digest, Sha1};
 use tokio::io::AsyncWriteExt;
 
-use easymc_core::{EasyMcError, Result};
+use easymc_core::{DownloadSource, EasyMcError, Result};
+
+use crate::source::{is_remapped, rewrite_url};
 
 /// Outcome of a fetch: skipped (already on disk) or newly written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,6 +136,85 @@ async fn download_to_part(
         ))
     })?;
     Ok(FetchResult::Downloaded)
+}
+
+/// Download using the chosen source, with one Official fallback if the mirror fails.
+pub async fn download_with_source(
+    client: &reqwest::Client,
+    official_url: &str,
+    dest: &Path,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
+    source: DownloadSource,
+    mut on_progress: impl FnMut(u64, Option<u64>),
+) -> Result<FetchResult> {
+    let primary = rewrite_url(source, official_url);
+    match download_file(
+        client,
+        &primary,
+        dest,
+        expected_sha1,
+        expected_size,
+        &mut on_progress,
+    )
+    .await
+    {
+        Ok(r) => Ok(r),
+        Err(first)
+            if source != DownloadSource::Official && is_remapped(source, official_url) =>
+        {
+            tracing::warn!(
+                "mirror download failed ({primary}): {first}; retrying official"
+            );
+            download_file(
+                client,
+                official_url,
+                dest,
+                expected_sha1,
+                expected_size,
+                &mut on_progress,
+            )
+            .await
+            .map_err(|e| {
+                EasyMcError::Http(format!(
+                    "镜像与官方均失败：镜像={first}；官方={e}"
+                ))
+            })
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// GET with mirror remap + one Official fallback (for JSON/meta endpoints).
+pub async fn get_with_source(
+    client: &reqwest::Client,
+    official_url: &str,
+    source: DownloadSource,
+) -> Result<reqwest::Response> {
+    let primary = rewrite_url(source, official_url);
+    let try_one = |url: String| async move {
+        client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| EasyMcError::Http(format!("请求失败 {url}: {e}")))?
+            .error_for_status()
+            .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}: {e}")))
+    };
+    match try_one(primary.clone()).await {
+        Ok(r) => Ok(r),
+        Err(first)
+            if source != DownloadSource::Official && is_remapped(source, official_url) =>
+        {
+            tracing::warn!("mirror GET failed ({primary}): {first}; retrying official");
+            try_one(official_url.to_string()).await.map_err(|e| {
+                EasyMcError::Http(format!(
+                    "镜像与官方均失败：镜像={first}；官方={e}"
+                ))
+            })
+        }
+        Err(e) => Err(e),
+    }
 }
 
 pub fn verify_sha1(path: &Path, expected: &str) -> Result<bool> {
