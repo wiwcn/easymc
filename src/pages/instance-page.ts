@@ -30,6 +30,7 @@ import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../ty
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { syncIndicator } from "../lib/indicator";
+import "../components/install-progress";
 import "../components/empty-state";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
@@ -368,6 +369,7 @@ export class InstancePage extends LitElement {
         <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" role="tab" aria-selected=${this.tab === t.id} @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
+      <easymc-install-progress .progress=${this.progress}></easymc-install-progress>
       ${this.renderTab(d)}
     `;
   }
@@ -436,7 +438,6 @@ export class InstancePage extends LitElement {
             })}>${d.version_ready ? "重新安装游戏文件" : "安装游戏文件"}</button>
             <button class="ghost" type="button" @click=${() => this.goDownload("vanilla")}>去下载·原版选其他版本</button>
           </div>
-          ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
         </div>`;
       case "mods":
         return html`<div class="panel ${this.mods.length === 0 ? "panel-empty" : ""}">

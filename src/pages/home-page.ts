@@ -28,7 +28,7 @@ import {
   versionType,
 } from "../types";
 import { showToast } from "../toast";
-import { rollNumber } from "../styles/motion";
+import "../components/install-progress";
 import "../components/empty-state";
 
 const PLAY = svg`<path d="M8 5.5v13l11-6.5L8 5.5Z" fill="currentColor"/>`;
@@ -427,28 +427,6 @@ export class HomePage extends LitElement {
     }
     .status-agent:hover { filter: brightness(1.05); }
     .status-agent:focus-visible { box-shadow: var(--easymc-focus-ring); }
-    .bar {
-      height: 6px;
-      border-radius: var(--md-sys-shape-corner-full);
-      background: var(--md-sys-color-surface-container-high);
-      overflow: hidden;
-      margin-top: 6px;
-    }
-    .bar > i {
-      display: block;
-      height: 100%;
-      background: var(--md-sys-color-primary);
-      width: var(--w, 0%);
-      transition: width var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    /* MI-4: odometer readout, fixed-width digits so it does not jitter. */
-    .pct {
-      font-size: var(--easymc-type-label);
-      font-weight: 650;
-      color: var(--md-sys-color-on-surface);
-      font-variant-numeric: tabular-nums;
-    }
-
     /* ——— Instance grid ——— */
     .section-head {
       display: flex;
@@ -660,7 +638,6 @@ export class HomePage extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .featured, .featured-top, .art, button.launch { transition: none; }
       button.vcard:active, button.launch:active { transform: none; }
-      .bar > i { transition: none; }
       .menu-panel, .menu-panel.open { transition: none; transform: none; }
     }
   `,
@@ -684,8 +661,6 @@ export class HomePage extends LitElement {
   private revealed = false;
 
   protected updated() {
-    // MI-4: roll the install percentage (odometer) as progress arrives.
-    rollNumber(this.renderRoot.querySelector(".pct-n"), Math.round(this.progress?.percent ?? 0));
     // C-5: fade content in once the first load resolves (skeleton → content).
     if (!this.loading && !this.revealed) {
       this.revealed = true;
@@ -851,7 +826,6 @@ export class HomePage extends LitElement {
     const ready = !!f.version_ready;
     const playLabel = ready ? "启动游戏" : "安装并启动";
     const acc = this.account;
-    const pct = this.progress?.percent;
     const metaBits = [
       formatLastPlayed(f.last_played),
       acc ? `以 ${acc.username} 进入` : null,
@@ -899,14 +873,10 @@ export class HomePage extends LitElement {
             </div>
           </div>
         </div>
-        ${this.status || this.progress
+        ${this.status && !this.progress
           ? html`<div class="status-line">
-              ${this.progress
-                ? html`<span>${this.progress.stage_label} · ${this.progress.detail}</span>
-                    <span class="pct" aria-hidden="true"><span class="pct-n"></span>%</span>
-                    <div class="bar" style="flex:1 1 100%"><i style=${`--w:${pct ?? 0}%`}></i></div>`
-                : html`<span>${this.status}</span>`}
-              ${this.launchFailed && !this.progress
+              <span>${this.status}</span>
+              ${this.launchFailed
                 ? html`<button class="status-agent" type="button" @click=${() => this.goAgentDiagnose()}>
                     让助手看看
                   </button>`
@@ -1074,6 +1044,7 @@ export class HomePage extends LitElement {
     const visible = this.instancesExpanded ? others : others.slice(0, 3);
     const canExpand = others.length > 3;
     return html`
+      <easymc-install-progress .progress=${this.progress}></easymc-install-progress>
       <div class="page-head">
         <span class="grow"></span>
         <div class="menu-wrap">

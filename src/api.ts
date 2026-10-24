@@ -325,6 +325,18 @@ export async function detectJava(): Promise<JavaInstallDto[]> {
   return list ?? [];
 }
 
+export type MinecraftDirDto = {
+  path: string;
+  source: string;
+  version_count: number;
+};
+
+/** Existing `.minecraft` folders found on this machine (official launcher, Flatpak, …). */
+export async function detectMinecraftDirs(): Promise<MinecraftDirDto[]> {
+  const list = await invokeSafe<MinecraftDirDto[]>("detect_minecraft_dirs_cmd");
+  return list ?? [];
+}
+
 /** Find a suitable Java or download Temurin into EasyMC runtimes. */
 export async function ensureJavaInstall(major = 21): Promise<JavaInstallDto> {
   return invokeOrThrow<JavaInstallDto>("ensure_java_cmd", { major });

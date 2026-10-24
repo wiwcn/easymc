@@ -14,6 +14,11 @@ pub struct JavaInstall {
 }
 
 /// Detect usable Java on PATH / JAVA_HOME / common locations / EasyMC runtimes.
+///
+/// The previous version only knew about `JAVA_HOME`, `which java` (a Unix tool)
+/// and `/usr/lib/jvm`, so a normal Windows or macOS install was invisible. The
+/// scan below is cross-platform: it walks the real install roots each vendor
+/// uses instead of shelling out.
 pub fn detect_java() -> Vec<JavaInstall> {
     let mut found = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -22,7 +27,7 @@ pub fn detect_java() -> Vec<JavaInstall> {
     if let Ok(home) = std::env::var("JAVA_HOME") {
         candidates.push((PathBuf::from(home).join("bin").join(java_bin()), "JAVA_HOME".into()));
     }
-    if let Ok(p) = which_java() {
+    if let Some(p) = path_java() {
         candidates.push((p, "PATH".into()));
     }
     if let Ok(paths) = Paths::discover() {
@@ -35,19 +40,7 @@ pub fn detect_java() -> Vec<JavaInstall> {
             }
         }
     }
-    #[cfg(target_os = "linux")]
-    {
-        for root in ["/usr/lib/jvm", "/usr/lib64/jvm"] {
-            if let Ok(rd) = std::fs::read_dir(root) {
-                for ent in rd.flatten() {
-                    let bin = ent.path().join("bin").join("java");
-                    if bin.exists() {
-                        candidates.push((bin, format!("system:{root}")));
-                    }
-                }
-            }
-        }
-    }
+    candidates.extend(system_java_candidates());
 
     for (path, source) in candidates {
         let key = path.to_string_lossy().to_string();
@@ -98,25 +91,121 @@ fn java_bin() -> &'static str {
     }
 }
 
-fn which_java() -> Result<PathBuf> {
-    let output = Command::new("which")
-        .arg("java")
-        .output()
-        .map_err(|e| EasyMcError::msg(e.to_string()))?;
-    if !output.status.success() {
-        // try `where` on windows omitted for brevity; PATH scan via env
-        if let Ok(path) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path) {
-                let cand = dir.join(java_bin());
-                if cand.exists() {
-                    return Ok(cand);
-                }
+/// Find `java` by walking PATH. Deliberately no `which`/`where` subprocess:
+/// `which` does not exist on Windows, which is why detection used to come up
+/// empty there.
+fn path_java() -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        if dir.as_os_str().is_empty() {
+            continue;
+        }
+        let cand = dir.join(java_bin());
+        if cand.is_file() {
+            return Some(cand);
+        }
+    }
+    None
+}
+
+/// JDK install roots that ship as `…/<jdk>/[Contents/Home/]bin/java`.
+fn scan_jdk_root(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    // The root may itself be a JDK home (JAVA_HOME-style paths).
+    let direct = root.join("bin").join(java_bin());
+    if direct.is_file() {
+        out.push(direct);
+    }
+    let Ok(rd) = std::fs::read_dir(root) else {
+        return out;
+    };
+    for ent in rd.flatten() {
+        let base = ent.path();
+        #[cfg(target_os = "macos")]
+        {
+            // Oracle/OpenJDK bundles nest the runtime under Contents/Home.
+            let bundled = base.join("Contents/Home/bin").join(java_bin());
+            if bundled.is_file() {
+                out.push(bundled);
+                continue;
             }
         }
-        return Err(EasyMcError::Missing("java not on PATH".into()));
+        let bin = base.join("bin").join(java_bin());
+        if bin.is_file() {
+            out.push(bin);
+        }
     }
-    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(PathBuf::from(s))
+    out
+}
+
+#[cfg(windows)]
+fn windows_program_dirs() -> Vec<PathBuf> {
+    let mut v = Vec::new();
+    for key in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
+        if let Ok(p) = std::env::var(key) {
+            if !p.is_empty() {
+                v.push(PathBuf::from(p));
+            }
+        }
+    }
+    v
+}
+
+#[cfg(not(windows))]
+fn windows_program_dirs() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+/// Vendor install roots for the current OS, so an existing JDK is reused
+/// instead of downloading Temurin on top of it.
+fn system_java_candidates() -> Vec<(PathBuf, String)> {
+    let mut roots: Vec<(PathBuf, &'static str)> = Vec::new();
+    if cfg!(windows) {
+        for base in windows_program_dirs() {
+            for vendor in [
+                "Java",
+                "Eclipse Adoptium",
+                "Eclipse Foundation",
+                "Microsoft",
+                "Zulu",
+                "Amazon Corretto",
+                "BellSoft",
+                "IBM",
+                "Semeru",
+                "JetBrains",
+            ] {
+                roots.push((base.join(vendor), "windows"));
+            }
+        }
+        if let Some(local) = dirs::data_local_dir() {
+            roots.push((local.join("Programs/Eclipse Adoptium"), "windows"));
+            roots.push((local.join("Programs/Microsoft JDK"), "windows"));
+        }
+    } else if cfg!(target_os = "macos") {
+        roots.push((PathBuf::from("/Library/Java/JavaVirtualMachines"), "macos"));
+        roots.push((PathBuf::from("/System/Library/Java/JavaVirtualMachines"), "macos"));
+        roots.push((PathBuf::from("/opt/homebrew/opt"), "homebrew"));
+        roots.push((PathBuf::from("/usr/local/opt"), "homebrew"));
+        if let Some(h) = dirs::home_dir() {
+            roots.push((h.join("Library/Java/JavaVirtualMachines"), "macos"));
+        }
+    } else {
+        roots.push((PathBuf::from("/usr/lib/jvm"), "linux"));
+        roots.push((PathBuf::from("/usr/lib64/jvm"), "linux"));
+        roots.push((PathBuf::from("/usr/java"), "linux"));
+        roots.push((PathBuf::from("/opt/java"), "linux"));
+        if let Some(h) = dirs::home_dir() {
+            roots.push((h.join(".sdkman/candidates/java"), "sdkman"));
+        }
+    }
+
+    let mut out = Vec::new();
+    for (root, src) in roots {
+        for bin in scan_jdk_root(&root) {
+            out.push((bin, format!("system:{src}")));
+        }
+    }
+    out
 }
 
 fn find_java_binary(runtime_root: &Path) -> Option<PathBuf> {
@@ -136,9 +225,21 @@ fn find_java_binary(runtime_root: &Path) -> Option<PathBuf> {
     None
 }
 
+/// `java -version`, without flashing a console window in the Windows GUI build.
+fn java_version_command(java: &Path) -> Command {
+    let mut cmd = Command::new(java);
+    cmd.arg("-version");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 fn probe_java(java: &Path) -> Result<(String, u32)> {
-    let output = Command::new(java)
-        .arg("-version")
+    let output = java_version_command(java)
         .output()
         .map_err(|e| EasyMcError::msg(e.to_string()))?;
     let text = {

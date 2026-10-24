@@ -8,8 +8,8 @@ use easymc_core::{
     MicrosoftAuthConfig, ModLoader, Paths, Settings,
 };
 use easymc_launch_desktop::{
-    detect_java, ensure_java, prepare_and_launch, write_launch_script, JavaInstall, LaunchRequest,
-    LaunchStatus, ProcessManager,
+    detect_java, detect_minecraft_dirs, ensure_java, prepare_and_launch, write_launch_script, JavaInstall,
+    LaunchRequest, LaunchStatus, MinecraftDir, ProcessManager,
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt, install_version,
@@ -560,6 +560,11 @@ async fn install_loader_version(
 #[tauri::command]
 fn detect_java_cmd() -> Vec<JavaInstall> {
     detect_java()
+}
+
+#[tauri::command]
+fn detect_minecraft_dirs_cmd() -> Vec<MinecraftDir> {
+    detect_minecraft_dirs()
 }
 
 #[tauri::command]
@@ -1911,6 +1916,7 @@ pub fn run() {
             list_loader_versions,
             install_loader_version,
             detect_java_cmd,
+            detect_minecraft_dirs_cmd,
             ensure_java_cmd,
             launch_instance,
             stop_instance,

@@ -105,6 +105,51 @@ fn stage_label(stage: &str) -> &'static str {
 
 pub type ProgressFn = Box<dyn Fn(InstallProgress) + Send + Sync>;
 
+/// Throttles progress events by wall-clock time instead of by item count.
+///
+/// The old per-`N`-files guard made the bar advance in big, uneven jumps (and
+/// stalled for seconds inside the huge library/asset phases). Emitting on a
+/// ~8 Hz clock instead keeps the UI moving smoothly without flooding the IPC
+/// channel, while stage changes and terminal events always pass through.
+struct ProgressGate {
+    last: std::sync::Mutex<Option<(std::time::Instant, String)>>,
+}
+
+impl Default for ProgressGate {
+    fn default() -> Self {
+        Self {
+            last: std::sync::Mutex::new(None),
+        }
+    }
+}
+
+impl ProgressGate {
+    fn should_emit(&self, p: &InstallProgress) -> bool {
+        let mut slot = match self.last.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let now = std::time::Instant::now();
+        let stage_changed = slot
+            .as_ref()
+            .map(|(_, s)| s.as_str() != p.stage)
+            .unwrap_or(true);
+        // Terminal/error stages and "no percentage yet" frames must never be dropped.
+        let important =
+            matches!(p.stage.as_str(), "done" | "error") || p.percent.is_none();
+        let cooled = slot
+            .as_ref()
+            .map(|(t, _)| now.duration_since(*t) >= std::time::Duration::from_millis(120))
+            .unwrap_or(true);
+        if stage_changed || important || cooled {
+            *slot = Some((now, p.stage.clone()));
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub struct InstallOptions {
     /// Download asset objects (required for a full title-screen launch). Default true.
     pub assets: bool,
@@ -148,6 +193,14 @@ pub async fn install_version(
     opts: InstallOptions,
     on_progress: impl Fn(InstallProgress) + Send + Sync,
 ) -> Result<VersionInfo> {
+    // Rate-limit the downstream sink so high-frequency per-file updates arrive as
+    // a smooth stream instead of a burst-then-stall pattern.
+    let gate = ProgressGate::default();
+    let on_progress = |p: InstallProgress| {
+        if gate.should_emit(&p) {
+            on_progress(p);
+        }
+    };
     paths.ensure()?;
     let phase_total = phase_plan(&opts);
     let mut phase = 1u32;
@@ -274,76 +327,93 @@ pub async fn install_version(
         .with_counts(0, 0),
     );
 
-    for (i, lib) in libs.iter().enumerate() {
+    // Libraries used to download strictly one-at-a-time, which made this the
+    // slowest phase by far. Fan them out over a bounded pool (same shape as the
+    // assets phase) so wall-clock time drops without hammering the mirror.
+    let mut set = JoinSet::new();
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
+    let client = provider.client();
+    let mut lib_files = 0u64;
+    for lib in &libs {
+        let mut jobs: Vec<(String, PathBuf, String, u64, String)> = Vec::new();
         if let Some(artifact) = lib.downloads.as_ref().and_then(|d| d.artifact.as_ref()) {
             let rel = artifact
                 .path
                 .clone()
                 .unwrap_or_else(|| maven_path_from_name(&lib.name));
-            let dest = paths.library_path(&rel);
-            let res = download_with_source(
-                provider.client(),
-                &artifact.url,
-                &dest,
-                Some(&artifact.sha1),
-                Some(artifact.size),
-                source,
-                |_, _| {},
-            )
-            .await;
-            match res {
-                Ok(FetchResult::Skipped) => skipped += 1,
-                Ok(FetchResult::Downloaded) => downloaded += 1,
-                Err(e) => {
-                    let e = map_stage_err("libraries", e);
-                    emit_err("libraries", phase, &e);
-                    return Err(e);
+            jobs.push((
+                artifact.url.clone(),
+                paths.library_path(&rel),
+                artifact.sha1.clone(),
+                artifact.size,
+                lib.name.clone(),
+            ));
+        }
+        if let (Some(classifiers), Some(natives_map)) = (
+            lib.downloads.as_ref().and_then(|d| d.classifiers.as_ref()),
+            lib.natives.as_ref(),
+        ) {
+            if let Some(key) = natives_key(natives_map) {
+                if let Some(art) = classifiers.get(&key) {
+                    let rel = art.path.clone().unwrap_or_else(|| format!("{key}.jar"));
+                    jobs.push((
+                        art.url.clone(),
+                        paths.library_path(&rel),
+                        art.sha1.clone(),
+                        art.size,
+                        lib.name.clone(),
+                    ));
                 }
             }
         }
-        if let Some(classifiers) = lib.downloads.as_ref().and_then(|d| d.classifiers.as_ref()) {
-            if let Some(natives_map) = &lib.natives {
-                if let Some(key) = natives_key(natives_map) {
-                    if let Some(art) = classifiers.get(&key) {
-                        let rel = art.path.clone().unwrap_or_else(|| format!("{key}.jar"));
-                        let dest = paths.library_path(&rel);
-                        let res = download_with_source(
-                            provider.client(),
-                            &art.url,
-                            &dest,
-                            Some(&art.sha1),
-                            Some(art.size),
-                            source,
-                            |_, _| {},
-                        )
+        for (url, dest, sha1, size, name) in jobs {
+            lib_files += 1;
+            let client = client.clone();
+            let sem = sem.clone();
+            set.spawn(async move {
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .map_err(|e| EasyMcError::msg(e.to_string()))?;
+                let res =
+                    download_with_source(&client, &url, &dest, Some(&sha1), Some(size), source, |_, _| {})
                         .await;
-                        match res {
-                            Ok(FetchResult::Skipped) => skipped += 1,
-                            Ok(FetchResult::Downloaded) => downloaded += 1,
-                            Err(e) => {
-                                let e = map_stage_err("libraries", e);
-                                emit_err("libraries", phase, &e);
-                                return Err(e);
-                            }
-                        }
-                    }
+                res.map(|r| (r, name))
+            });
+        }
+    }
+    let lib_total = lib_files.max(1);
+
+    let mut first_err: Option<EasyMcError> = None;
+    while let Some(joined) = set.join_next().await {
+        let mut detail = String::from("下载依赖库");
+        match joined {
+            Ok(Ok((FetchResult::Skipped, _))) => skipped += 1,
+            Ok(Ok((FetchResult::Downloaded, name))) => {
+                downloaded += 1;
+                detail = name;
+            }
+            Ok(Err(e)) => {
+                if first_err.is_none() {
+                    first_err = Some(e);
+                }
+            }
+            Err(e) => {
+                if first_err.is_none() {
+                    first_err = Some(EasyMcError::msg(format!("依赖库下载任务失败: {e}")));
                 }
             }
         }
-        let cur = i as u64 + 1;
-        if cur == lib_total || cur % 3 == 0 || cur == 1 {
-            on_progress(
-                InstallProgress::new(
-                    "libraries",
-                    phase,
-                    phase_total,
-                    cur,
-                    Some(lib_total.max(1)),
-                    lib.name.clone(),
-                )
+        let cur = (skipped + downloaded).max(1).min(lib_total);
+        on_progress(
+            InstallProgress::new("libraries", phase, phase_total, cur, Some(lib_total), detail)
                 .with_counts(skipped, downloaded),
-            );
-        }
+        );
+    }
+    if let Some(e) = first_err {
+        let e = map_stage_err("libraries", e);
+        emit_err("libraries", phase, &e);
+        return Err(e);
     }
     on_progress(
         InstallProgress::new(
@@ -511,19 +581,19 @@ async fn install_assets(
             }
         }
         finished += 1;
-        if finished == total || finished % 20 == 0 || finished == 1 {
-            on_progress(
-                InstallProgress::new(
-                    "assets",
-                    phase,
-                    phase_total,
-                    finished,
-                    Some(total.max(1)),
-                    "下载游戏资源",
-                )
-                .with_counts(skipped, downloaded),
-            );
-        }
+        // Every completion is reported; ProgressGate is what keeps the stream
+        // smooth, so the bar no longer jumps in 20-file steps.
+        on_progress(
+            InstallProgress::new(
+                "assets",
+                phase,
+                phase_total,
+                finished,
+                Some(total.max(1)),
+                "下载游戏资源",
+            )
+            .with_counts(skipped, downloaded),
+        );
     }
 
     if let Some(e) = first_err {

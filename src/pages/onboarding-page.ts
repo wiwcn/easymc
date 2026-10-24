@@ -6,12 +6,14 @@ import {
   completeOnboarding,
   createOfflineOrThrow,
   detectJava,
+  detectMinecraftDirs,
   ensureJavaInstall,
   getSettings,
   listenLogs,
   msaStatus,
   updateSettings,
   type JavaInstallDto,
+  type MinecraftDirDto,
 } from "../api";
 import { showToast } from "../toast";
 import "../components/msa-login";
@@ -40,6 +42,7 @@ export class OnboardingPage extends LitElement {
   @state() private downloadSource: "official" | "bmclapi" = "bmclapi";
   @state() private memoryMb = 2048;
   @state() private javaList: JavaInstallDto[] = [];
+  @state() private mcDirs: MinecraftDirDto[] = [];
   @state() private javaReady = false;
   @state() private javaStatus = "";
   @state() private javaLog = "";
@@ -240,11 +243,13 @@ export class OnboardingPage extends LitElement {
 
   private async refreshEnv() {
     try {
-      const [dir, settings, javas] = await Promise.all([
+      const [dir, settings, javas, mcDirs] = await Promise.all([
         agentDataDir(),
         getSettings(),
         detectJava(),
+        detectMinecraftDirs(),
       ]);
+      this.mcDirs = mcDirs;
       this.dataDir = dir.path || "（将在本机自动创建）";
       this.dirsReady = !!dir.path;
       const src = (settings.download_source || "").toLowerCase();
@@ -385,6 +390,11 @@ export class OnboardingPage extends LitElement {
           <div>
             <strong>游戏数据目录</strong>
             <div class="meta">${this.dataDir || "检测中…"}</div>
+            ${this.mcDirs.length
+              ? html`<div class="meta">检测到已有 Minecraft 文件夹：${this.mcDirs
+                  .map((d) => `${d.path}（${d.version_count} 个版本）`)
+                  .join("、")}</div>`
+              : nothing}
           </div>
         </div>
 
