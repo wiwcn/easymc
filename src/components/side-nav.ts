@@ -1,6 +1,8 @@
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import type { AppMode, NavId } from "../types";
+import type { AccountDto, AppMode, NavId } from "../types";
+import { accountKindBadgeClass, accountKindLabel } from "../lib/skin-avatar";
+import "./skin-avatar";
 
 type Item = { id: NavId; label: string; icon: string };
 
@@ -39,6 +41,8 @@ const NAV: Item[] = [
 export class SideNav extends LitElement {
   @property({ type: String }) active: NavId = "home";
   @property({ type: String }) mode: AppMode = "standard";
+  /** Active account from shell (`list_accounts` / active). Null = empty state. */
+  @property({ attribute: false }) account: AccountDto | null = null;
 
   static styles = css`
     :host {
@@ -110,67 +114,95 @@ export class SideNav extends LitElement {
       color: var(--md-sys-color-on-primary);
       font-weight: 600;
     }
-    .promo {
+    button.acct-card {
       margin-top: auto;
       display: flex;
       gap: 10px;
-      align-items: flex-start;
-      padding: 14px;
+      align-items: center;
+      width: 100%;
+      padding: 12px;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
       color: var(--md-sys-color-on-surface);
-      cursor: default;
+      cursor: pointer;
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      text-align: left;
+      font: inherit;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    .promo-ico {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      flex-shrink: 0;
-      display: grid;
-      place-items: center;
-      background: var(--md-sys-color-primary-container);
-      color: var(--md-sys-color-on-primary-container);
+    button.acct-card:hover {
+      background: var(--md-sys-color-surface-container);
     }
-    .promo-ico svg {
-      width: 20px;
-      height: 20px;
+    button.acct-card:active {
+      transform: scale(0.98);
     }
-    .promo-body {
+    button.acct-card:focus-visible {
+      box-shadow: var(--easymc-focus-ring);
+    }
+    button.acct-card easymc-skin-avatar {
+      --easymc-skin-avatar-size: 36px;
+    }
+    .acct-body {
       flex: 1;
       min-width: 0;
     }
-    .promo strong {
+    .acct-name {
       display: block;
       font-size: var(--easymc-type-label);
       font-weight: 650;
       letter-spacing: -0.01em;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .promo span {
+    .acct-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
       line-height: 1.35;
-      color: var(--md-sys-color-on-surface-variant);
     }
-    .promo-chev {
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .badge.ms {
+      background: var(--easymc-acct-ms-bg);
+      color: var(--easymc-acct-ms-fg);
+    }
+    .badge.off {
+      background: var(--easymc-acct-off-bg);
+      color: var(--easymc-acct-off-fg);
+    }
+    .badge.skin {
+      background: var(--easymc-acct-skin-bg);
+      color: var(--easymc-acct-skin-fg);
+    }
+    .acct-chev {
       color: var(--md-sys-color-on-surface-variant);
-      align-self: center;
       opacity: 0.7;
       flex-shrink: 0;
     }
     @media (prefers-reduced-motion: reduce) {
-      button.item:active {
+      button.item:active,
+      button.acct-card:active {
         transform: none;
       }
     }
   `;
 
   render() {
-    const tipTitle = this.mode === "agent" ? "助手已开启" : "1.21.1 新内容";
-    const tipBody =
-      this.mode === "agent"
-        ? "游戏打不开或崩溃时，点「助手」帮你看看"
-        : "更多功能，更好体验 · 选好版本就能开玩";
+    const acct = this.account;
+    const empty = !acct;
 
     return html`
       <nav aria-label="主导航">
@@ -196,24 +228,34 @@ export class SideNav extends LitElement {
           `;
         })}
       </nav>
-      <div class="promo" role="note">
-        <div class="promo-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 2l1.4 4.2L18 7.6l-3.6 2.8L15.4 15 12 12.6 8.6 15l1-4.6L6 7.6l4.6-1.4L12 2Zm6.5 11 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6ZM5.5 13l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"
-            />
-          </svg>
-        </div>
-        <div class="promo-body">
-          <strong>${tipTitle}</strong>
-          <span>${tipBody}</span>
-        </div>
-        <span class="promo-chev" aria-hidden="true">
+      <button
+        class="acct-card"
+        type="button"
+        title=${empty ? "添加账户" : "账户管理"}
+        @click=${() => this.select("accounts")}
+      >
+        <easymc-skin-avatar .account=${acct} .size=${64}></easymc-skin-avatar>
+        <span class="acct-body">
+          ${empty
+            ? html`
+                <span class="acct-name">添加账户</span>
+                <span class="acct-meta">登录后可开玩</span>
+              `
+            : html`
+                <span class="acct-name">${acct.username}</span>
+                <span class="acct-meta">
+                  <span class="badge ${accountKindBadgeClass(acct.kind)}"
+                    >${accountKindLabel(acct.kind)}</span
+                  >
+                </span>
+              `}
+        </span>
+        <span class="acct-chev" aria-hidden="true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 6l6 6-6 6" />
           </svg>
         </span>
-      </div>
+      </button>
     `;
   }
 

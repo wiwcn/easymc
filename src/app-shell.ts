@@ -1,10 +1,11 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
-import type { AppMode, NavId } from "./types";
-import { getSettings } from "./api";
+import type { AccountDto, AppMode, NavId } from "./types";
+import { getSettings, listAccountsState } from "./api";
 import "./pages/onboarding-page";
 import "./components/side-nav";
+import "./components/skin-avatar";
 import "./pages/home-page";
 import "./pages/download-page";
 import "./pages/instance-page";
@@ -21,6 +22,7 @@ export class EasyMcApp extends LitElement {
   @state() private ready = false;
   @state() private onboarded = true;
   @state() private mode: AppMode = "standard";
+  @state() private activeAccount: AccountDto | null = null;
 
   static styles = css`
     :host {
@@ -69,15 +71,10 @@ export class EasyMcApp extends LitElement {
     .account:hover {
       background: var(--md-sys-color-surface-container);
     }
-    .avatar {
-      width: 34px;
-      height: 34px;
+    .account easymc-skin-avatar {
+      --easymc-skin-avatar-size: 34px;
       border-radius: 50%;
-      background:
-        radial-gradient(circle at 35% 30%, var(--easymc-avatar-glow), transparent 45%),
-        radial-gradient(circle at 50% 70%, var(--easymc-avatar-base-from), var(--easymc-avatar-base-to));
       border: 2px solid var(--md-sys-color-outline-variant);
-      flex-shrink: 0;
     }
     .chev {
       color: var(--md-sys-color-on-surface-variant);
@@ -129,6 +126,7 @@ export class EasyMcApp extends LitElement {
     this.addEventListener("onboarding-done", this.onOnboarded);
     this.addEventListener("mode-change", this.onModeChange as EventListener);
     void this.loadSettings();
+    void this.loadAccounts();
   }
 
   private async loadSettings() {
@@ -144,10 +142,21 @@ export class EasyMcApp extends LitElement {
     this.ready = true;
   }
 
+  private async loadAccounts() {
+    try {
+      const st = await listAccountsState();
+      const id = st.active_id;
+      this.activeAccount = (id && st.accounts.find((a) => a.id === id)) || st.accounts[0] || null;
+    } catch {
+      this.activeAccount = null;
+    }
+  }
+
   private onOnboarded = () => {
     void this.loadSettings().then(() => {
       this.route = "home";
       this.pageKey += 1;
+      void this.loadAccounts();
     });
   };
 
@@ -173,25 +182,32 @@ export class EasyMcApp extends LitElement {
     };
     this.route = (map[detail] as NavId) || detail;
     this.pageKey += 1;
+    // Refresh active account when leaving accounts (user may have switched).
+    void this.loadAccounts();
   };
 
   private goAccounts() {
     this.route = "accounts";
     this.pageKey += 1;
+    void this.loadAccounts();
   }
 
   render() {
     if (!this.ready) return html``;
     if (!this.onboarded) return html`<easymc-onboarding></easymc-onboarding>`;
     return html`
-      <easymc-side-nav .active=${this.route} .mode=${this.mode}></easymc-side-nav>
+      <easymc-side-nav
+        .active=${this.route}
+        .mode=${this.mode}
+        .account=${this.activeAccount}
+      ></easymc-side-nav>
       <div class="main">
         <header class="top">
           <div class="brand">
             <span>EasyMC</span>
           </div>
           <button class="account" type="button" title="账户" @click=${() => this.goAccounts()}>
-            <div class="avatar" aria-hidden="true"></div>
+            <easymc-skin-avatar .account=${this.activeAccount} .size=${64}></easymc-skin-avatar>
             <span class="chev" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9l6 6 6-6" />
