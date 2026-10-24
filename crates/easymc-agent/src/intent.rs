@@ -6,7 +6,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Intent {
-    Diagnose { instance_id: Option<String> },
+    /// Analyze crash / launch logs (optional pasted file path).
+    Diagnose {
+        instance_id: Option<String>,
+        /// Absolute/relative path to a log or crash-report the player pasted.
+        log_path: Option<String>,
+    },
     EnsureJava { major: u32 },
     /// Immediate write (shortcut「内存 4G」).
     BumpMemory { mb: u32 },
@@ -14,11 +19,16 @@ pub enum Intent {
     TuneConfig { instance_id: Option<String> },
     /// ensure_java + status summary for selected instance.
     SetupEnv { instance_id: Option<String> },
-    /// Export share pack for current instance (host runs easymc-share).
+    /// Export share pack / create modpack draft (host runs easymc-share).
     BuildPack { instance_id: Option<String> },
     SetDownloadSource { source: String },
     OpenInstanceDir { instance_id: Option<String> },
+    /// List jars in instance mods/ (player: 已装模组 / 检查模组).
     CheckMods { instance_id: Option<String> },
+    /// Search Modrinth (+ CF if key) without installing — structured hits for agent cite / InstallMod.
+    SearchMods { query: String },
+    /// Suggest complementary popular mods for a pack theme via Modrinth.
+    SuggestMods { theme: String },
     ShowDataDir,
     DiagnosticsBundle,
     InstallMod { query: String },
@@ -127,6 +137,87 @@ fn extract_mod_query(t: &str) -> Option<String> {
     None
 }
 
+
+fn extract_log_path(t: &str) -> Option<String> {
+    // Quoted path: "...latest.log" or 「...crash.txt」
+    let re_q = regex::Regex::new(r#"["「]([^"」]+\.(?:log|txt|gz))["」]"#).ok();
+    if let Some(re) = re_q {
+        if let Some(c) = re.captures(t) {
+            let p = c.get(1).map(|m| m.as_str().trim()).unwrap_or("");
+            if !p.is_empty() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    // Bare unix / windows path ending in .log / .txt
+    let re = regex::Regex::new(
+        r#"(?i)(?:[a-z]:\\[^\s"']+\.(?:log|txt)|/(?:[^\s"']+/)*[^\s"']+\.(?:log|txt))"#,
+    )
+    .ok();
+    if let Some(re) = re {
+        if let Some(m) = re.find(t) {
+            return Some(m.as_str().to_string());
+        }
+    }
+    None
+}
+
+fn extract_search_query(t: &str) -> Option<String> {
+    let prefixes = [
+        "搜索模组",
+        "搜模组",
+        "查找模组",
+        "找模组",
+        "search mods",
+        "search mod",
+        "search ",
+        "搜 ",
+        "搜索 ",
+    ];
+    let t = t.trim();
+    let lower = t.to_lowercase();
+    for p in prefixes {
+        let pl = p.to_lowercase();
+        if !lower.starts_with(&pl) {
+            continue;
+        }
+        let rest: String = t.chars().skip(pl.chars().count()).collect();
+        let q = rest
+            .trim()
+            .trim_matches(|c: char| c == '"' || c == '\'' || c == '「' || c == '」')
+            .trim();
+        if !q.is_empty() && q.chars().count() < 64 {
+            return Some(q.to_string());
+        }
+    }
+    None
+}
+
+fn extract_suggest_theme(t: &str) -> String {
+    let themes = [
+        ("科技", "tech"),
+        ("魔法", "magic"),
+        ("生存", "survival"),
+        ("性能", "performance"),
+        ("优化", "performance"),
+        ("光影", "shader"),
+        ("冒险", "adventure"),
+        ("建筑", "building"),
+        ("tech", "tech"),
+        ("magic", "magic"),
+        ("survival", "survival"),
+        ("performance", "performance"),
+        ("qos", "qos"),
+        ("生活质量", "qos"),
+    ];
+    for (k, v) in themes {
+        if t.contains(k) {
+            return v.into();
+        }
+    }
+    "survival".into()
+}
+
 /// Map natural language (or slash-like) text to a local Intent.
 pub fn route(input: &str) -> IntentResult {
     let raw = input.trim().to_string();
@@ -187,11 +278,15 @@ pub fn route(input: &str) -> IntentResult {
 
     // build pack / share
     let pack_keys = [
+        "制作整合包",
         "生成整合包",
+        "创建整合包",
         "分享包",
         "导出整合包",
         "build pack",
         "buildpack",
+        "create modpack",
+        "export modpack",
         "导出分享",
         "打包分享",
         "导出模组包",
@@ -202,7 +297,7 @@ pub fn route(input: &str) -> IntentResult {
                 intent: Intent::BuildPack { instance_id: None },
                 confidence: 0.92,
                 matched: k.into(),
-                reply_zh: "正在为当前版本生成分享包…".into(),
+                reply_zh: "正在为当前版本制作整合包…".into(),
             };
         }
     }
@@ -264,10 +359,14 @@ pub fn route(input: &str) -> IntentResult {
     // check mods
     let mods_keys = [
         "检查模组",
+        "已装模组",
         "模组冲突",
         "模组列表",
         "有多少模组",
         "看模组",
+        "列出模组",
+        "list mods",
+        "installed mods",
         "check mods",
         "mod conflict",
     ];
@@ -311,11 +410,30 @@ pub fn route(input: &str) -> IntentResult {
     ];
     for k in diagnose_keys {
         if t.contains(k) {
+            let log_path = extract_log_path(&raw).or_else(|| extract_log_path(&t));
             return IntentResult {
-                intent: Intent::Diagnose { instance_id: None },
+                intent: Intent::Diagnose {
+                    instance_id: None,
+                    log_path,
+                },
                 confidence: 0.9,
                 matched: k.into(),
                 reply_zh: "正在根据最近启动日志做本地规则诊断…".into(),
+            };
+        }
+    }
+
+    // analyze pasted log path without crash keywords
+    if let Some(log_path) = extract_log_path(&raw).or_else(|| extract_log_path(&t)) {
+        if t.contains("分析") || t.contains("日志") || t.contains("analyze") || t.contains("log") {
+            return IntentResult {
+                intent: Intent::Diagnose {
+                    instance_id: None,
+                    log_path: Some(log_path),
+                },
+                confidence: 0.88,
+                matched: "log_path".into(),
+                reply_zh: "正在分析你指定的日志文件…".into(),
             };
         }
     }
@@ -413,6 +531,82 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
+    // search mods (without install) — before install
+    let search_keys = [
+        "搜索模组",
+        "搜模组",
+        "查找模组",
+        "找模组",
+        "search mods",
+        "search mod",
+    ];
+    for k in search_keys {
+        if t.contains(k) {
+            let q = extract_search_query(&t).or_else(|| {
+                t.split(k)
+                    .nth(1)
+                    .map(|s| {
+                        s.trim()
+                            .trim_matches(|c: char| c == '"' || c == '\'' || c == '「' || c == '」')
+                            .trim()
+                            .to_string()
+                    })
+                    .filter(|s| !s.is_empty())
+            });
+            if let Some(q) = q {
+                return IntentResult {
+                    intent: Intent::SearchMods { query: q.clone() },
+                    confidence: 0.92,
+                    matched: format!("search:{q}"),
+                    reply_zh: format!("正在搜索模组「{q}」…"),
+                };
+            }
+            return IntentResult {
+                intent: Intent::Help,
+                confidence: 0.6,
+                matched: k.into(),
+                reply_zh: "请告诉我要搜什么模组，例如「搜模组 sodium」。".into(),
+            };
+        }
+    }
+    // also 「搜 xxx」short form when not install
+    if (t.starts_with("搜 ") || t.starts_with("搜索 ")) && !t.contains("装") {
+        if let Some(q) = extract_search_query(&t) {
+            return IntentResult {
+                intent: Intent::SearchMods { query: q.clone() },
+                confidence: 0.9,
+                matched: format!("search:{q}"),
+                reply_zh: format!("正在搜索模组「{q}」…"),
+            };
+        }
+    }
+
+    // suggest mods for pack theme
+    let suggest_keys = [
+        "推荐模组",
+        "建议模组",
+        "模组推荐",
+        "补什么模组",
+        "还缺什么模组",
+        "suggest mods",
+        "recommend mods",
+        "搭配模组",
+        "整合包推荐",
+    ];
+    for k in suggest_keys {
+        if t.contains(k) {
+            let theme = extract_suggest_theme(&t);
+            return IntentResult {
+                intent: Intent::SuggestMods {
+                    theme: theme.clone(),
+                },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: format!("正在按「{theme}」主题推荐模组…"),
+            };
+        }
+    }
+
     // install mod
     if t.contains("装") || t.contains("安装") || t.contains("install") || t.contains("下载") {
         if let Some(q) = extract_mod_query(&t) {
@@ -447,15 +641,17 @@ pub fn route(input: &str) -> IntentResult {
 
 pub fn help_text() -> String {
     r#"我可以帮你：
-· 「查看崩溃」— 分析崩溃 / 启动失败日志
+· 「查看崩溃」— 分析崩溃 / 启动失败日志（也可粘贴日志路径）
+· 「搜模组 sodium」— 在 Modrinth 搜索，给你可选列表（再说「装 xxx」安装）
+· 「推荐模组 科技」— 按生存 / 科技 / 魔法等主题推荐互补模组
+· 「检查模组」/「已装模组」— 列出当前版本已装模组
+· 「制作整合包」— 从当前版本导出可分享的整合包草稿
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
 · 「优化配置」— 生成内存 / JVM 建议更改，你确认后再应用
-· 「生成整合包」— 导出当前版本分享包
 · 「切换 BMCLAPI 加速」— 换国内镜像下载
 · 「打开版本文件夹」— 定位当前版本目录
-· 「检查模组」— 看看装了多少模组
 · 「修好 Java」— 检查并准备合适的 Java
-· 「内存 4G」— 立刻把游戏内存调大（也会弹提示）
+· 「内存 4G」— 立刻把游戏内存调大
 · 「游戏文件夹」— EasyMC 数据根目录
 · 「导出报告」— 打包日志方便发给别人
 · 「装 sodium」— 搜索并安装到当前版本
@@ -471,7 +667,21 @@ mod tests {
     #[test]
     fn route_diagnose() {
         let r = route("看上次报错");
-        assert!(matches!(r.intent, Intent::Diagnose { .. }));
+        assert!(matches!(r.intent, Intent::Diagnose { log_path: None, .. }));
+    }
+
+    #[test]
+    fn route_search_and_suggest_and_pack() {
+        match route("搜模组 sodium").intent {
+            Intent::SearchMods { query } => assert!(query.to_lowercase().contains("sodium")),
+            other => panic!("{:?}", other),
+        }
+        match route("推荐模组 科技").intent {
+            Intent::SuggestMods { theme } => assert_eq!(theme, "tech"),
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(route("制作整合包").intent, Intent::BuildPack { .. }));
+        assert!(matches!(route("已装模组").intent, Intent::CheckMods { .. }));
     }
 
     #[test]

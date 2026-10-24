@@ -8,7 +8,7 @@ use crate::actions::{
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
-use crate::llm::{llm_status, system_prompt_zh, LlmStatus, OpenAiCompatibleProvider};
+use crate::llm::{llm_status, system_prompt_zh, tool_call_to_utterance, LlmStatus, OpenAiCompatibleProvider};
 use crate::propose::{
     build_tune_proposal, oom_suggested_mb, proposal_to_action, ChangeProposal,
 };
@@ -96,12 +96,30 @@ pub fn run_diagnose(
     instance_id: Option<String>,
     process_logs: Option<Vec<String>>,
 ) -> DiagnoseReport {
+    run_diagnose_with_path(paths, instance_id, process_logs, None)
+}
+
+/// Diagnose using latest instance logs and/or an explicit log file path.
+pub fn run_diagnose_with_path(
+    paths: &Paths,
+    instance_id: Option<String>,
+    process_logs: Option<Vec<String>>,
+    log_path: Option<String>,
+) -> DiagnoseReport {
     let id = resolve_instance_id(paths, instance_id.as_deref());
+    let mut extra_paths = Vec::new();
+    if let Some(p) = log_path {
+        let pb = std::path::PathBuf::from(p.trim());
+        if pb.is_file() {
+            extra_paths.push(pb);
+        }
+    }
     diagnose(
         paths,
         DiagnoseRequest {
             process_logs,
             instance_id: id,
+            extra_paths,
             ..DiagnoseRequest::default()
         },
     )
@@ -115,9 +133,17 @@ pub async fn execute_intent(
     instance_id: Option<String>,
 ) -> Result<(String, Option<DiagnoseReport>, Option<ActionResult>)> {
     match intent {
-        Intent::Diagnose { instance_id: iid } => {
+        Intent::Diagnose {
+            instance_id: iid,
+            log_path,
+        } => {
             let id = iid.clone().or(instance_id);
-            let report = run_diagnose(paths, id.clone(), process_logs);
+            let report = run_diagnose_with_path(
+                paths,
+                id.clone(),
+                process_logs,
+                log_path.clone(),
+            );
             let mut reply = report.summary_zh.clone();
             for f in &report.findings {
                 reply.push_str(&format!(
@@ -178,12 +204,12 @@ pub async fn execute_intent(
                 resolve_instance_id(paths, None)
             });
             Ok((
-                "正在生成当前版本的分享包…".into(),
+                "正在制作当前版本的整合包…".into(),
                 None,
                 Some(ActionResult {
                     ok: true,
                     action: "build_pack".into(),
-                    message_zh: "生成分享包".into(),
+                    message_zh: "制作整合包".into(),
                     path: None,
                     value: Some(serde_json::json!({
                         "instance_id": id,
@@ -215,6 +241,33 @@ pub async fn execute_intent(
             let ar = write_diagnostic_bundle(paths, &report)?;
             Ok((ar.message_zh.clone(), Some(report), Some(ar)))
         }
+        Intent::SearchMods { query } => Ok((
+            format!("正在搜索模组「{query}」…"),
+            None,
+            Some(ActionResult {
+                ok: true,
+                action: "search_mods".into(),
+                message_zh: format!("搜索「{query}」"),
+                path: None,
+                value: Some(serde_json::json!({
+                    "query": query,
+                    "tab": "mod",
+                })),
+            }),
+        )),
+        Intent::SuggestMods { theme } => Ok((
+            format!("正在按「{theme}」主题推荐模组…"),
+            None,
+            Some(ActionResult {
+                ok: true,
+                action: "suggest_mods".into(),
+                message_zh: format!("推荐「{theme}」主题模组"),
+                path: None,
+                value: Some(serde_json::json!({
+                    "theme": theme,
+                })),
+            }),
+        )),
         Intent::InstallMod { query } => Ok((
             format!("正在搜索模组「{query}」，找到后会装进当前选中的版本…"),
             None,
@@ -352,7 +405,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
         ));
     }
 
-    // Help / Unknown → LLM chat if configured
+    // Help / Unknown → LLM chat if configured (with tool schemas).
     if use_llm {
         if let Some(provider) = OpenAiCompatibleProvider::try_from_env() {
             let mut user = req.text.clone();
@@ -366,18 +419,53 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
             {
                 let report = run_diagnose(paths, req.instance_id.clone(), req.process_logs.clone());
                 user.push_str(&format!(
-                    "\n\n[本地诊断上下文] {}\n日志摘录：\n{}",
+                    "
+
+[本地诊断上下文] {}
+日志摘录：
+{}",
                     report.summary_zh,
                     truncate(&report.log_excerpt, 4000)
                 ));
             }
             let msgs = build_messages(&req.history, &user);
-            match provider.complete(&msgs).await {
-                Ok(AgentReply { content, .. }) => {
+            match provider.complete_raw(&msgs, true).await {
+                Ok(completion) => {
+                    if let Some(tc) = completion.tool_calls.first() {
+                        let utterance = tool_call_to_utterance(&tc.name, &tc.arguments);
+                        let routed = route(&utterance);
+                        let (reply, report, action) = execute_intent(
+                            paths,
+                            &routed.intent,
+                            req.process_logs.clone(),
+                            req.instance_id.clone(),
+                        )
+                        .await?;
+                        let mut reply_zh = reply;
+                        if !completion.content.trim().is_empty()
+                            && completion.content.trim() != "(空回复)"
+                        {
+                            reply_zh = format!(
+                                "{}
+
+{}",
+                                completion.content.trim(),
+                                reply_zh
+                            );
+                        }
+                        return Ok(make_ask_response(
+                            "llm+tool",
+                            Some(routed),
+                            reply_zh,
+                            report,
+                            action,
+                            status,
+                        ));
+                    }
                     return Ok(make_ask_response(
                         "llm",
                         Some(intent),
-                        content,
+                        completion.content,
                         None,
                         None,
                         status,
@@ -388,7 +476,8 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                     return Ok(make_ask_response(
                         "rules_fallback",
                         Some(intent),
-                        format!("LLM 不可用（{e}）。\n{fallback}"),
+                        format!("LLM 不可用（{e}）。
+{fallback}"),
                         None,
                         None,
                         status,

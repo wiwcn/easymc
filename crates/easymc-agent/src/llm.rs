@@ -113,6 +113,10 @@ struct ChatRequest<'a> {
     model: &'a str,
     messages: &'a [ApiMessage<'a>],
     temperature: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<&'a serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -135,6 +139,40 @@ struct Choice {
 #[derive(Deserialize)]
 struct ChoiceMessage {
     content: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<ApiToolCall>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ApiToolCall {
+    #[serde(default)]
+    #[allow(dead_code)]
+    id: String,
+    #[serde(default)]
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    kind: String,
+    function: Option<ApiToolFn>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ApiToolFn {
+    name: String,
+    #[serde(default)]
+    arguments: String,
+}
+
+/// One tool the cloud model asked to run (host maps to local Intent).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmToolCall {
+    pub name: String,
+    pub arguments: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct LlmCompletion {
+    pub content: String,
+    pub tool_calls: Vec<LlmToolCall>,
 }
 
 #[derive(Deserialize)]
@@ -149,6 +187,21 @@ impl LlmProvider for OpenAiCompatibleProvider {
     }
 
     async fn complete(&self, messages: &[ChatMessage]) -> Result<AgentReply> {
+        let c = self.complete_raw(messages, false).await?;
+        Ok(AgentReply {
+            content: c.content,
+            proposed_changes: None,
+        })
+    }
+}
+
+impl OpenAiCompatibleProvider {
+    /// Chat completion; when `with_tools` is true, advertise EasyMC tool schemas.
+    pub async fn complete_raw(
+        &self,
+        messages: &[ChatMessage],
+        with_tools: bool,
+    ) -> Result<LlmCompletion> {
         let api_msgs: Vec<ApiMessage<'_>> = messages
             .iter()
             .map(|m| ApiMessage {
@@ -156,10 +209,13 @@ impl LlmProvider for OpenAiCompatibleProvider {
                 content: m.content.as_str(),
             })
             .collect();
+        let tools = cloud_tool_definitions();
         let body = ChatRequest {
             model: &self.config.model,
             messages: &api_msgs,
             temperature: 0.3,
+            tools: if with_tools { Some(&tools) } else { None },
+            tool_choice: if with_tools { Some("auto") } else { None },
         };
         let resp = self
             .client
@@ -181,23 +237,43 @@ impl LlmProvider for OpenAiCompatibleProvider {
                 truncate(&text, 400)
             )));
         }
-        let parsed: ChatResponse = serde_json::from_str(&text)
-            .map_err(|e| EasyMcError::msg(format!("LLM JSON 解析失败: {e}; {}", truncate(&text, 200))))?;
+        let parsed: ChatResponse = serde_json::from_str(&text).map_err(|e| {
+            EasyMcError::msg(format!(
+                "LLM JSON 解析失败: {e}; {}",
+                truncate(&text, 200)
+            ))
+        })?;
         if let Some(err) = parsed.error {
             return Err(EasyMcError::msg(format!(
                 "LLM 错误: {}",
                 err.message.unwrap_or_else(|| "unknown".into())
             )));
         }
-        let content = parsed
+        let message = parsed
             .choices
             .and_then(|c| c.into_iter().next())
-            .and_then(|c| c.message)
-            .and_then(|m| m.content)
-            .unwrap_or_else(|| "(空回复)".into());
-        Ok(AgentReply {
+            .and_then(|c| c.message);
+        let mut tool_calls = Vec::new();
+        let mut content = String::new();
+        if let Some(m) = message {
+            content = m.content.unwrap_or_default();
+            for tc in m.tool_calls {
+                if let Some(f) = tc.function {
+                    let arguments: serde_json::Value = serde_json::from_str(&f.arguments)
+                        .unwrap_or_else(|_| serde_json::json!({}));
+                    tool_calls.push(LlmToolCall {
+                        name: f.name,
+                        arguments,
+                    });
+                }
+            }
+        }
+        if content.trim().is_empty() && tool_calls.is_empty() {
+            content = "(空回复)".into();
+        }
+        Ok(LlmCompletion {
             content: sanitize_reply(&content),
-            proposed_changes: None,
+            tool_calls,
         })
     }
 }
@@ -226,12 +302,184 @@ fn truncate(s: &str, n: usize) -> String {
 
 /// System prompt for MC crash / launcher assistant (zh-CN).
 pub fn system_prompt_zh() -> &'static str {
-    "你是 EasyMC 本地启动器的 Minecraft 助手。用简体中文回答。\
-重点帮助：崩溃日志分析、Java/内存/加载器/Mixin/OpenGL 问题、模组安装建议。\
-不要编造不存在的 EasyMC 命令；可引用 ensure-java、install、search-mods、agent diagnose。\
-若信息不足，先说明需要哪些日志。"
+    "你是 EasyMC 本地启动器的 Minecraft 助手。用简体中文、玩家能听懂的话回答。\
+重点：崩溃/启动日志、Java、内存、OpenAL、模组冲突、缺失 natives、OOM。\
+EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话，系统会自动执行）：\
+· 「查看崩溃」/ analyze_crash_log — 分析最近崩溃或启动日志；\
+· 「搜模组 <关键词>」/ search_mods — Modrinth（有 Key 时含 CurseForge）搜索，不自动安装；\
+· 「装 <模组名>」/ install_mod — 搜索并装进当前版本；\
+· 「已装模组」/ list_installed_mods — 列出当前版本 mods；\
+· 「推荐模组 科技|魔法|生存|性能」/ suggest_mods — 按主题推荐互补模组；\
+· 「制作整合包」/ create_modpack — 从当前版本导出 EasyMC 分享包（zip+清单，非完整 mrpack）；\
+· 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
+不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
 }
 
+/// OpenAI-compatible tool definitions the cloud model may call (host still executes).
+pub fn cloud_tool_definitions() -> serde_json::Value {
+    serde_json::json!([
+        {
+            "type": "function",
+            "function": {
+                "name": "analyze_crash_log",
+                "description": "分析当前版本最新崩溃/启动日志，或玩家粘贴的日志路径。用玩家语言说明根因与修法。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "log_path": { "type": "string", "description": "可选：日志或 crash-report 文件路径" }
+                    }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_mods",
+                "description": "按关键词搜索模组（Modrinth，有 CurseForge Key 时一并搜），返回结构化列表；不自动安装。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string" },
+                        "game_version": { "type": "string" },
+                        "loader": { "type": "string", "description": "fabric/forge/neoforge/quilt" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "install_mod",
+                "description": "搜索并安装模组到当前选中版本。",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "query": { "type": "string" } },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_installed_mods",
+                "description": "列出当前版本已安装的模组 jar。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "suggest_mods",
+                "description": "按主题（survival/tech/magic/performance/qos）推荐互补热门模组。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "theme": { "type": "string" }
+                    },
+                    "required": ["theme"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_modpack",
+                "description": "从当前版本制作/导出整合包草稿（EasyMC share zip）。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "ensure_java",
+                "description": "检查并准备合适的 Java。",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "major": { "type": "integer" } }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "diagnose",
+                "description": "同 analyze_crash_log：本地规则诊断崩溃。",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "log_path": { "type": "string" } }
+                }
+            }
+        }
+    ])
+}
+
+/// Map a cloud tool name + JSON args into a player utterance the local router understands.
+pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
+    match name {
+        "analyze_crash_log" | "diagnose" | "analyze_launch_log" => {
+            if let Some(p) = args
+                .get("log_path")
+                .and_then(|x| x.as_str())
+                .filter(|s| !s.is_empty())
+            {
+                format!("查看崩溃 {p}")
+            } else {
+                "查看崩溃".into()
+            }
+        }
+        "search_mods" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "搜模组".into()
+            } else {
+                format!("搜模组 {q}")
+            }
+        }
+        "install_mod" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "装模组".into()
+            } else {
+                format!("装 {q}")
+            }
+        }
+        "list_installed_mods" | "check_mods" => "已装模组".into(),
+        "suggest_mods" => {
+            let th = args
+                .get("theme")
+                .and_then(|x| x.as_str())
+                .unwrap_or("survival");
+            let zh = match th {
+                "tech" => "科技",
+                "magic" => "魔法",
+                "performance" => "性能",
+                "qos" => "生活质量",
+                "adventure" => "冒险",
+                "building" => "建筑",
+                "shader" => "光影",
+                _ => "生存",
+            };
+            format!("推荐模组 {zh}")
+        }
+        "create_modpack" | "build_pack" | "export_modpack" => "制作整合包".into(),
+        "ensure_java" => {
+            let major = args.get("major").and_then(|x| x.as_u64()).unwrap_or(21);
+            format!("确保 Java {major}")
+        }
+        "setup_env" => "一键环境".into(),
+        "propose_changes" | "tune_config" => "优化配置".into(),
+        other => other.to_string(),
+    }
+}
 
 /// Best-effort load of `~/.config/easymc/llm.env` (KEY=VALUE lines) when env vars unset.
 /// Does not override existing process env unless `force` is true. Never logs secret values.

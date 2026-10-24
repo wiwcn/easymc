@@ -18,9 +18,10 @@ pub use actions::{
 pub use diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 pub use intent::{route, Intent, IntentResult};
 pub use llm::{
-    clear_llm_config, llm_env_path, llm_status, read_llm_config, save_llm_config,
-    try_load_dotenv_llm, LlmConfig, LlmConfigView, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY,
-    ENV_BASE_URL, ENV_MODEL,
+    clear_llm_config, cloud_tool_definitions, llm_env_path, llm_status, read_llm_config,
+    save_llm_config, tool_call_to_utterance, try_load_dotenv_llm, LlmCompletion, LlmConfig,
+    LlmConfigView, LlmStatus, LlmToolCall, OpenAiCompatibleProvider, ENV_API_KEY, ENV_BASE_URL,
+    ENV_MODEL,
 };
 pub use patterns::{scan_log, Finding, FindingSeverity};
 pub use propose::{
@@ -28,7 +29,7 @@ pub use propose::{
     suggested_client_jvm, undo_proposal, ApplyPayload, ChangeProposal, ProposeItem, UndoSnapshot,
 };
 pub use service::{
-    ask, execute_intent, memory_suggestion, run_diagnose, tune_proposal, AskRequest, AskResponse,
+    ask, execute_intent, memory_suggestion, run_diagnose, run_diagnose_with_path, tune_proposal, AskRequest, AskResponse,
     DisabledGguf, LocalGgufBackend,
 };
 pub use tool::{

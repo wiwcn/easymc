@@ -983,7 +983,7 @@ async fn real_main() -> easymc_core::Result<()> {
                                 &inst,
                                 ExportOptions {
                                     mode: ShareMode::Pack,
-                                    notes: Some("CLI agent build_pack".into()),
+                                    notes: Some("CLI agent 制作整合包".into()),
                                     output: None,
                                     resolve_modrinth: true,
                                 },
@@ -992,6 +992,165 @@ async fn real_main() -> easymc_core::Result<()> {
                             {
                                 Ok(r) => println!("✓ {}\n  路径：{}", r.message_zh, r.path),
                                 Err(e) => println!("✗ 导出失败：{e}"),
+                            }
+                        } else if action.action == "search_mods" {
+                            let query = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("query"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .trim()
+                                .to_string();
+                            if query.is_empty() {
+                                println!("✗ 请提供关键词，例如：agent ask \"搜模组 sodium\"");
+                            } else {
+                                if let Ok(settings) = load_settings(&paths) {
+                                    sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                                }
+                                let store = load_instances(&paths).ok();
+                                let id = instance
+                                    .clone()
+                                    .filter(|s| !s.is_empty())
+                                    .or_else(|| store.as_ref().and_then(|s| s.active_id.clone()));
+                                let inst = id.and_then(|id| {
+                                    store.as_ref().and_then(|s| {
+                                        s.instances.iter().find(|i| i.id == id).cloned()
+                                    })
+                                });
+                                let game_version = inst.as_ref().map(|i| i.version.0.clone());
+                                let loader = inst.as_ref().and_then(|i| {
+                                    if matches!(i.loader, ModLoader::Vanilla) {
+                                        None
+                                    } else {
+                                        Some(i.loader)
+                                    }
+                                });
+                                let mut q = SearchQuery {
+                                    project_type: Default::default(),
+                                    text: query.clone(),
+                                    game_version,
+                                    loader,
+                                    limit: 8,
+                                    offset: 0,
+                                };
+                                println!("→ 搜索模组「{query}」…");
+                                let mut hits = search_mods(ModSource::Modrinth, &q)
+                                    .await
+                                    .unwrap_or_default();
+                                if hits.is_empty() && (q.game_version.is_some() || q.loader.is_some()) {
+                                    q.game_version = None;
+                                    q.loader = None;
+                                    hits = search_mods(ModSource::Modrinth, &q)
+                                        .await
+                                        .unwrap_or_default();
+                                }
+                                if api_key().is_some() {
+                                    if let Ok(cf) = search_mods(ModSource::CurseForge, &q).await {
+                                        for p in cf {
+                                            if !hits.iter().any(|h| {
+                                                h.slug.eq_ignore_ascii_case(&p.slug)
+                                                    || h.name.eq_ignore_ascii_case(&p.name)
+                                            }) {
+                                                hits.push(p);
+                                            }
+                                        }
+                                    }
+                                }
+                                hits.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+                                if hits.is_empty() {
+                                    println!("✗ 没搜到「{query}」");
+                                } else {
+                                    println!("✓ 找到 {} 个结果：", hits.len().min(8));
+                                    for (i, p) in hits.iter().take(8).enumerate() {
+                                        println!(
+                                            "  {}. {} ({}) · {} 下载",
+                                            i + 1,
+                                            p.name,
+                                            p.source.label_zh(),
+                                            p.downloads
+                                        );
+                                    }
+                                    println!("→ 安装：agent ask \"装 <名字>\"");
+                                }
+                            }
+                        } else if action.action == "suggest_mods" {
+                            let theme = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("theme"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("survival");
+                            let (qtext, theme_zh) = match theme.trim().to_ascii_lowercase().as_str() {
+                                "tech" | "科技" | "工业" => ("create", "科技"),
+                                "magic" | "魔法" => ("botania", "魔法"),
+                                "performance" | "性能" | "优化" => ("sodium", "性能"),
+                                "qos" | "生活质量" | "便利" => ("jade", "生活质量"),
+                                "adventure" | "冒险" => ("origins", "冒险"),
+                                "building" | "建筑" => ("chisel", "建筑"),
+                                "shader" | "光影" => ("iris", "光影"),
+                                _ => ("farmers-delight", "生存"),
+                            };
+                            if let Ok(settings) = load_settings(&paths) {
+                                sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                            }
+                            let store = load_instances(&paths).ok();
+                            let id = instance
+                                .clone()
+                                .filter(|s| !s.is_empty())
+                                .or_else(|| store.as_ref().and_then(|s| s.active_id.clone()));
+                            let inst = id.and_then(|id| {
+                                store.as_ref().and_then(|s| {
+                                    s.instances.iter().find(|i| i.id == id).cloned()
+                                })
+                            });
+                            let game_version = inst.as_ref().map(|i| i.version.0.clone());
+                            let loader = inst.as_ref().and_then(|i| {
+                                if matches!(i.loader, ModLoader::Vanilla) {
+                                    None
+                                } else {
+                                    Some(i.loader)
+                                }
+                            });
+                            let q = SearchQuery {
+                                project_type: Default::default(),
+                                text: qtext.into(),
+                                game_version,
+                                loader,
+                                limit: 8,
+                                offset: 0,
+                            };
+                            println!("→ 推荐「{theme_zh}」主题模组…");
+                            let mut hits = search_mods(ModSource::Modrinth, &q)
+                                .await
+                                .unwrap_or_default();
+                            if hits.is_empty() && (q.game_version.is_some() || q.loader.is_some()) {
+                                let broad = SearchQuery {
+                                    project_type: q.project_type,
+                                    text: q.text.clone(),
+                                    game_version: None,
+                                    loader: None,
+                                    limit: q.limit,
+                                    offset: 0,
+                                };
+                                hits = search_mods(ModSource::Modrinth, &broad)
+                                    .await
+                                    .unwrap_or_default();
+                            }
+                            hits.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+                            if hits.is_empty() {
+                                println!("✗ 暂无推荐");
+                            } else {
+                                println!("✓ 「{theme_zh}」推荐：");
+                                for (i, p) in hits.iter().take(8).enumerate() {
+                                    println!(
+                                        "  {}. {} ({}) · {} 下载",
+                                        i + 1,
+                                        p.name,
+                                        p.source.label_zh(),
+                                        p.downloads
+                                    );
+                                }
                             }
                         } else if matches!(
                             action.action.as_str(),

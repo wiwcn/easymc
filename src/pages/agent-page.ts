@@ -46,6 +46,8 @@ const TOOL_TITLES: Record<string, string> = {
   ensure_java: "准备 Java",
   setup_env: "一键环境",
   install_mod: "安装模组",
+  search_mods: "搜索模组",
+  suggest_mods: "推荐模组",
   open_store: "打开下载",
   install_mod_hint: "打开下载",
   bump_memory: "调整内存",
@@ -53,10 +55,15 @@ const TOOL_TITLES: Record<string, string> = {
   set_download_source: "切换下载源",
   open_instance_dir: "打开版本文件夹",
   show_data_dir: "数据目录",
-  check_mods: "检查模组",
-  build_pack: "生成整合包",
+  check_mods: "已装模组",
+  list_installed_mods: "已装模组",
+  build_pack: "制作整合包",
+  create_modpack: "制作整合包",
+  export_modpack: "制作整合包",
   diagnostics: "导出问题报告",
   diagnose: "查看崩溃",
+  analyze_crash_log: "查看崩溃",
+  analyze_launch_log: "查看崩溃",
   suggest_memory: "内存建议",
 };
 
@@ -697,6 +704,23 @@ export class AgentPage extends LitElement {
     await this.onAsk("查看崩溃", runningTool("diagnose"));
   }
 
+  private async onSearchModsPrompt() {
+    if (!this.requireCloud()) return;
+    const q = window.prompt("搜什么模组？（例如 sodium / create / jei）", "sodium");
+    if (!q || !q.trim()) return;
+    const query = q.trim();
+    await this.onAsk(
+      `搜模组 ${query}`,
+      runningTool("search_mods", [{ key: "query", label_zh: "关键词", value: query }]),
+    );
+  }
+
+  private async onSuggestMods() {
+    await this.onAsk(
+      "推荐模组 生存",
+      runningTool("suggest_mods", [{ key: "theme", label_zh: "主题", value: "生存" }]),
+    );
+  }
 
   private async onAsk(text?: string, runningHint?: ToolCallDto) {
     if (!this.requireCloud()) return;
@@ -872,8 +896,12 @@ export class AgentPage extends LitElement {
       showToast("内存已调整，请重新启动游戏");
       return;
     }
+    if (action.action === "search_mods" || action.action === "suggest_mods") {
+      showToast(action.ok ? (action.action === "search_mods" ? "模组搜索完成" : "推荐已就绪") : "这次没找到");
+      return;
+    }
     if (action.action === "build_pack") {
-      showToast(action.ok ? "整合包已生成" : "生成整合包失败");
+      showToast(action.ok ? "整合包已制作好" : "制作整合包失败");
       return;
     }
     if (action.action === "set_download_source" && action.ok) {
@@ -972,7 +1000,7 @@ ${extraContent}` : t.content,
   }
 
   private async onBuildPack() {
-    await this.onAsk("生成整合包", runningTool("build_pack"));
+    await this.onAsk("制作整合包", runningTool("build_pack"));
   }
 
   private async onBmclapi() {
@@ -989,7 +1017,7 @@ ${extraContent}` : t.content,
   }
 
   private async onCheckMods() {
-    await this.onAsk("检查模组", runningTool("check_mods"));
+    await this.onAsk("已装模组", runningTool("check_mods"));
   }
 
   private async onDataDir() {
@@ -1102,9 +1130,12 @@ ${extraContent}` : t.content,
       return;
     }
     if (actionId === "open_download") {
-      const payload = tool.payload as { query?: string; tab?: string } | null;
-      const q = payload?.query?.trim() || "";
+      const payload = tool.payload as { query?: string; tab?: string; theme_zh?: string } | null;
+      const q = payload?.query?.trim() || payload?.theme_zh?.trim() || "";
       if (q) this.goDownloadSearch(q, payload?.tab || "mod");
+      else this.dispatchEvent(
+        new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
+      );
       return;
     }
     if (actionId === "open_folder" || actionId === "reveal_path") {
@@ -1582,9 +1613,10 @@ ${extraContent}` : t.content,
 
           <div class="quick-chips" role="group" aria-label="快捷工具">
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>查看崩溃</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>一键查崩溃</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>导出整合包</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>生成整合包</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
           </div>
 
@@ -1612,7 +1644,15 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-              <span class="tool-copy"><strong>查看崩溃</strong><span>分析崩溃日志，给出修法</span></span>
+              <span class="tool-copy"><strong>一键查崩溃</strong><span>分析崩溃 / 启动日志，给出修法</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>
+              <span class="tool-copy"><strong>搜模组</strong><span>在 Modrinth 搜索，结果可再说「装 xxx」</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSuggestMods()}>
+              <span class="tool-copy"><strong>推荐模组</strong><span>按生存 / 科技 / 魔法 / 性能主题推荐</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>
@@ -1620,7 +1660,7 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>
-              <span class="tool-copy"><strong>生成整合包</strong><span>导出当前版本分享包</span></span>
+              <span class="tool-copy"><strong>导出整合包</strong><span>制作当前版本 EasyMC 分享包（zip）</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>
@@ -1632,7 +1672,7 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onCheckMods()}>
-              <span class="tool-copy"><strong>检查模组</strong><span>统计模组数量，提示是否需诊断</span></span>
+              <span class="tool-copy"><strong>已装模组</strong><span>列出当前版本 mods 文件夹</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
           </div>

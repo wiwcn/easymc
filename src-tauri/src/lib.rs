@@ -933,6 +933,88 @@ async fn agent_diagnose(
     Ok(run_diagnose(&state.paths, instance_id, process_logs))
 }
 
+
+/// Theme → Modrinth search query for complementary suggestions.
+fn suggest_theme_query(theme: &str) -> (&'static str, &'static str) {
+    match theme.trim().to_ascii_lowercase().as_str() {
+        "tech" | "科技" | "工业" => ("create", "科技"),
+        "magic" | "魔法" => ("botania", "魔法"),
+        "performance" | "性能" | "优化" => ("sodium", "性能"),
+        "qos" | "生活质量" | "便利" => ("jade", "生活质量"),
+        "adventure" | "冒险" => ("origins", "冒险"),
+        "building" | "建筑" => ("chisel", "建筑"),
+        "shader" | "光影" => ("iris", "光影"),
+        _ => ("farmers-delight", "生存"),
+    }
+}
+
+fn format_mod_hits(hits: &[ModProject], limit: usize) -> (String, Vec<serde_json::Value>) {
+    let mut lines = Vec::new();
+    let mut items = Vec::new();
+    for (i, p) in hits.iter().take(limit).enumerate() {
+        let desc = p.description.chars().take(60).collect::<String>();
+        lines.push(format!(
+            "{}. {}（{} · {} 下载）\n   {}",
+            i + 1,
+            p.name,
+            p.source.label_zh(),
+            p.downloads,
+            if desc.is_empty() { "—" } else { &desc }
+        ));
+        items.push(serde_json::json!({
+            "id": p.id,
+            "slug": p.slug,
+            "name": p.name,
+            "description": p.description,
+            "source": p.source.as_str(),
+            "downloads": p.downloads,
+            "author": p.author,
+        }));
+    }
+    (lines.join("\n"), items)
+}
+
+async fn agent_search_mod_projects(
+    query: &str,
+    game_version: Option<String>,
+    loader: Option<easymc_core::ModLoader>,
+    limit: usize,
+) -> Result<Vec<ModProject>, String> {
+    let limit = limit.clamp(1, 20);
+    let mut q = SearchQuery {
+        project_type: Default::default(),
+        text: query.to_string(),
+        game_version: game_version.clone(),
+        loader,
+        limit,
+        offset: 0,
+    };
+    let mut hits = search_mods(ModSource::Modrinth, &q)
+        .await
+        .unwrap_or_default();
+    // Broaden if version/loader filter returned nothing.
+    if hits.is_empty() && (q.game_version.is_some() || q.loader.is_some()) {
+        q.game_version = None;
+        q.loader = None;
+        hits = search_mods(ModSource::Modrinth, &q)
+            .await
+            .unwrap_or_default();
+    }
+    if api_key().is_some() {
+        if let Ok(cf) = search_mods(ModSource::CurseForge, &q).await {
+            for p in cf {
+                if !hits.iter().any(|h| {
+                    h.slug.eq_ignore_ascii_case(&p.slug) || h.name.eq_ignore_ascii_case(&p.name)
+                }) {
+                    hits.push(p);
+                }
+            }
+        }
+    }
+    hits.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+    Ok(hits)
+}
+
 #[tauri::command]
 async fn agent_ask(
     app: AppHandle,
@@ -1143,6 +1225,196 @@ async fn agent_ask(
                     });
                 }
             }
+        } else if action.action == "search_mods" {
+            let query = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("query"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if query.is_empty() {
+                let msg = "请告诉我要搜什么模组，例如「搜模组 sodium」。".to_string();
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "search_mods".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: Some(serde_json::json!({ "query": "" })),
+                });
+            } else {
+                if let Ok(settings) = load_settings(&state.paths) {
+                    sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                }
+                let (game_version, loader) = {
+                    let store = load_instances(&state.paths).ok();
+                    let id = instance_id
+                        .clone()
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| store.as_ref().and_then(|s| s.active_id.clone()));
+                    let inst = id.and_then(|id| {
+                        store.as_ref().and_then(|s| {
+                            s.instances.iter().find(|i| i.id == id).cloned()
+                        })
+                    });
+                    (
+                        inst.as_ref().map(|i| i.version.0.clone()),
+                        inst.as_ref().and_then(|i| {
+                            if matches!(i.loader, ModLoader::Vanilla) {
+                                None
+                            } else {
+                                Some(i.loader)
+                            }
+                        }),
+                    )
+                };
+                match agent_search_mod_projects(&query, game_version.clone(), loader, 8).await {
+                    Ok(hits) if hits.is_empty() => {
+                        let msg = format!(
+                            "没搜到「{query}」。可以换个英文关键词，或点下方去下载页再试。"
+                        );
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "search_mods".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({
+                                "query": query,
+                                "tab": "mod",
+                                "count": 0,
+                                "game_version": game_version,
+                            })),
+                        });
+                    }
+                    Ok(hits) => {
+                        let (body, items) = format_mod_hits(&hits, 8);
+                        let msg = format!(
+                            "找到 {} 个与「{query}」相关的模组：\n{}\n\n可以说「装 <名字>」装进当前版本，或去下载页细看。",
+                            items.len(),
+                            body
+                        );
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: true,
+                            action: "search_mods".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({
+                                "query": query,
+                                "tab": "mod",
+                                "count": items.len(),
+                                "game_version": game_version,
+                                "results": items,
+                            })),
+                        });
+                    }
+                    Err(e) => {
+                        let msg = format!("搜索「{query}」失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "search_mods".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({ "query": query, "tab": "mod" })),
+                        });
+                    }
+                }
+            }
+        } else if action.action == "suggest_mods" {
+            let theme = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("theme"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("survival")
+                .to_string();
+            let (q, theme_zh) = suggest_theme_query(&theme);
+            if let Ok(settings) = load_settings(&state.paths) {
+                sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+            }
+            let (game_version, loader, instance_name) = {
+                let store = load_instances(&state.paths).ok();
+                let id = instance_id
+                    .clone()
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| store.as_ref().and_then(|s| s.active_id.clone()));
+                let inst = id.and_then(|id| {
+                    store.as_ref().and_then(|s| {
+                        s.instances.iter().find(|i| i.id == id).cloned()
+                    })
+                });
+                (
+                    inst.as_ref().map(|i| i.version.0.clone()),
+                    inst.as_ref().and_then(|i| {
+                        if matches!(i.loader, ModLoader::Vanilla) {
+                            None
+                        } else {
+                            Some(i.loader)
+                        }
+                    }),
+                    inst.as_ref().map(|i| i.name.clone()),
+                )
+            };
+            match agent_search_mod_projects(q, game_version.clone(), loader, 8).await {
+                Ok(hits) if hits.is_empty() => {
+                    let msg = format!("暂时没找到「{theme_zh}」主题的推荐模组，稍后再试或去下载页逛逛。");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "suggest_mods".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({
+                            "theme": theme,
+                            "theme_zh": theme_zh,
+                            "query": q,
+                            "count": 0,
+                        })),
+                    });
+                }
+                Ok(hits) => {
+                    let (body, items) = format_mod_hits(&hits, 8);
+                    let inst_note = instance_name
+                        .as_ref()
+                        .map(|n| format!("（参考当前版本「{n}」的加载器/版本过滤）"))
+                        .unwrap_or_default();
+                    let msg = format!(
+                        "按「{theme_zh}」主题为你挑了这些热门模组{inst_note}：\n{}\n\n可以说「装 <名字>」装进当前版本。",
+                        body
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "suggest_mods".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({
+                            "theme": theme,
+                            "theme_zh": theme_zh,
+                            "query": q,
+                            "count": items.len(),
+                            "game_version": game_version,
+                            "instance_name": instance_name,
+                            "results": items,
+                        })),
+                    });
+                }
+                Err(e) => {
+                    let msg = format!("推荐「{theme_zh}」模组失败：{e}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "suggest_mods".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "theme": theme })),
+                    });
+                }
+            }
         }
     }
     // setup_env: compose ensure_java + status already in action.message
@@ -1264,7 +1536,7 @@ async fn agent_ask(
                 &inst,
                 ExportOptions {
                     mode: ShareMode::Pack,
-                    notes: Some("由助手「生成整合包」导出".into()),
+                    notes: Some("由助手「制作整合包」导出".into()),
                     output: None,
                     resolve_modrinth: true,
                 },

@@ -68,6 +68,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "ensure_java" => ("准备 Java", Some("环境")),
         "setup_env" => ("一键环境", Some("环境")),
         "install_mod" => ("安装模组", Some("模组")),
+        "search_mods" => ("搜索模组", Some("模组")),
+        "suggest_mods" => ("推荐模组", Some("模组")),
         "open_store" | "install_mod_hint" => ("打开下载", Some("模组")),
         "bump_memory" => ("调整内存", Some("配置")),
         "propose_changes" => ("建议更改", Some("配置")),
@@ -76,10 +78,10 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "set_download_source" => ("切换下载源", Some("下载")),
         "open_instance_dir" => ("打开版本文件夹", Some("文件")),
         "show_data_dir" => ("数据目录", Some("文件")),
-        "check_mods" => ("检查模组", Some("模组")),
-        "build_pack" => ("生成整合包", Some("分享")),
+        "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
+        "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some("分享")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
-        "diagnose" => ("查看崩溃", Some("诊断")),
+        "diagnose" | "analyze_crash_log" | "analyze_launch_log" => ("查看崩溃", Some("诊断")),
         "suggest_memory" => ("内存建议", Some("配置")),
         _ => ("工具", None),
     }
@@ -132,12 +134,29 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 }
             }
         }
-        "install_mod" | "open_store" | "install_mod_hint" => {
+        "install_mod" | "open_store" | "install_mod_hint" | "search_mods" => {
             if let Some(q) = v.get("query").and_then(|x| x.as_str()) {
                 out.push(arg("query", "关键词", q));
             }
             if let Some(n) = v.get("project_title").or(v.get("name")).and_then(|x| x.as_str()) {
                 out.push(arg("mod", "模组", n));
+            }
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "结果", format!("{c}")));
+            }
+            if let Some(gv) = v.get("game_version").and_then(|x| x.as_str()) {
+                out.push(arg("mc", "游戏版本", gv));
+            }
+        }
+        "suggest_mods" => {
+            if let Some(th) = v.get("theme").and_then(|x| x.as_str()) {
+                out.push(arg("theme", "主题", th));
+            }
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "推荐", format!("{c}")));
             }
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "版本", n));
@@ -195,9 +214,15 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("path", "文件", p));
             }
         }
-        "diagnostics" | "diagnose" => {
+        "diagnostics" | "diagnose" | "analyze_crash_log" | "analyze_launch_log" => {
             if let Some(p) = path {
                 out.push(arg("path", "报告", p));
+            }
+            if let Some(s) = v.get("source_label").and_then(|x| x.as_str()) {
+                out.push(arg("source", "日志来源", s));
+            }
+            if let Some(c) = v.get("finding_count").and_then(|x| x.as_u64()) {
+                out.push(arg("findings", "问题数", format!("{c}")));
             }
         }
         _ => {
@@ -218,6 +243,12 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         }
         "open_store" | "install_mod_hint" => {
             acts.push(ui("open_download", "打开下载"));
+        }
+        "search_mods" if ok => {
+            acts.push(ui("open_download", "去下载页"));
+        }
+        "suggest_mods" if ok => {
+            acts.push(ui("open_download", "去下载页看看"));
         }
         "install_mod" if !ok => {
             acts.push(ui("open_download", "去下载页"));
