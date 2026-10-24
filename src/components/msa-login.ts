@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import { msaDeviceCode, msaPoll } from "../api";
 import type { DeviceCodeDto } from "../types";
@@ -13,7 +14,9 @@ export class MsaLogin extends LitElement {
   @state() private error = "";
   @state() private copied = false;
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host { display: block; }
     .code-box {
       display: grid; gap: 12px; padding: 20px; border-radius: var(--md-sys-shape-corner-large, 16px);
@@ -34,11 +37,12 @@ export class MsaLogin extends LitElement {
     .err { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
     .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     button { padding: 10px 20px; border: none; border-radius: var(--md-sys-shape-corner-full, 999px); font: inherit; font-weight: 600; cursor: pointer; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-    button.ghost { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface); }
+    /* ghost → controlStyles; tonal surface override if needed */
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
     @media (prefers-reduced-motion: reduce) { .code-box { animation: none; } .spin { animation: none; } }
-  `;
+  `,
+  ];
 
   private friendly(e: unknown): string {
     const s = e instanceof Error ? e.message : String(e);

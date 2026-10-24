@@ -27,7 +27,7 @@ export class EmptyState extends LitElement {
       flex: 1 1 auto;
       align-self: stretch;
       min-height: 100%;
-      padding: 24px 20px 32px;
+      padding: var(--easymc-space-5) var(--easymc-space-5) var(--easymc-space-6);
       /* Optical nudge: true center first, then slightly up (DESIGN / Impeccable). */
       transform: translateY(-4%);
     }
@@ -36,7 +36,7 @@ export class EmptyState extends LitElement {
       align-self: stretch;
       min-height: 200px;
       height: 100%;
-      padding: 28px 16px;
+      padding: var(--easymc-space-6) var(--easymc-space-4);
     }
     .stack {
       display: flex;
@@ -46,18 +46,18 @@ export class EmptyState extends LitElement {
     }
     .title {
       margin: 0 0 8px;
-      font-size: 1.15rem;
+      font-size: var(--easymc-type-title);
       font-weight: 650;
       letter-spacing: -0.02em;
       color: var(--md-sys-color-on-surface);
       line-height: 1.35;
     }
     :host([variant="page"]) .title {
-      font-size: 1.25rem;
+      font-size: var(--easymc-type-title);
     }
     .desc {
       margin: 0 0 18px;
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-body);
       line-height: 1.55;
       opacity: 0.92;
     }

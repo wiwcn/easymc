@@ -1,4 +1,4 @@
-export type NavId = "home" | "download" | "instances" | "multiplayer" | "settings" | "more" | "agent";
+export type NavId = "home" | "download" | "instances" | "multiplayer" | "accounts" | "settings" | "more" | "agent";
 
 export interface InstanceDto {
   id: string;

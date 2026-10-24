@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -71,7 +72,9 @@ export class DownloadPage extends LitElement {
 
   private unprog?: () => void;
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: flex;
       flex-direction: column;
@@ -102,7 +105,7 @@ export class DownloadPage extends LitElement {
       padding: 10px 16px; border-radius: 999px;
       background: var(--md-sys-color-surface-container-lowest);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
-      box-shadow: var(--md-sys-elevation-1);
+      /* CF-1: border only, no elevation */
     }
     .search input {
       flex: 1; border: none; background: transparent; padding: 0; outline: none;
@@ -137,8 +140,7 @@ export class DownloadPage extends LitElement {
       color: var(--md-sys-color-on-surface);
       border-radius: 999px; padding: 8px 14px; font-size: 0.9rem;
     }
-    button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); cursor: pointer; font-weight: 600; }
-    button.ghost { background: transparent; cursor: pointer; }
+    /* primary / ghost → controlStyles (CMP-1) */
     button.outline-dl {
       border: 1.5px solid var(--md-sys-color-primary);
       background: transparent; color: var(--md-sys-color-primary);
@@ -153,8 +155,7 @@ export class DownloadPage extends LitElement {
       display: flex; flex-direction: column; gap: 10px; padding: 14px;
       border-radius: 16px;
       background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       align-items: stretch; min-height: 0;
     }
     .card-top { display: flex; gap: 12px; align-items: flex-start; }
@@ -178,7 +179,17 @@ export class DownloadPage extends LitElement {
       display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;
     }
     .dl-stat { font-size: 0.78rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
-    .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+    .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }
+    .market-skel {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card-skel { height: 140px; border-radius: 16px; }
+    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .ver-skel { height: 72px; border-radius: 16px; }
+
     .results-slot {
       flex: 1 1 auto;
       display: flex;
@@ -223,7 +234,7 @@ export class DownloadPage extends LitElement {
       padding: 14px 16px; border-radius: 16px;
       background: var(--md-sys-color-surface-container-lowest);
       border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
-      box-shadow: var(--md-sys-elevation-1);
+      /* CF-1: border only (selection affordance) */
       transition: border-color var(--easymc-dur-press) var(--easymc-ease-out),
         background var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
@@ -268,7 +279,8 @@ export class DownloadPage extends LitElement {
       border: none; background: transparent; color: var(--md-sys-color-primary);
       cursor: pointer; font: inherit; font-weight: 600; padding: 8px 4px;
     }
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();
@@ -521,7 +533,9 @@ export class DownloadPage extends LitElement {
                 variant="panel"
                 title="没有符合筛选的版本"
                 description="换个关键词试试，或者打开「含快照」看看"
-              ></easymc-empty-state>
+              >
+                <button class="ghost" type="button" @click=${() => { this.filter = ""; }}>清空筛选</button>
+              </easymc-empty-state>
             </div>`
           : html`<div class="ver-grid" role="listbox" aria-label="游戏版本">
               ${filtered.slice(0, 48).map(
@@ -632,7 +646,11 @@ export class DownloadPage extends LitElement {
           </div>`
         : nothing}
       ${this.error ? html`<p class="muted" style="color:var(--md-sys-color-error)">${this.error}</p>` : nothing}
-      ${this.loading ? html`<p class="muted">搜索中…</p>` : nothing}
+      ${this.loading
+        ? html`<div class="market-skel" aria-busy="true" aria-label="正在搜索">
+            ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block card-skel"></div>`)}
+          </div>`
+        : nothing}
       ${this.progress && this.installingId ? html`<p class="muted">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
       <div class="market-grid">
         ${this.results.map((p) => this.renderCard(p))}
@@ -642,7 +660,9 @@ export class DownloadPage extends LitElement {
             variant="panel"
             title="没有符合筛选的结果"
             description="换个关键词试试，或留空看看热门"
-          ></easymc-empty-state></div>`
+          >
+            <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>清空筛选</button>
+          </easymc-empty-state></div>`
         : nothing}
     `;
   }

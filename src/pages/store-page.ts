@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   curseforgeConfigured,
@@ -43,7 +44,9 @@ export class StorePage extends LitElement {
 
   private unlistenProgress: (() => void) | null = null;
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: block;
       max-width: 960px;
@@ -87,28 +90,8 @@ export class StorePage extends LitElement {
       font: inherit;
       background: var(--md-sys-color-surface-container-lowest);
     }
-    button.primary {
-      padding: 10px 18px;
-      border: none;
-      border-radius: var(--md-sys-shape-corner-full);
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button.primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    button.ghost {
-      padding: 8px 14px;
-      border: none;
-      border-radius: var(--md-sys-shape-corner-full);
-      background: var(--md-sys-color-surface-container-highest);
-      color: var(--md-sys-color-on-surface);
-      cursor: pointer;
-      font: inherit;
-    }
+    /* primary / ghost → controlStyles (CMP-1); size tweak */
+    button.primary { padding: 10px 18px; }
     .meta {
       font-size: 0.85rem;
       color: var(--md-sys-color-on-surface-variant);
@@ -314,7 +297,8 @@ export class StorePage extends LitElement {
       button.ghost:active:not(:disabled),
       .chip:active { transform: none; }
     }
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();

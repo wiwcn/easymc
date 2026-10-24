@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import { completeOnboarding, createOfflineOrThrow, msaStatus } from "../api";
 import { showToast } from "../toast";
@@ -21,7 +22,9 @@ export class OnboardingPage extends LitElement {
   @state() private skinUser = "";
   @state() private skinNote = "";
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: grid;
       place-items: center;
@@ -51,9 +54,28 @@ export class OnboardingPage extends LitElement {
     button.opt span { font-size: 0.88rem; opacity: 0.85; line-height: 1.45; }
     button.opt:focus-visible, .btn:focus-visible, input:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
     .row { display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap; }
-    .btn { padding: 11px 22px; border: none; border-radius: var(--md-sys-shape-corner-full); font: inherit; font-weight: 600; cursor: pointer; }
-    .btn.primary { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-    .btn.ghost { background: transparent; color: var(--md-sys-color-primary); }
+    /* Align .btn with controlStyles vocabulary (CMP-1) */
+    .btn { padding: 11px 22px; }
+    .btn.primary { /* inherits button.primary via class dual-use in markup if present */ }
+    button.btn.primary, .btn.primary {
+      border: none;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border-radius: var(--md-sys-shape-corner-full);
+      font: inherit;
+      font-weight: var(--easymc-weight-medium);
+      cursor: pointer;
+    }
+    button.btn.ghost, .btn.ghost {
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-primary);
+      border-radius: var(--md-sys-shape-corner-full);
+      font: inherit;
+      font-weight: var(--easymc-weight-medium);
+      cursor: pointer;
+      padding: 11px 22px;
+    }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; font-weight: 500; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
     input { padding: 11px 14px; border-radius: 12px; border: 1px solid var(--md-sys-color-outline-variant); font: inherit; background: var(--md-sys-color-surface-container-lowest); color: var(--md-sys-color-on-surface); }
@@ -62,7 +84,8 @@ export class OnboardingPage extends LitElement {
     .tip { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
     .notice { padding: 12px 14px; border-radius: 12px; background: var(--md-sys-color-surface-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
     @media (prefers-reduced-motion: reduce) { button.opt { transition: none; } }
-  `;
+  `,
+  ];
 
   private validateName(raw: string): string {
     const n = raw.trim();

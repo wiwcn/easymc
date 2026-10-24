@@ -88,19 +88,49 @@
   --easymc-dur-page: 240ms; /* continuity page cut */
   --easymc-dur-focal: 400ms; /* quiet Home hero only */
 
-  /* ——— Layout / type ——— */
+  /* ——— Layout / type (TYP-1 · ~1.15 ratio) ——— */
   --easymc-nav-width: 212px;
   --easymc-font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --easymc-type-display: 1.55rem; /* hero titles */
+  --easymc-type-title: 1.15rem;   /* section / card titles */
+  --easymc-type-body: 0.95rem;    /* default reading */
+  --easymc-type-label: 0.875rem;  /* controls, chips */
+  --easymc-type-meta: 0.78rem;    /* captions, badges */
+  --easymc-weight-regular: 400;
+  --easymc-weight-medium: 600;
+  --easymc-weight-bold: 700;
+  /* Spacing scale (SP-1) — prefer these over magic px */
   --easymc-space-1: 4px;
   --easymc-space-2: 8px;
   --easymc-space-3: 12px;
   --easymc-space-4: 16px;
   --easymc-space-5: 24px;
   --easymc-space-6: 32px;
+  --easymc-space-7: 40px;
+  --easymc-space-8: 48px;
+  --easymc-page-pad-x: 28px;
+  --easymc-page-pad-y: 18px;
   --easymc-focus-ring:
     0 0 0 2px var(--md-sys-color-surface),
     0 0 0 4px var(--md-sys-color-primary);
   --easymc-caret: var(--md-sys-color-primary);
+
+  /* ——— Signature / art (TOK-1) — launch CTA + home art only ——— */
+  --easymc-launch-from: oklch(0.52 0.09 186);
+  --easymc-launch-mid: oklch(0.50 0.11 165);
+  --easymc-launch-to: oklch(0.48 0.12 150);
+  --easymc-launch-gradient: linear-gradient(
+    135deg,
+    var(--easymc-launch-from) 0%,
+    var(--easymc-launch-mid) 55%,
+    var(--easymc-launch-to) 100%
+  );
+  --easymc-art-glow: oklch(0.95 0.04 95);
+  --easymc-art-base-from: oklch(0.88 0.05 186);
+  --easymc-art-base-to: oklch(0.82 0.06 175);
+  --easymc-art-hill: oklch(0.55 0.08 160 / 0.55);
+  --easymc-art-sun: oklch(0.92 0.06 95);
+  --easymc-art-sun-halo: oklch(0.92 0.06 95 / 0.25);
 }
 
 /*

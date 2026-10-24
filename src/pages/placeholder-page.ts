@@ -258,7 +258,7 @@ export class PlaceholderPage extends LitElement {
             <p>
               若要在商店里浏览 CurseForge 模组，在此粘贴你的密钥（可在
               <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer">CurseForge 控制台</a>
-              申请）。Modrinth 无需密钥。环境变量 <code>EASYMC_CURSEFORGE_API_KEY</code> 若已设置则优先。
+              申请）。Modrinth 无需密钥。
             </p>
             <div class="muted">状态：${this.cf?.configured ? "已保存" : "未设置"}</div>
             <div class="row">
@@ -277,7 +277,7 @@ export class PlaceholderPage extends LitElement {
               ${this.msa?.using_temporary_client_id
                 ? html`当前使用<strong>临时</strong>公共客户端（借用 PrismLauncher 开源项目公开的 ID），可能随时失效，正式发布前会替换为 EasyMC 自有客户端。`
                 : html`当前使用自定义客户端。`}
-              也可用环境变量 <code>EASYMC_MSA_CLIENT_ID</code> 覆盖。
+              正式发布前会换成 EasyMC 自己的登录客户端。
             </p>
             <div class="row">
               <input

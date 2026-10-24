@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing, svg } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -110,7 +111,9 @@ export class HomePage extends LitElement {
   private unlog?: () => void;
   private unprog?: () => void;
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: flex;
       flex-direction: column;
@@ -148,31 +151,13 @@ export class HomePage extends LitElement {
       color: var(--md-sys-color-on-surface);
     }
     button.manage svg { width: 16px; height: 16px; }
-    button.primary {
-      border: none;
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-      border-radius: var(--md-sys-shape-corner-full);
-      padding: 8px 16px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-    button.ghost {
-      border: 1px solid var(--md-sys-color-outline-variant);
-      background: transparent;
-      color: var(--md-sys-color-on-surface);
-      border-radius: var(--md-sys-shape-corner-full);
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
+    /* primary / ghost / launch → controlStyles (CMP-1) */
     button.linkish {
       border: none;
       background: transparent;
       color: var(--md-sys-color-primary);
-      font-weight: 600;
-      font-size: 0.9rem;
+      font-weight: var(--easymc-weight-medium);
+      font-size: var(--easymc-type-label);
       cursor: pointer;
       padding: 6px 4px;
     }
@@ -183,8 +168,7 @@ export class HomePage extends LitElement {
       flex-direction: column;
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: 20px;
-      box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 45%, transparent);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       overflow: hidden;
       margin-bottom: 22px;
       animation: focal-in var(--easymc-dur-focal) var(--easymc-ease-out) both;
@@ -222,8 +206,8 @@ export class HomePage extends LitElement {
       flex-shrink: 0;
       align-self: center;
       background:
-        radial-gradient(circle at 70% 28%, oklch(0.95 0.04 95), transparent 40%),
-        linear-gradient(165deg, oklch(0.88 0.05 186), oklch(0.82 0.06 175));
+        radial-gradient(circle at 70% 28%, var(--easymc-art-glow), transparent 40%),
+        linear-gradient(165deg, var(--easymc-art-base-from), var(--easymc-art-base-to));
       position: relative;
       overflow: hidden;
       transition:
@@ -242,7 +226,7 @@ export class HomePage extends LitElement {
       right: -10%;
       bottom: 0;
       height: 42%;
-      background: oklch(0.55 0.08 160 / 0.55);
+      background: var(--easymc-art-hill);
       border-radius: 50% 50% 0 0;
     }
     .art::before {
@@ -251,10 +235,10 @@ export class HomePage extends LitElement {
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: oklch(0.92 0.06 95);
+      background: var(--easymc-art-sun);
       top: 22%;
       right: 22%;
-      box-shadow: 0 0 0 6px oklch(0.92 0.06 95 / 0.25);
+      box-shadow: 0 0 0 6px var(--easymc-art-sun-halo);
     }
     .feat-body {
       flex: 1;
@@ -265,7 +249,7 @@ export class HomePage extends LitElement {
     }
     .feat-title {
       margin: 0 0 12px;
-      font-size: 1.55rem;
+      font-size: var(--easymc-type-display);
       font-weight: 700;
       letter-spacing: -0.03em;
       color: var(--md-sys-color-on-surface);
@@ -329,42 +313,12 @@ export class HomePage extends LitElement {
       align-items: center;
       gap: 8px;
     }
-    button.launch {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      border: none;
-      /* Soft teal → green gradient — CTA only; no gradient text */
-      background: linear-gradient(
-        135deg,
-        oklch(0.52 0.09 186) 0%,
-        oklch(0.50 0.11 165) 55%,
-        oklch(0.48 0.12 150) 100%
-      );
-      color: var(--md-sys-color-on-primary);
-      border-radius: var(--md-sys-shape-corner-full);
-      padding: 15px 28px;
-      font-size: 1.08rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      cursor: pointer;
-      box-shadow:
-        var(--md-sys-elevation-2),
-        0 1px 0 oklch(1 0 0 / 0.18) inset;
-      transition:
-        filter var(--easymc-dur-press) var(--easymc-ease-out),
-        transform var(--easymc-dur-press) var(--easymc-ease-out),
-        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
-    }
+    /* launch base → controlStyles; compact size override */
     .featured.compact button.launch {
       padding: 10px 20px;
-      font-size: 0.95rem;
+      font-size: var(--easymc-type-body);
       gap: 8px;
     }
-    button.launch:hover { filter: brightness(1.06); }
-    button.launch:active { transform: scale(0.985); }
-    button.launch:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-    button.launch svg { width: 20px; height: 20px; }
     .featured.compact button.launch svg { width: 16px; height: 16px; }
     button.icon-btn {
       width: 40px;
@@ -388,11 +342,10 @@ export class HomePage extends LitElement {
       min-width: 200px;
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: var(--md-sys-shape-corner-medium);
-      box-shadow: var(--md-sys-elevation-2);
+      box-shadow: var(--md-sys-elevation-2); /* CF-1: elevation, no border */
       padding: 6px;
       display: flex;
       flex-direction: column;
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
     }
     .menu-panel button {
       border: none;
@@ -573,7 +526,15 @@ export class HomePage extends LitElement {
     }
     .vcard .more svg { width: 16px; height: 16px; }
 
-    .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+
+    .home-skel { display: flex; flex-direction: column; gap: var(--easymc-space-5); padding-top: var(--easymc-space-2); }
+    .featured-skel { height: 220px; border-radius: 20px; }
+    .skel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .vcard-skel { height: 88px; border-radius: 18px; }
+    @media (max-width: 720px) {
+      .skel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }
     .empty-wrap {
       flex: 1 1 auto;
       display: flex;
@@ -622,7 +583,8 @@ export class HomePage extends LitElement {
       button.vcard:active, button.launch:active { transform: none; }
       .bar > i { transition: none; }
     }
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();
@@ -975,7 +937,18 @@ export class HomePage extends LitElement {
   }
 
   render() {
-    if (this.loading) return html`<p class="muted">加载中…</p>`;
+    if (this.loading) {
+      return html`
+        <div class="home-skel" aria-busy="true" aria-label="正在加载版本">
+          <div class="skel skel-block featured-skel"></div>
+          <div class="skel-grid">
+            <div class="skel skel-block vcard-skel"></div>
+            <div class="skel skel-block vcard-skel"></div>
+            <div class="skel skel-block vcard-skel"></div>
+          </div>
+        </div>
+      `;
+    }
     const f = this.current;
     if (!f) {
       return html`

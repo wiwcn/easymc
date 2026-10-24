@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -62,7 +63,9 @@ export class InstancePage extends LitElement {
 
   private unprog?: () => void;
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: flex;
       flex-direction: column;
@@ -83,8 +86,7 @@ export class InstancePage extends LitElement {
       font-size: 0.9rem;
       cursor: pointer;
     }
-    button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-    button.ghost { background: transparent; }
+    /* primary / ghost → controlStyles (CMP-1) */
     button.danger { color: var(--md-sys-color-error); }
     .row-item {
       display: flex; align-items: center; gap: 12px;
@@ -159,6 +161,7 @@ export class InstancePage extends LitElement {
       min-height: 160px;
     }
     .list { gap: 6px; }
+    .inst-skel { padding: var(--easymc-space-4) 0; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -169,7 +172,8 @@ export class InstancePage extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
     }
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();
@@ -252,7 +256,13 @@ export class InstancePage extends LitElement {
   }
 
   render() {
-    if (this.loading) return html`<p class="muted">加载中…</p>`;
+    if (this.loading) {
+      return html`<div class="inst-skel" aria-busy="true" aria-label="正在加载">
+        <div class="skel skel-line w40"></div>
+        <div class="skel skel-block" style="height:120px;margin-top:12px;border-radius:16px"></div>
+        <div class="skel skel-block" style="height:80px;margin-top:10px;border-radius:16px"></div>
+      </div>`;
+    }
     if (this.detailId && this.detail) return this.renderDetail(this.detail);
     return html`
       <h1>版本管理</h1>
@@ -350,7 +360,39 @@ export class InstancePage extends LitElement {
           <h2>游戏设置</h2>
           <div class="field"><label>自定义名称（可选）</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 模组" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
-          <div class="field"><label>游戏内存（MB，空白=用全局）</label><input type="number" min="512" placeholder="例如 4096" .value=${this.memDraft} @input=${(e: Event) => (this.memDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field">
+            <label>游戏内存 ${this.memDraft.trim() ? "" : "（当前用全局默认）"}</label>
+            <div class="slider-row">
+              <input
+                class="md-slider"
+                type="range"
+                min="512"
+                max="16384"
+                step="256"
+                .value=${this.memDraft.trim() || "2048"}
+                aria-label="本版本游戏内存（兆字节）"
+                aria-valuetext=${this.memDraft.trim() ? `${this.memDraft} 兆字节` : "使用全局默认"}
+                @input=${(e: Event) => {
+                  this.memDraft = (e.target as HTMLInputElement).value;
+                }}
+              />
+              <span class="slider-value" aria-live="polite"
+                >${this.memDraft.trim()
+                  ? html`${this.memDraft}<span class="unit">MB</span>`
+                  : html`<span class="unit">全局</span>`}</span
+              >
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button
+                class="text"
+                type="button"
+                ?disabled=${!this.memDraft.trim()}
+                @click=${() => (this.memDraft = "")}
+              >
+                用全局默认
+              </button>
+            </div>
+          </div>
           <div class="field"><label>Java 路径（可选）</label><input placeholder="留空则自动选择" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>窗口宽 × 高（可选）</label>
             <div style="display:flex;gap:8px">

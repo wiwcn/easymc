@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { controlStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   agentAsk,
@@ -32,7 +33,9 @@ export class AgentPage extends LitElement {
   @state() private instanceId: string | null = null;
   @state() private error = "";
 
-  static styles = css`
+  static styles = [
+    controlStyles,
+    css`
     :host {
       display: block;
       max-width: 960px;
@@ -106,12 +109,8 @@ export class AgentPage extends LitElement {
         background var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    button.primary {
-      background: var(--md-sys-color-primary);
-      color: var(--md-sys-color-on-primary);
-      border-color: transparent;
-      font-weight: 650;
-    }
+    /* primary → controlStyles (CMP-1); keep border reset for agent base button */
+    button.primary { border-color: transparent; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:active:not(:disabled), .chip:active { transform: scale(0.98); }
     select {
@@ -130,8 +129,7 @@ export class AgentPage extends LitElement {
       padding: 16px;
       border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       margin-bottom: 12px;
       min-height: 240px;
     }
@@ -195,7 +193,7 @@ export class AgentPage extends LitElement {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
-      box-shadow: var(--md-sys-elevation-1);
+      /* CF-1: border only for input */
     }
     .tools {
       display: flex;
@@ -204,8 +202,7 @@ export class AgentPage extends LitElement {
       padding: 14px;
       border-radius: 18px;
       background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       align-self: start;
     }
     .tools h2 {
@@ -282,7 +279,8 @@ export class AgentPage extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       button:active:not(:disabled), .chip:active { transform: none; }
     }
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();
