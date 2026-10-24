@@ -788,9 +788,25 @@ async fn real_main() -> easymc_core::Result<()> {
                                 .and_then(|v| v.get("major"))
                                 .and_then(|v| v.as_u64())
                                 .unwrap_or(21) as u32;
-                            println!("→ running ensure-java {major} …");
-                            let j = ensure_java(&paths, major, |s| println!("{s}")).await?;
-                            println!("OK {}", j.path.display());
+                            println!("→ 正在准备 Java {major} …");
+                            match ensure_java(&paths, major, |s| println!("{s}")).await {
+                                Ok(j) => println!(
+                                    "✓ Java {} 已就绪：{} ({})",
+                                    j.major,
+                                    j.path.display(),
+                                    j.source
+                                ),
+                                Err(e) => println!("✗ 准备 Java {major} 失败：{e}"),
+                            }
+                        } else if action.action == "open_store" {
+                            if let Some(q) = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("query"))
+                                .and_then(|v| v.as_str())
+                            {
+                                println!("→ 请在桌面端「下载」页搜索：{q}");
+                            }
                         }
                     }
                 }

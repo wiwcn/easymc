@@ -3,13 +3,14 @@ import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   agentDataDir,
+  agentLlmStatus,
   curseforgeConfigured,
   getSettings,
   msaStatus,
   setCurseforgeKey,
   updateSettings,
 } from "../api";
-import type { AppMode, CurseForgeStatusDto, MsaStatusDto, SettingsDto } from "../types";
+import type { AppMode, CurseForgeStatusDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
 
 const MEM_MIN = 512;
@@ -25,6 +26,7 @@ export class SettingsPage extends LitElement {
   @state() private cfKeyDraft = "";
   @state() private msaDraft = "";
   @state() private dataDir = "";
+  @state() private llm: LlmStatusDto | null = null;
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
 
   static styles = [
@@ -119,17 +121,19 @@ export class SettingsPage extends LitElement {
   }
 
   private async refresh() {
-    const [s, cf, msa, dir] = await Promise.all([
+    const [s, cf, msa, dir, llm] = await Promise.all([
       getSettings(),
       curseforgeConfigured(),
       msaStatus(),
       agentDataDir(),
+      agentLlmStatus(),
     ]);
     this.settings = s;
     this.mem = Math.min(MEM_MAX, Math.max(MEM_MIN, s.memory_mb ?? 2048));
     this.cf = cf;
     this.msa = msa;
     this.dataDir = dir.path;
+    this.llm = llm;
   }
 
   private get mode(): AppMode {
@@ -287,6 +291,33 @@ export class SettingsPage extends LitElement {
             }}
           >
             清除
+          </button>
+        </div>
+        <h2 style="margin-top:16px">云端助手（可选）</h2>
+        <p>
+          默认只用本机规则诊断。若要启用云端对话，在本机创建配置文件（不要把密钥写进项目或 git）：
+        </p>
+        <p><code>~/.config/easymc/llm.env</code></p>
+        <p class="muted">
+          写入：EASYMC_LLM_BASE_URL、EASYMC_LLM_API_KEY，可选 EASYMC_LLM_MODEL。也可用同名环境变量。
+        </p>
+        <div class="muted">
+          状态：${
+            this.llm?.configured
+              ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
+              : "未配置（仅本地助手）"
+          }
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button
+            class="ghost"
+            type="button"
+            @click=${async () => {
+              this.llm = await agentLlmStatus();
+              showToast(this.llm.configured ? "云端助手已就绪" : "仍是本地助手");
+            }}
+          >
+            刷新状态
           </button>
         </div>
       </details>

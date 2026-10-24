@@ -14,6 +14,7 @@ import {
 import { showToast } from "../toast";
 import "../components/empty-state";
 import type {
+  AgentActionDto,
   AgentAskResponse,
   AgentFinding,
   DiagnoseReportDto,
@@ -343,6 +344,10 @@ export class AgentPage extends LitElement {
         mode: st.mode,
       },
     ];
+    if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
+      sessionStorage.removeItem("easymc-agent-autodiagnose");
+      void this.onDiagnose();
+    }
   }
 
   private async onDiagnose() {
@@ -390,13 +395,15 @@ export class AgentPage extends LitElement {
         history,
       });
       if (resp.report) this.report = resp.report;
+      let content = resp.reply_zh;
+      if (resp.action) {
+        content = this.enrichActionReply(content, resp.action);
+        void this.applyAction(resp.action);
+      }
       this.turns = [
         ...this.turns,
-        { role: "assistant", content: resp.reply_zh, mode: resp.mode },
+        { role: "assistant", content, mode: resp.mode },
       ];
-      if (resp.action?.action === "ensure_java") {
-        showToast("正在检查 Java…");
-      }
     } catch (e) {
       this.error = String(e);
       this.turns = [...this.turns, { role: "assistant", content: `错误：${e}` }];
@@ -405,31 +412,96 @@ export class AgentPage extends LitElement {
     }
   }
 
+  private enrichActionReply(reply: string, action: AgentActionDto): string {
+    if (action.action === "bump_memory" && action.ok) {
+      if (!reply.includes("重新启动")) {
+        return `${reply}\n\n下一步：回到启动页，重新点「启动游戏」。`;
+      }
+    }
+    if (action.action === "diagnostics" && action.ok && action.path) {
+      if (!reply.includes(action.path)) {
+        return `${reply}\n\n文件：${action.path}`;
+      }
+    }
+    if (action.action === "ensure_java") {
+      return action.message_zh || reply;
+    }
+    if (action.action === "open_store") {
+      return action.message_zh || reply;
+    }
+    return reply;
+  }
+
+  private async applyAction(action: AgentActionDto) {
+    if (action.action === "open_store" || action.action === "install_mod_hint") {
+      const val = action.value as { query?: string; tab?: string } | null;
+      const query = val?.query?.trim() || "";
+      const tab = val?.tab || "mod";
+      if (query) {
+        sessionStorage.setItem("easymc-download-tab", tab);
+        sessionStorage.setItem("easymc-download-query", query);
+        showToast(`去下载页搜索「${query}」`);
+        this.dispatchEvent(
+          new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
+        );
+      }
+      return;
+    }
+    if (action.action === "ensure_java") {
+      showToast(action.ok ? "Java 已准备好" : "准备 Java 失败");
+      return;
+    }
+    if (action.action === "bump_memory" && action.ok) {
+      showToast("内存已调整，请重新启动游戏");
+      return;
+    }
+    if (action.action === "diagnostics" && action.ok) {
+      showToast(action.message_zh.slice(0, 80));
+    }
+  }
+
   private async onEnsureJava() {
     this.busy = true;
+    this.error = "";
+    this.turns = [...this.turns, { role: "user", content: "修好 Java" }];
     try {
       const msg = await ensureJava(21);
-      showToast(msg);
-      this.turns = [...this.turns, { role: "assistant", content: `Java 已就绪：${msg}` }];
+      const content = `Java 已准备好。\n${msg}\n下次启动游戏会用它。`;
+      showToast("Java 已准备好");
+      this.turns = [...this.turns, { role: "assistant", content, mode: "rules" }];
     } catch (e) {
-      this.error = String(e);
+      const err = e instanceof Error ? e.message : String(e);
+      this.error = err;
+      this.turns = [
+        ...this.turns,
+        {
+          role: "assistant",
+          content: `准备 Java 没成功：${err}\n可以检查网络后再点一次「修好 Java」。`,
+          mode: "rules",
+        },
+      ];
     } finally {
       this.busy = false;
     }
   }
 
   private async onDataDir() {
+    this.turns = [...this.turns, { role: "user", content: "游戏文件夹在哪" }];
     const r = await agentDataDir();
-    showToast(r.message);
-    this.turns = [...this.turns, { role: "assistant", content: r.message }];
+    showToast(r.message.slice(0, 60));
+    this.turns = [...this.turns, { role: "assistant", content: r.message, mode: "rules" }];
   }
 
   private async onBumpMem() {
     this.busy = true;
     try {
+      this.turns = [...this.turns, { role: "user", content: "内存调到 4 GB" }];
       const r = await agentBumpMemory(4096);
-      showToast(r.message);
-      this.turns = [...this.turns, { role: "assistant", content: r.message }];
+      const content = r.ok
+        ? `${r.message}\n\n下一步：回到启动页，重新点「启动游戏」。`
+        : r.message;
+      showToast(r.ok ? "内存已调整" : "调整失败");
+      this.turns = [...this.turns, { role: "assistant", content, mode: "rules" }];
     } catch (e) {
       this.error = String(e);
     } finally {
@@ -440,9 +512,10 @@ export class AgentPage extends LitElement {
   private async onExport() {
     this.busy = true;
     try {
+      this.turns = [...this.turns, { role: "user", content: "导出问题报告" }];
       const r = await agentExportDiagnostics(this.instanceId);
-      showToast(r.message);
-      this.turns = [...this.turns, { role: "assistant", content: r.message }];
+      showToast(r.ok ? "报告已导出" : "导出失败");
+      this.turns = [...this.turns, { role: "assistant", content: r.message, mode: "rules" }];
     } catch (e) {
       this.error = String(e);
     } finally {

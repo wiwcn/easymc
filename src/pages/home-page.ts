@@ -88,6 +88,7 @@ export class HomePage extends LitElement {
   @state() private loading = true;
   @state() private busy = false;
   @state() private status = "";
+  @state() private launchFailed = false;
   @state() private progress: InstallProgressDto | null = null;
   @state() private showLogs = false;
   @state() private logs: string[] = [];
@@ -366,7 +367,23 @@ export class HomePage extends LitElement {
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       margin: 0 var(--easymc-space-5) var(--easymc-space-4);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--easymc-space-2);
     }
+    .status-agent {
+      border: none;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 6px 12px;
+      font: inherit;
+      font-size: var(--easymc-type-meta);
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .status-agent:hover { filter: brightness(1.05); }
     .bar {
       height: 6px;
       border-radius: 999px;
@@ -652,6 +669,7 @@ export class HomePage extends LitElement {
     if (!f) return;
     this.busy = true;
     this.status = "";
+    this.launchFailed = false;
     this.progress = null;
     try {
       const ver = versionId(f.version);
@@ -666,16 +684,23 @@ export class HomePage extends LitElement {
       this.status = "正在启动游戏…";
       const msg = await launchInstance(f.id);
       this.status = msg;
+      this.launchFailed = false;
       showToast("游戏已启动");
       await this.boot();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.status = msg;
-      showToast(msg);
+      this.launchFailed = true;
+      showToast("启动失败，可让助手看看");
     } finally {
       this.busy = false;
       this.progress = null;
     }
+  }
+
+  private goAgentDiagnose() {
+    sessionStorage.setItem("easymc-agent-autodiagnose", "1");
+    this.go("agent");
   }
 
   private go(nav: string) {
@@ -806,9 +831,14 @@ export class HomePage extends LitElement {
         ${this.status || this.progress
           ? html`<div class="status-line">
               ${this.progress
-                ? html`${this.progress.stage_label} · ${this.progress.detail}
-                    <div class="bar"><i style=${`--w:${pct ?? 0}%`}></i></div>`
-                : this.status}
+                ? html`<span>${this.progress.stage_label} · ${this.progress.detail}</span>
+                    <div class="bar" style="flex:1 1 100%"><i style=${`--w:${pct ?? 0}%`}></i></div>`
+                : html`<span>${this.status}</span>`}
+              ${this.launchFailed && !this.progress
+                ? html`<button class="status-agent" type="button" @click=${() => this.goAgentDiagnose()}>
+                    让助手看看
+                  </button>`
+                : nothing}
             </div>`
           : nothing}
       </section>

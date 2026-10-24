@@ -77,14 +77,14 @@ pub async fn execute_intent(
             Ok((reply, Some(report), None))
         }
         Intent::EnsureJava { major } => {
-            // Caller (CLI/Tauri) should run ensure_java; we return a structured hint.
+            // Host (CLI/Tauri) runs ensure_java and rewrites reply with the real result.
             Ok((
-                format!("请执行 ensure-java {major}（CLI: easymc ensure-java {major}）。"),
+                format!("正在检查并准备 Java {major}…"),
                 None,
                 Some(ActionResult {
                     ok: true,
                     action: "ensure_java".into(),
-                    message_zh: format!("建议确保 Java {major}"),
+                    message_zh: format!("准备 Java {major}"),
                     path: None,
                     value: Some(serde_json::json!({ "major": major })),
                 }),
@@ -104,16 +104,14 @@ pub async fn execute_intent(
             Ok((ar.message_zh.clone(), Some(report), Some(ar)))
         }
         Intent::InstallMod { query } => Ok((
-            format!(
-                "模组「{query}」：请到「商店」搜索，或 CLI：\n  easymc search-mods modrinth {query}\n  easymc install-mod modrinth <project-id> --instance <id>"
-            ),
+            format!("正在打开「下载」页搜索「{query}」。在结果里点安装即可。"),
             None,
             Some(ActionResult {
                 ok: true,
-                action: "install_mod_hint".into(),
-                message_zh: format!("搜索模组 {query}"),
+                action: "open_store".into(),
+                message_zh: format!("打开下载页搜索「{query}」"),
                 path: None,
-                value: Some(serde_json::json!({ "query": query })),
+                value: Some(serde_json::json!({ "query": query, "tab": "mod" })),
             }),
         )),
         Intent::Help => Ok((crate::intent::help_text(), None, None)),

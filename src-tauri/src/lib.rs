@@ -22,7 +22,8 @@ use easymc_share::{
 };
 use easymc_agent::{
     ask, bump_memory, llm_status, run_diagnose, show_data_dir, try_load_dotenv_llm,
-    write_diagnostic_bundle, AskRequest, AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
+    write_diagnostic_bundle, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
+    LlmStatus,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -899,6 +900,7 @@ async fn agent_diagnose(
 
 #[tauri::command]
 async fn agent_ask(
+    app: AppHandle,
     state: State<'_, AppState>,
     text: String,
     instance_id: Option<String>,
@@ -908,7 +910,7 @@ async fn agent_ask(
     try_load_dotenv_llm();
     let logs = state.procs.logs_snapshot().await;
     let process_logs = if logs.is_empty() { None } else { Some(logs) };
-    let resp = ask(
+    let mut resp = ask(
         &state.paths,
         AskRequest {
             text,
@@ -920,8 +922,8 @@ async fn agent_ask(
     )
     .await
     .map_err(|e| e.to_string())?;
-    // Auto-run ensure_java when suggested
-    if let Some(action) = &resp.action {
+    // Run ensure_java for real and rewrite reply with success/fail in Chinese.
+    if let Some(action) = resp.action.clone() {
         if action.action == "ensure_java" {
             let major = action
                 .value
@@ -930,7 +932,46 @@ async fn agent_ask(
                 .and_then(|v| v.as_u64())
                 .unwrap_or(21) as u32;
             let paths = state.paths.clone();
-            let _ = ensure_java(&paths, major, |_| {}).await;
+            let app2 = app.clone();
+            match ensure_java(&paths, major, move |line| {
+                let _ = app2.emit("launch-log", line);
+            })
+            .await
+            {
+                Ok(j) => {
+                    let msg = format!(
+                        "Java {} 已准备好。\n路径：{}\n来源：{}\n下次启动游戏会用它。",
+                        j.major,
+                        j.path.display(),
+                        j.source
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "ensure_java".into(),
+                        message_zh: msg,
+                        path: Some(j.path.display().to_string()),
+                        value: Some(serde_json::json!({
+                            "major": j.major,
+                            "path": j.path.display().to_string(),
+                            "source": j.source,
+                        })),
+                    });
+                }
+                Err(e) => {
+                    let msg = format!(
+                        "准备 Java {major} 没成功：{e}\n可以再点一次「修好 Java」，或检查网络后重试。"
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "ensure_java".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "major": major })),
+                    });
+                }
+            }
         }
     }
     Ok(resp)

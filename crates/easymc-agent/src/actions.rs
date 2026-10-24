@@ -39,7 +39,7 @@ pub fn bump_memory(paths: &Paths, mb: u32) -> Result<ActionResult> {
     Ok(ActionResult {
         ok: true,
         action: "bump_memory".into(),
-        message_zh: format!("已将 memory_mb 从 {old} 调整为 {mb}（下次启动生效）。"),
+        message_zh: format!("已把游戏内存从 {old} MB 调到 {mb} MB。请重新启动游戏后生效。"),
         path: Some(paths.settings_file().display().to_string()),
         value: Some(serde_json::json!({ "memory_mb": mb, "previous": old })),
     })
@@ -76,7 +76,8 @@ pub fn write_diagnostic_bundle(paths: &Paths, report: &DiagnoseReport) -> Result
     Ok(ActionResult {
         ok: true,
         action: "diagnostics".into(),
-        message_zh: format!("诊断包已写入 {}", path.display()),
+        message_zh: format!("问题报告已保存到：{}
+可发给朋友，或自己留档排查。", path.display()),
         path: Some(path.display().to_string()),
         value: None,
     })
@@ -88,7 +89,7 @@ pub fn suggest_memory_text(current_mb: u32, suggested_mb: u32) -> ActionResult {
         ok: true,
         action: "suggest_memory".into(),
         message_zh: format!(
-            "当前 memory_mb={current_mb}。建议提高到 {suggested_mb} MB（settings.json 或 Agent「内存 {suggested_mb}」）。"
+            "当前内存约 {current_mb} MB。建议调到 {suggested_mb} MB（助手里说「内存 {suggested_mb}」即可）。"
         ),
         path: None,
         value: Some(serde_json::json!({ "current": current_mb, "suggested": suggested_mb })),

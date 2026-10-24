@@ -143,6 +143,16 @@ pub fn route(input: &str) -> IntentResult {
         "分析日志",
         "为什么崩",
         "挂了",
+        "闪退",
+        "启动失败",
+        "打不开游戏",
+        "进不去",
+        "黑屏",
+        "白屏",
+        "卡住了",
+        "启动不了",
+        "游戏崩了",
+        "崩了",
     ];
     for k in diagnose_keys {
         if t.contains(k) {
@@ -166,6 +176,14 @@ pub fn route(input: &str) -> IntentResult {
         "没有 java",
         "下载 jdk",
         "安装 jdk",
+        "修好 java",
+        "修 java",
+        "java 坏了",
+        "java坏了",
+        "找不到 java",
+        "需要 java",
+        "换 java",
+        "java 版本",
     ];
     for k in java_keys {
         if t.contains(k) {
@@ -174,13 +192,26 @@ pub fn route(input: &str) -> IntentResult {
                 intent: Intent::EnsureJava { major },
                 confidence: 0.92,
                 matched: k.into(),
-                reply_zh: format!("将确保本机已安装 Java {major}（本地 Adoptium 流程）。"),
+                reply_zh: format!("将检查并准备 Java {major}。"),
             };
         }
     }
 
     // memory
-    let mem_keys = ["内存", "memory", "xmx", "oom", "堆", "加大内存", "提高内存"];
+    let mem_keys = [
+        "内存",
+        "memory",
+        "xmx",
+        "oom",
+        "堆",
+        "加大内存",
+        "提高内存",
+        "内存不够",
+        "内存不足",
+        "卡成幻灯片",
+        "分配内存",
+        "调内存",
+    ];
     for k in mem_keys {
         if t.contains(k) {
             let mb = extract_memory_mb(&t);
@@ -226,9 +257,7 @@ pub fn route(input: &str) -> IntentResult {
                 intent: Intent::InstallMod { query: q.clone() },
                 confidence: 0.8,
                 matched: format!("install:{q}"),
-                reply_zh: format!(
-                    "本地意图：安装模组「{q}」。请在商店页搜索，或用 CLI `easymc mods install …`。"
-                ),
+                reply_zh: format!("将打开下载页搜索模组「{q}」。"),
             };
         }
     }
@@ -257,15 +286,15 @@ pub fn route(input: &str) -> IntentResult {
 }
 
 pub fn help_text() -> String {
-    r#"本地 Agent（无云端 LLM）可理解例如：
-· 「看上次报错」/ diagnose — 规则诊断崩溃日志
-· 「确保 Java 21」— 触发 ensure-java
-· 「内存 4G」— 给出/写入内存建议
-· 「数据目录」— 显示本地数据根路径
-· 「导出诊断包」— 打包日志摘要
-· 「装 sodium」— 模组安装提示（连到商店/CLI）
+    r#"我可以帮你：
+· 「看上次报错」— 分析崩溃 / 启动失败日志
+· 「修好 Java」— 检查并准备合适的 Java
+· 「内存 4G」— 把游戏内存调大一点
+· 「游戏文件夹」— 告诉你数据在哪
+· 「导出报告」— 打包日志方便发给别人
+· 「装 sodium」— 打开下载页搜索模组
 
-全部在本地启发式完成，不会访问 OpenAI/Anthropic 等云端 API。"#
+默认只在你电脑上跑规则诊断；配置了云端助手时才会联网。"#
         .into()
 }
 
@@ -280,9 +309,36 @@ mod tests {
     }
 
     #[test]
+    fn route_diagnose_chinese_phrases() {
+        for s in ["闪退了", "启动失败", "打不开游戏", "游戏崩了", "黑屏"] {
+            let r = route(s);
+            assert!(
+                matches!(r.intent, Intent::Diagnose { .. }),
+                "expected Diagnose for {s:?}, got {:?}",
+                r.intent
+            );
+        }
+    }
+
+    #[test]
     fn route_java() {
         let r = route("确保 Java 21");
         assert_eq!(r.intent, Intent::EnsureJava { major: 21 });
+    }
+
+    #[test]
+    fn route_fix_java_shortcut() {
+        let r = route("修好 Java");
+        assert!(matches!(r.intent, Intent::EnsureJava { .. }));
+    }
+
+    #[test]
+    fn route_memory_oom_phrase() {
+        let r = route("内存不够 8G");
+        match r.intent {
+            Intent::BumpMemory { mb } => assert_eq!(mb, 8192),
+            other => panic!("{:?}", other),
+        }
     }
 
     #[test]

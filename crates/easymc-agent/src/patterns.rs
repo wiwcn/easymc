@@ -47,6 +47,9 @@ fn rules() -> &'static [Rule] {
                 "out of memory",
                 "GC overhead limit exceeded",
                 "Java heap space",
+                "内存不足",
+                "内存溢出",
+                "堆空间",
             ],
             re: None,
             title: "内存不足（OutOfMemory）",
@@ -69,14 +72,18 @@ fn rules() -> &'static [Rule] {
                 "Invalid maximum heap size",
                 "错误的主版本号",
                 "class file version",
+                "找不到 java",
+                "未找到 java",
+                "没有可用的 java",
+                "Unsupported class file major version",
             ],
             re: None,
             title: "Java 缺失或版本不对",
             summary: "找不到合适的 Java，或 class 文件版本高于当前 JVM。",
             fixes: &[
-                "运行 ensure-java 21（或 17，视游戏版本而定）",
-                "在设置中指定 preferred_java 指向 Temurin/JDK",
-                "1.21.x 一般需要 Java 21",
+                "点助手「修好 Java」，自动准备合适版本",
+                "1.21.x 一般需要 Java 21；1.17–1.20 多用 Java 17",
+                "仍不行可到设置高级项查看数据目录里的 runtimes",
             ],
             action: Some("ensure_java"),
         },
@@ -91,6 +98,10 @@ fn rules() -> &'static [Rule] {
                 "critical injection failure",
                 "MixinTransformerError",
                 "MixinConstraintException",
+                "模组冲突",
+                "mod conflict",
+                "incompatible with",
+                "Cannot apply mixin",
             ],
             re: None,
             title: "Mixin / 模组冲突",
@@ -115,6 +126,9 @@ fn rules() -> &'static [Rule] {
                 "not a valid mod file",
                 "Mod Loading has halted",
                 "Failed to find main class",
+                "缺少依赖",
+                "依赖缺失",
+                "加载器不匹配",
             ],
             re: None,
             title: "加载器或模组不匹配",
@@ -289,6 +303,24 @@ mod tests {
     fn detects_oom() {
         let f = scan_log("java.lang.OutOfMemoryError: Java heap space");
         assert!(f.iter().any(|x| x.id == "oom"));
+    }
+
+    #[test]
+    fn detects_oom_zh() {
+        let f = scan_log("启动失败：内存不足 / 堆空间耗尽");
+        assert!(f.iter().any(|x| x.id == "oom"));
+    }
+
+    #[test]
+    fn detects_mixin_conflict() {
+        let f = scan_log("@Mixin apply failed: MixinTransformerError critical injection failure");
+        assert!(f.iter().any(|x| x.id == "mixin_conflict"));
+    }
+
+    #[test]
+    fn detects_missing_java_zh() {
+        let f = scan_log("错误：找不到 Java / Unsupported class file major version 65");
+        assert!(f.iter().any(|x| x.id == "missing_java"));
     }
 
     #[test]

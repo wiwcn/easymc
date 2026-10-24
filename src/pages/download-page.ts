@@ -300,6 +300,12 @@ export class DownloadPage extends LitElement {
       this.tab = saved;
       sessionStorage.removeItem("easymc-download-tab");
     }
+    const q = sessionStorage.getItem("easymc-download-query");
+    if (q) {
+      this.query = q;
+      sessionStorage.removeItem("easymc-download-query");
+      if (!saved) this.tab = "mod";
+    }
     void this.bootstrap();
     void listenInstallProgress((p) => (this.progress = p)).then((u) => (this.unprog = u));
   }
@@ -318,6 +324,7 @@ export class DownloadPage extends LitElement {
     this.activeId = st.active_id;
     this.cf = cf;
     if (this.tab === "vanilla") await this.loadVanilla();
+    else if (this.query.trim()) await this.onSearch();
   }
 
   private async loadVanilla() {
