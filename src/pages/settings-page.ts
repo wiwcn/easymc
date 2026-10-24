@@ -5,10 +5,14 @@ import {
   agentDataDir,
   agentLlmStatus,
   curseforgeConfigured,
+  detectJava,
+  ensureJavaInstall,
   getSettings,
+  listenLogs,
   msaStatus,
   setCurseforgeKey,
   updateSettings,
+  type JavaInstallDto,
 } from "../api";
 import type { AppMode, CurseForgeStatusDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
@@ -28,6 +32,11 @@ export class SettingsPage extends LitElement {
   @state() private dataDir = "";
   @state() private llm: LlmStatusDto | null = null;
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
+  @state() private javaList: JavaInstallDto[] = [];
+  @state() private javaBusy = false;
+  @state() private javaStatus = "";
+  @state() private javaLog = "";
+  private unlistenJavaLog: (() => void) | null = null;
 
   static styles = [
     controlStyles,
@@ -112,6 +121,31 @@ export class SettingsPage extends LitElement {
         font-size: var(--easymc-type-meta);
         color: var(--md-sys-color-on-surface-variant);
       }
+      .java-ok {
+        color: var(--md-sys-color-primary);
+        font-weight: 600;
+        font-size: var(--easymc-type-label);
+      }
+      .java-warn {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: var(--easymc-type-label);
+      }
+      .java-log {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: var(--md-sys-shape-corner-medium);
+        background: var(--md-sys-color-surface-container-lowest);
+        font-size: var(--easymc-type-meta);
+        color: var(--md-sys-color-on-surface-variant);
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 140px;
+        overflow: auto;
+      }
+      code.path {
+        font-size: var(--easymc-type-meta);
+        word-break: break-all;
+      }
     `,
   ];
 
@@ -120,13 +154,20 @@ export class SettingsPage extends LitElement {
     void this.refresh();
   }
 
+  disconnectedCallback() {
+    this.unlistenJavaLog?.();
+    this.unlistenJavaLog = null;
+    super.disconnectedCallback();
+  }
+
   private async refresh() {
-    const [s, cf, msa, dir, llm] = await Promise.all([
+    const [s, cf, msa, dir, llm, javas] = await Promise.all([
       getSettings(),
       curseforgeConfigured(),
       msaStatus(),
       agentDataDir(),
       agentLlmStatus(),
+      detectJava(),
     ]);
     this.settings = s;
     this.mem = Math.min(MEM_MAX, Math.max(MEM_MIN, s.memory_mb ?? 2048));
@@ -134,6 +175,49 @@ export class SettingsPage extends LitElement {
     this.msa = msa;
     this.dataDir = dir.path;
     this.llm = llm;
+    this.javaList = javas;
+    if (!this.javaBusy) {
+      const best = javas.find((j) => j.major >= 21) ?? javas[0];
+      this.javaStatus = best
+        ? `已就绪：Java ${best.major}（${best.source}）`
+        : "尚未检测到可用的 Java。点下方按钮即可自动下载并配置。";
+    }
+  }
+
+  private async setupJava() {
+    if (this.javaBusy) return;
+    this.javaBusy = true;
+    this.javaLog = "";
+    this.javaStatus = "正在准备 Java 21…";
+    this.unlistenJavaLog?.();
+    this.unlistenJavaLog = await listenLogs((line) => {
+      this.javaLog = this.javaLog ? `${this.javaLog}\n${line}` : line;
+      this.javaStatus = line;
+    });
+    try {
+      const j = await ensureJavaInstall(21);
+      this.javaStatus = `配置完成：Java ${j.major}`;
+      this.javaLog = [
+        this.javaLog,
+        `路径：${j.path}`,
+        `版本：${j.version_string}`,
+        `来源：${j.source}`,
+        "下次启动游戏会自动使用它。",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      showToast(`Java ${j.major} 已就绪`);
+      this.javaList = await detectJava();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.javaStatus = "配置失败";
+      this.javaLog = this.javaLog ? `${this.javaLog}\n${msg}` : msg;
+      showToast(`配置失败：${msg}`);
+    } finally {
+      this.unlistenJavaLog?.();
+      this.unlistenJavaLog = null;
+      this.javaBusy = false;
+    }
   }
 
   private get mode(): AppMode {
@@ -160,7 +244,7 @@ export class SettingsPage extends LitElement {
     ];
     return html`
       <h1>设置</h1>
-      <p class="sub">内存与使用偏好。账户请到「账户」页管理。高级选项默认折叠。</p>
+      <p class="sub">启动环境、内存与使用偏好。账户请到「账户」页管理。高级选项默认折叠。</p>
       <div class="tabs">
         ${tabs.map(
           (t) => html`<button
@@ -180,7 +264,40 @@ export class SettingsPage extends LitElement {
   }
 
   private renderLaunch() {
+    const best = this.javaList.find((j) => j.major >= 21) ?? this.javaList[0] ?? null;
+    const ready = !!best && best.major >= 21;
     return html`
+      <div class="card">
+        <h2>Java 运行环境</h2>
+        <p>
+          开玩 Minecraft 需要 Java。本机没有也没关系——点一次即可自动下载合适版本并交给 EasyMC 使用，无需自己安装或改系统设置。
+        </p>
+        <div class=${ready ? "java-ok" : "java-warn"}>${this.javaStatus || (ready && best ? `已就绪：Java ${best.major}` : "尚未检测到可用的 Java")}</div>
+        ${best
+          ? html`<p class="muted" style="margin-top:6px">
+              <code class="path">${best.path}</code>
+            </p>`
+          : nothing}
+        <div class="row" style="margin-top:12px">
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${this.javaBusy}
+            @click=${() => void this.setupJava()}
+          >
+            ${this.javaBusy ? "正在配置…" : ready ? "重新检查 / 更新 Java" : "一键配置 Java"}
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.javaBusy}
+            @click=${() => void this.refresh()}
+          >
+            刷新检测
+          </button>
+        </div>
+        ${this.javaLog ? html`<div class="java-log" aria-live="polite">${this.javaLog}</div>` : nothing}
+      </div>
       <div class="card">
         <h2>账户</h2>
         <p>登录方式与当前名字在独立「账户」页管理。</p>

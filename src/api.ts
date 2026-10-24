@@ -313,8 +313,25 @@ export async function getLogs(): Promise<string[]> {
   return (await invokeSafe<string[]>("get_logs")) ?? [];
 }
 
+export type JavaInstallDto = {
+  path: string;
+  version_string: string;
+  major: number;
+  source: string;
+};
+
+export async function detectJava(): Promise<JavaInstallDto[]> {
+  const list = await invokeSafe<JavaInstallDto[]>("detect_java_cmd");
+  return list ?? [];
+}
+
+/** Find a suitable Java or download Temurin into EasyMC runtimes. */
+export async function ensureJavaInstall(major = 21): Promise<JavaInstallDto> {
+  return invokeOrThrow<JavaInstallDto>("ensure_java_cmd", { major });
+}
+
 export async function ensureJava(major = 21): Promise<string> {
-  const j = await invokeOrThrow<{ path: string; major: number }>("ensure_java_cmd", { major });
+  const j = await ensureJavaInstall(major);
   return `${j.path} (Java ${j.major})`;
 }
 
