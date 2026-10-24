@@ -892,9 +892,11 @@ dependencies = [
  "chrono",
  "easymc-core",
  "easymc-mods",
+ "hex",
  "serde",
  "serde_json",
  "sha1",
+ "sha2",
  "tokio",
  "zip",
 ]

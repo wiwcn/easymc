@@ -204,7 +204,7 @@ pub async fn execute_intent(
                 resolve_instance_id(paths, None)
             });
             Ok((
-                "正在制作当前版本的整合包…".into(),
+                "正在导出当前版本的 .mrpack 整合包…".into(),
                 None,
                 Some(ActionResult {
                     ok: true,

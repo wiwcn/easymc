@@ -79,7 +79,7 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_instance_dir" => ("打开版本文件夹", Some("文件")),
         "show_data_dir" => ("数据目录", Some("文件")),
         "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
-        "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some("分享")),
+        "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
         "diagnose" | "analyze_crash_log" | "analyze_launch_log" => ("查看崩溃", Some("诊断")),
         "suggest_memory" => ("内存建议", Some("配置")),
@@ -210,8 +210,14 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
             if let Some(c) = v.get("mod_count").and_then(|x| x.as_u64()) {
                 out.push(arg("mods", "模组", format!("{c}")));
             }
+            if let Some(c) = v.get("resolved").and_then(|x| x.as_u64()) {
+                out.push(arg("resolved", "CDN", format!("{c}")));
+            }
+            if let Some(c) = v.get("overrides").and_then(|x| x.as_u64()) {
+                out.push(arg("overrides", "本地覆盖", format!("{c}")));
+            }
             if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
-                out.push(arg("path", "文件", p));
+                out.push(arg("path", ".mrpack", p));
             }
         }
         "diagnostics" | "diagnose" | "analyze_crash_log" | "analyze_launch_log" => {
@@ -266,9 +272,11 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
             }
         }
         "build_pack" | "diagnostics" if ok => {
-            if name == "diagnostics" {
-                acts.push(ui("reveal_path", "打开报告位置"));
-            }
+            acts.push(ui("reveal_path", if name == "build_pack" {
+                "打开整合包位置"
+            } else {
+                "打开报告位置"
+            }));
         }
         _ => {}
     }

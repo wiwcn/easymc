@@ -277,10 +277,12 @@ export interface AgentAskResponse {
 
 export interface ExportResultDto {
   path: string;
-  mode: "metadata" | "pack" | string;
+  mode: "metadata" | "pack" | "mrpack" | string;
   mod_count: number;
   bytes: number;
   message_zh: string;
+  resolved?: number | null;
+  overrides?: number | null;
 }
 
 export interface ImportResultDto {

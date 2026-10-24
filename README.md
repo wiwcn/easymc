@@ -118,34 +118,39 @@ export EASYMC_LLM_MODEL=deepseek-chat   # or deepseek-reasoner, etc.
 
 UI **Agent** page: diagnose button, action chips, chat composer (LLM when configured).
 
-## Share (M1.7)
+## Share / Modrinth `.mrpack`
 
-Portable instance configs — **no full assets/client jars** by default.
+Portable instance configs and Modrinth-compatible modpacks — **no full assets/client jars** by default.
 
 ### Modes
 
 | Mode | File | Contents |
 |------|------|----------|
-| **Metadata** | `*.easymc.share.json` (or `easymc.share.json`) | Version, loader+version, JVM memory suggestion, mods list (filename + optional Modrinth/CF ids / sha1) |
-| **Pack** | `*.easymc.share.zip` | Same manifest at `easymc.share.json` + `mods/*.jar` |
+| **Mrpack** (primary pack export) | `*.mrpack` | Modrinth format: `modrinth.index.json` + optional `overrides/` (CDN URLs for Modrinth-known jars; unmatched jars under `overrides/mods/`) |
+| **Metadata** | `*.easymc.share.json` | EasyMC share: version, loader, JVM memory suggestion, mods list (filename + optional Modrinth/CF ids / sha1) |
+| **Pack** (legacy EasyMC zip) | `*.easymc.share.zip` | `easymc.share.json` + `mods/*.jar` |
 
-Format id: `easymc.share` · `format_version: 1`. Optional local index `.easymc-mods.json` under the instance caches Modrinth/CF ids after store installs.
+EasyMC share format id: `easymc.share` · `format_version: 1`. Optional local index `.easymc-mods.json` under the instance caches Modrinth/CF ids after store installs.
+
+Agent **制作整合包** / library **导出 .mrpack** prefer Modrinth `.mrpack` so Prism / Modrinth App can open the file. CurseForge-only jars without a Modrinth hash match are packed as overrides.
 
 ### Import behaviour
 
-1. Create (or update by name) an instance from the manifest.
-2. For each mod: if jar present in pack → copy; else if Modrinth/CF ids present → download; else record as missing.
-3. `--apply-memory` / UI confirm optionally writes `settings.memory_mb`.
-4. Does **not** download Minecraft client/assets; install the version separately.
+1. **`.mrpack`** (or zip with `modrinth.index.json`): create a new instance from dependencies, download `files[]`, extract `overrides/` + `client-overrides/`.
+2. **EasyMC share**: create an instance from the manifest; copy jars from pack and/or download via Modrinth/CF ids.
+3. `--apply-memory` / UI confirm optionally writes `settings.memory_mb` (EasyMC share only).
+4. Does **not** download Minecraft client/assets; install the version separately (点「安装并启动」).
+
+Download-center **整合包** install (Modrinth / CurseForge project) already installs `.mrpack` / CF manifests into a new instance.
 
 ### CLI
 
 ```bash
-cargo run -p easymc-cli -- export-instance <id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]
-cargo run -p easymc-cli -- import-instance <file.json|file.zip> [--name NAME] [--apply-memory] [--offline]
+cargo run -p easymc-cli -- export-instance <id> [--mrpack|--pack|--easymc-pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]
+cargo run -p easymc-cli -- import-instance <file.json|file.zip|file.mrpack> [--name NAME] [--apply-memory] [--offline]
 ```
 
-Default export dir: `$EASYMC_DATA_DIR/shares/` (or platform data dir). Path is printed and can be copied from the UI clipboard.
+`--pack` / `--mrpack` → `.mrpack`. `--easymc-pack` → legacy EasyMC zip. Default export dir: `$EASYMC_DATA_DIR/shares/` (or platform data dir).
 
 
 ### Forge / NeoForge caveats
@@ -178,7 +183,7 @@ Without it, Modrinth still works; CurseForge search/install returns a clear zh-C
 | `easymc-cli` | Headless install/launch |
 | `easymc-mods` | Modrinth + CurseForge search/install |
 | `easymc-agent` | Local diagnose + optional OpenAI-compatible LLM |
-| `easymc-share` | Export/import share bundles (metadata JSON / pack zip) |
+| `easymc-share` | Export/import EasyMC share + Modrinth `.mrpack` |
 | `src-tauri` (`easymc-app`) | Tauri commands + events |
 
 ## MD3 UI
