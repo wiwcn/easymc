@@ -6,9 +6,11 @@ import { getSettings } from "./api";
 import "./pages/onboarding-page";
 import "./components/side-nav";
 import "./pages/home-page";
-import "./pages/library-page";
-import "./pages/placeholder-page";
-import "./pages/store-page";
+import "./pages/download-page";
+import "./pages/instance-page";
+import "./pages/multiplayer-page";
+import "./pages/settings-page";
+import "./pages/more-page";
 import "./pages/agent-page";
 
 @customElement("easymc-app")
@@ -51,25 +53,6 @@ export class EasyMcApp extends LitElement {
       letter-spacing: -0.02em;
       color: var(--md-sys-color-on-surface);
     }
-    .menu-btn {
-      width: 40px;
-      height: 40px;
-      border: none;
-      border-radius: var(--md-sys-shape-corner-full);
-      background: transparent;
-      color: var(--md-sys-color-on-surface-variant);
-      cursor: pointer;
-      font-size: 1.25rem;
-      transition:
-        background var(--easymc-dur-press) var(--easymc-ease-out),
-        transform var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    .menu-btn:hover {
-      background: var(--md-sys-color-surface-container);
-    }
-    .menu-btn:active {
-      transform: scale(0.96);
-    }
     .avatar {
       width: 36px;
       height: 36px;
@@ -100,9 +83,6 @@ export class EasyMcApp extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .page {
         animation: none;
-      }
-      .menu-btn:active {
-        transform: none;
       }
     }
   `;
@@ -144,7 +124,13 @@ export class EasyMcApp extends LitElement {
   private onNav = (e: Event) => {
     const detail = (e as CustomEvent<NavId>).detail;
     if (!detail || detail === this.route) return;
-    this.route = detail;
+    // legacy redirects from Phase 1 routes
+    const map: Record<string, NavId> = {
+      library: "instances",
+      store: "download",
+      share: "more",
+    };
+    this.route = (map[detail] as NavId) || detail;
     this.pageKey += 1;
   };
 
@@ -156,7 +142,7 @@ export class EasyMcApp extends LitElement {
       <div class="main">
         <header class="top">
           <div class="brand">
-                        <span>EasyMC</span>
+            <span>EasyMC</span>
           </div>
           <div class="avatar" title="账户"></div>
         </header>
@@ -174,25 +160,20 @@ export class EasyMcApp extends LitElement {
     switch (this.route) {
       case "home":
         return html`<easymc-home-page></easymc-home-page>`;
-      case "library":
-        return html`<easymc-library-page></easymc-library-page>`;
-      case "store":
-        return html`<easymc-store-page></easymc-store-page>`;
+      case "download":
+        return html`<easymc-download-page></easymc-download-page>`;
+      case "instances":
+        return html`<easymc-instance-page></easymc-instance-page>`;
+      case "multiplayer":
+        return html`<easymc-multiplayer-page></easymc-multiplayer-page>`;
+      case "settings":
+        return html`<easymc-settings-page></easymc-settings-page>`;
+      case "more":
+        return html`<easymc-more-page .mode=${this.mode}></easymc-more-page>`;
       case "agent":
         return html`<easymc-agent-page></easymc-agent-page>`;
-      case "share":
-        return html`<easymc-placeholder-page
-          title="分享"
-          subtitle="在「启动」或「库」页把实例分享给好友，或导入好友发来的分享包"
-          icon=""
-        ></easymc-placeholder-page>`;
-      case "settings":
-        return html`<easymc-placeholder-page
-          title="设置"
-          subtitle="账户、模式与游戏设置"
-          icon=""
-          settings
-        ></easymc-placeholder-page>`;
+      default:
+        return html`<easymc-home-page></easymc-home-page>`;
     }
   }
 }

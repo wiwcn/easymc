@@ -1,4 +1,4 @@
-export type NavId = "home" | "library" | "store" | "agent" | "share" | "settings";
+export type NavId = "home" | "download" | "instances" | "multiplayer" | "settings" | "more" | "agent";
 
 export interface InstanceDto {
   id: string;
@@ -12,6 +12,43 @@ export interface InstanceDto {
   account_id?: string | null;
   version_ready?: boolean;
   created_at?: string;
+  icon?: string | null;
+  category?: string | null;
+  memory_mb?: number | null;
+  java_path?: string | null;
+  width?: number | null;
+  height?: number | null;
+  jvm_args?: string | null;
+}
+
+export type ProjectTypeId = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
+
+export interface LocalEntryDto {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  modified?: string | null;
+}
+
+export interface ContentInstallResultDto {
+  project_type: ProjectTypeId | string;
+  project_name: string;
+  version_number: string;
+  filename: string;
+  path: string;
+  skipped: boolean;
+}
+
+export interface ModpackInstallResultDto {
+  instance_id: string;
+  instance_name: string;
+  game_version: string;
+  loader: string;
+  loader_version?: string | null;
+  files_downloaded: number;
+  files_failed: string[];
+  overrides: number;
+  message_zh: string;
 }
 
 export interface InstancesState {

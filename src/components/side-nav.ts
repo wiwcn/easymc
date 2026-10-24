@@ -1,21 +1,34 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { AppMode, NavId } from "../types";
 
-type Item = { id: NavId; label: string };
-const BASE: Item[] = [
-  { id: "home", label: "启动" },
-  { id: "library", label: "库" },
-  { id: "store", label: "商店" },
-  { id: "share", label: "分享" },
-  { id: "settings", label: "设置" },
-];
-const AGENT: Item = { id: "agent", label: "助手" };
+type Item = { id: NavId; label: string; icon: string };
 
-/** Agent mode: assistant sits right after 启动 with a badge. Standard: last, de-emphasised. */
+const ICONS: Record<string, unknown> = {
+  home: svg`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" fill="currentColor"/>`,
+  download: svg`<path d="M12 3v10m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  multiplayer: svg`<path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4.5 19c.6-2.2 2.6-3.5 5.5-3.5s4.9 1.3 5.5 3.5M14 15.5c1 .3 2.1.5 3.5.5 2.4 0 4-.8 4.5 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+  settings: svg`<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 13a7.8 7.8 0 0 0 .1-2l1.7-1.3-1.7-3-2 .5a7.6 7.6 0 0 0-1.7-1L15.4 3h-3.8l-.4 2.2a7.6 7.6 0 0 0-1.7 1l-2-.5-1.7 3L7.5 11a7.8 7.8 0 0 0 0 2l-1.7 1.3 1.7 3 2-.5c.5.4 1.1.8 1.7 1l.4 2.2h3.8l.4-2.2c.6-.2 1.2-.6 1.7-1l2 .5 1.7-3L19.4 13Z" stroke="currentColor" stroke-width="1.4" fill="none"/>`,
+  more: svg`<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>`,
+  agent: svg`<path d="M8 10h8M9 14h6M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H13l-3 3v-3H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+};
+
+const BASE: Item[] = [
+  { id: "home", label: "启动", icon: "home" },
+  { id: "download", label: "下载", icon: "download" },
+  { id: "multiplayer", label: "联机", icon: "multiplayer" },
+  { id: "settings", label: "设置", icon: "settings" },
+  { id: "more", label: "更多", icon: "more" },
+];
+
 function itemsFor(mode: AppMode): Item[] {
-  if (mode === "agent") return [BASE[0], AGENT, ...BASE.slice(1)];
-  return [...BASE, AGENT];
+  const agent: Item = { id: "agent", label: "助手", icon: "agent" };
+  if (mode === "agent") {
+    // Agent mode: 助手 sits after 启动
+    return [BASE[0], agent, ...BASE.slice(1)];
+  }
+  // Standard: 助手 lives under 更多 — no top-level agent item
+  return BASE;
 }
 
 @customElement("easymc-side-nav")
@@ -70,6 +83,18 @@ export class SideNav extends LitElement {
     button.item:focus-visible {
       box-shadow: var(--easymc-focus-ring);
     }
+    .ico {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+    }
+    .ico svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
     .pill {
       margin-left: auto;
       font-size: 0.7rem;
@@ -77,10 +102,6 @@ export class SideNav extends LitElement {
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
-    }
-    button.item.quiet {
-      font-size: 0.88rem;
-      opacity: 0.8;
     }
     .promo {
       margin-top: auto;
@@ -110,20 +131,27 @@ export class SideNav extends LitElement {
         ${itemsFor(this.mode).map(
           (it) => html`
             <button
-              class="item ${this.active === it.id ? "active" : ""} ${it.id === "agent" && this.mode === "standard" ? "quiet" : ""}"
+              class="item ${this.active === it.id ? "active" : ""}"
               type="button"
               aria-current=${this.active === it.id ? "page" : "false"}
               @click=${() => this.select(it.id)}
             >
+              <span class="ico" aria-hidden="true"
+                ><svg viewBox="0 0 24 24">${ICONS[it.icon]}</svg></span
+              >
               <span>${it.label}</span>
-              ${it.id === "agent" && this.mode === "agent" ? html`<span class="pill">已开启</span>` : null}
+              ${it.id === "agent" && this.mode === "agent"
+                ? html`<span class="pill">已开启</span>`
+                : nothing}
             </button>
           `,
         )}
       </nav>
       <div class="promo">
-        <strong>${this.mode === "agent" ? "助手已就绪" : "准备好了就开始"}</strong>
-        ${this.mode === "agent" ? "游戏出问题时，打开助手帮你看看" : "多实例、模组，一键分享给好友"}
+        <strong>${this.mode === "agent" ? "助手已就绪" : "准备好了就开玩"}</strong>
+        ${this.mode === "agent"
+          ? "游戏打不开或崩溃时，打开助手帮你看看"
+          : "选好版本，点启动游戏，就能玩"}
       </div>
     `;
   }

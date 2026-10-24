@@ -1,4 +1,4 @@
-import type { AccountDto, AgentAskResponse, AppMode, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LlmStatusDto, ModInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AgentAskResponse, AppMode, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -411,4 +411,88 @@ export async function msaDeviceCode(): Promise<import("./types").DeviceCodeDto> 
 
 export async function msaPoll(info: import("./types").DeviceCodeDto): Promise<AccountDto> {
   return invokeOrThrow<AccountDto>("msa_poll_cmd", { info });
+}
+
+export async function updateInstance(
+  instanceId: string,
+  patch: Record<string, unknown>,
+): Promise<InstanceDto> {
+  return mapInstance(await invokeOrThrow<InstanceDto>("update_instance_cmd", { instanceId, patch }));
+}
+
+export async function renameInstance(instanceId: string, name: string): Promise<InstanceDto> {
+  return mapInstance(await invokeOrThrow<InstanceDto>("rename_instance_cmd", { instanceId, name }));
+}
+
+export async function duplicateInstance(instanceId: string, name?: string | null): Promise<InstanceDto> {
+  return mapInstance(await invokeOrThrow<InstanceDto>("duplicate_instance_cmd", { instanceId, name: name || null }));
+}
+
+export async function deleteInstance(instanceId: string, deleteFiles = true): Promise<void> {
+  await invokeOrThrow("delete_instance_cmd", { instanceId, deleteFiles });
+}
+
+export async function openInstanceFolder(instanceId: string, kind?: string | null): Promise<string> {
+  return invokeOrThrow<string>("open_instance_folder_cmd", { instanceId, kind: kind || null });
+}
+
+export async function writeLaunchScript(instanceId: string): Promise<{ path: string; message_zh: string }> {
+  return invokeOrThrow("write_launch_script_cmd", { instanceId });
+}
+
+export async function listLocalContent(instanceId: string, kind: string): Promise<LocalEntryDto[]> {
+  return (await invokeSafe<LocalEntryDto[]>("list_local_content_cmd", { instanceId, kind })) ?? [];
+}
+
+export async function deleteLocalContent(instanceId: string, kind: string, name: string): Promise<string> {
+  return invokeOrThrow("delete_local_content_cmd", { instanceId, kind, name });
+}
+
+export async function searchContent(
+  source: string,
+  projectType: ProjectTypeId | string,
+  query: string,
+  gameVersion?: string | null,
+  loader?: string | null,
+  limit = 20,
+): Promise<ModProjectDto[]> {
+  return (
+    (await invokeSafe<ModProjectDto[]>("search_content_cmd", {
+      source,
+      projectType,
+      query: query || null,
+      gameVersion: gameVersion || null,
+      loader: loader || null,
+      limit,
+    })) ?? []
+  );
+}
+
+export async function installContent(
+  source: string,
+  projectType: ProjectTypeId | string,
+  projectId: string,
+  opts?: { versionId?: string | null; instanceId?: string | null; world?: string | null },
+): Promise<ContentInstallResultDto> {
+  return invokeOrThrow("install_content_cmd", {
+    source,
+    projectType,
+    projectId,
+    versionId: opts?.versionId || null,
+    instanceId: opts?.instanceId || null,
+    world: opts?.world || null,
+  });
+}
+
+export async function installModpack(
+  source: string,
+  projectId: string,
+  opts?: { versionId?: string | null; name?: string | null },
+): Promise<ModpackInstallResultDto> {
+  return invokeOrThrow("install_modpack_cmd", {
+    source,
+    projectId,
+    versionId: opts?.versionId || null,
+    name: opts?.name || null,
+  });
 }

@@ -1,0 +1,478 @@
+import { LitElement, css, html, nothing } from "lit";
+import { customElement, state } from "lit/decorators.js";
+import {
+  createInstance,
+  deleteInstance,
+  deleteLocalContent,
+  duplicateInstance,
+  exportInstance,
+  importInstance,
+  installLoaderVersion,
+  installVersion,
+  launchInstance,
+  listInstalledMods,
+  listInstancesState,
+  listLoaderVersions,
+  listLocalContent,
+  listVersions,
+  openInstanceFolder,
+  removeMod,
+  renameInstance,
+  setActiveInstance,
+  setModDisabled,
+  updateInstance,
+  writeLaunchScript,
+} from "../api";
+import type { InstallProgressDto } from "../install-progress";
+import { listenInstallProgress } from "../api";
+import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
+import { loaderLabel, versionId, versionType } from "../types";
+import { showToast } from "../toast";
+
+type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
+
+@customElement("easymc-instance-page")
+export class InstancePage extends LitElement {
+  @state() private instances: InstanceDto[] = [];
+  @state() private activeId: string | null = null;
+  @state() private detailId: string | null = null;
+  @state() private tab: Tab = "settings";
+  @state() private loading = true;
+  @state() private busy = false;
+  @state() private mods: string[] = [];
+  @state() private locals: LocalEntryDto[] = [];
+  @state() private menuFor: string | null = null;
+  @state() private nameDraft = "";
+  @state() private memDraft = "";
+  @state() private javaDraft = "";
+  @state() private widthDraft = "";
+  @state() private heightDraft = "";
+  @state() private jvmDraft = "";
+  @state() private catDraft = "";
+  @state() private showCreate = false;
+  @state() private newName = "";
+  @state() private newVersion = "1.21.1";
+  @state() private newLoader: LoaderId = "vanilla";
+  @state() private newLoaderVersion = "";
+  @state() private loaderVersions: { version: string; stable: boolean }[] = [];
+  @state() private versions: VersionSummary[] = [];
+  @state() private progress: InstallProgressDto | null = null;
+  @state() private alsoInstall = true;
+
+  private unprog?: () => void;
+
+  static styles = css`
+    :host { display: block; }
+    h1 { font-size: 1.35rem; font-weight: 650; margin: 8px 0 4px; letter-spacing: -0.02em; }
+    .sub { color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem; margin-bottom: 16px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button, select, input {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button.primary { border: none; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+    button.ghost { background: transparent; }
+    button.danger { color: var(--md-sys-color-error); }
+    .list { display: flex; flex-direction: column; gap: 6px; }
+    .row-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .row-item:hover { background: var(--md-sys-color-surface-container); }
+    .row-item.active { border-color: var(--md-sys-color-primary); }
+    .icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
+    }
+    .meta { flex: 1; min-width: 0; }
+    .meta .name { font-weight: 600; }
+    .meta .info { font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); }
+    .menu-wrap { position: relative; }
+    .menu-panel {
+      position: absolute; right: 0; top: 100%; z-index: 10; min-width: 180px;
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--md-sys-shape-corner-medium);
+      box-shadow: 0 4px 12px rgba(0,0,0,.12); padding: 6px;
+      display: flex; flex-direction: column;
+    }
+    .menu-panel button { border: none; background: transparent; text-align: left; border-radius: 6px; padding: 8px 10px; }
+    .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
+    .back { margin-bottom: 8px; }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 14px; }
+    .tabs button {
+      border-radius: var(--md-sys-shape-corner-full);
+      background: transparent;
+      border: none;
+      color: var(--md-sys-color-on-surface-variant);
+      padding: 8px 14px;
+    }
+    .tabs button.on {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      font-weight: 600;
+    }
+    .panel {
+      padding: 16px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+    }
+    .panel h2 { margin: 0 0 10px; font-size: 1rem; }
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-width: 420px; }
+    .field label { font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); }
+    .field input, .field select { border-radius: var(--md-sys-shape-corner-small); }
+    .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
+    .local-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .mod-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
+    .mod-row code { flex: 1; font-size: 0.8rem; word-break: break-all; }
+    @media (prefers-reduced-motion: reduce) {
+      .row-item { transition: none; }
+    }
+  `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    void this.load();
+    void listenInstallProgress((p) => (this.progress = p)).then((u) => (this.unprog = u));
+    window.addEventListener("click", () => { if (this.menuFor) this.menuFor = null; });
+  }
+  disconnectedCallback() {
+    this.unprog?.();
+    super.disconnectedCallback();
+  }
+
+  private get detail(): InstanceDto | null {
+    return this.instances.find((i) => i.id === this.detailId) ?? null;
+  }
+
+  private async load() {
+    this.loading = true;
+    try {
+      const st = await listInstancesState();
+      this.instances = st.instances;
+      this.activeId = st.active_id;
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private async openDetail(id: string) {
+    this.detailId = id;
+    this.tab = "settings";
+    const d = this.instances.find((i) => i.id === id);
+    if (!d) return;
+    this.nameDraft = d.name;
+    this.memDraft = d.memory_mb ? String(d.memory_mb) : "";
+    this.javaDraft = d.java_path ?? "";
+    this.widthDraft = d.width ? String(d.width) : "";
+    this.heightDraft = d.height ? String(d.height) : "";
+    this.jvmDraft = d.jvm_args ?? "";
+    this.catDraft = d.category ?? "";
+    await this.refreshTab();
+  }
+
+  private async refreshTab() {
+    const d = this.detail;
+    if (!d) return;
+    if (this.tab === "mods") this.mods = await listInstalledMods(d.id);
+    if (this.tab === "worlds") this.locals = await listLocalContent(d.id, "saves");
+    if (this.tab === "resourcepacks") this.locals = await listLocalContent(d.id, "resourcepacks");
+    if (this.tab === "shaders") this.locals = await listLocalContent(d.id, "shaderpacks");
+  }
+
+  private async setTab(t: Tab) {
+    this.tab = t;
+    await this.refreshTab();
+  }
+
+  private goDownload(tab?: string) {
+    this.dispatchEvent(
+      new CustomEvent("nav-change", {
+        detail: "download",
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    if (tab) {
+      sessionStorage.setItem("easymc-download-tab", tab);
+    }
+  }
+
+  private async act(fn: () => Promise<void>) {
+    this.busy = true;
+    try {
+      await fn();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.busy = false;
+      this.menuFor = null;
+    }
+  }
+
+  render() {
+    if (this.loading) return html`<p class="muted">加载中…</p>`;
+    if (this.detailId && this.detail) return this.renderDetail(this.detail);
+    return html`
+      <h1>版本管理</h1>
+      <p class="sub">管理本地游戏版本：设置、模组、世界与导出。</p>
+      <div class="toolbar">
+        <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
+        <button class="ghost" type="button" @click=${() => this.goDownload()}>去下载中心</button>
+        <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>导入好友分享</button>
+      </div>
+      <div class="list">
+        ${this.instances.length === 0
+          ? html`<p class="muted">还没有版本。点「添加版本」或去下载整合包。</p>`
+          : this.instances.map((i) => this.renderRow(i))}
+      </div>
+      ${this.showCreate ? this.renderCreate() : nothing}
+    `;
+  }
+
+  private renderRow(i: InstanceDto) {
+    const ver = versionId(i.version);
+    return html`
+      <div class="row-item ${i.id === this.activeId ? "active" : ""}" @click=${() => this.openDetail(i.id)}>
+        <div class="icon" aria-hidden="true">${(i.name || "?").slice(0, 1)}</div>
+        <div class="meta">
+          <div class="name">${i.name}</div>
+          <div class="info">${loaderLabel(i.loader)} ${ver}${i.version_ready ? "" : " · 未安装"} · ${i.category ?? "未分类"}</div>
+        </div>
+        <div class="menu-wrap" @click=${(e: Event) => e.stopPropagation()}>
+          <button type="button" class="ghost" title="操作" @click=${() => (this.menuFor = this.menuFor === i.id ? null : i.id)}>⋮</button>
+          ${this.menuFor === i.id ? this.renderMenu(i) : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderMenu(i: InstanceDto) {
+    return html`<div class="menu-panel" role="menu">
+      <button type="button" @click=${() => this.act(async () => { await setActiveInstance(i.id); await this.load(); showToast("已设为启动页默认版本"); })}>设为启动默认</button>
+      <button type="button" @click=${() => this.act(async () => { await launchInstance(i.id); showToast("游戏已启动"); })}>启动游戏</button>
+      <button type="button" @click=${() => this.act(async () => {
+        const n = prompt("新名称", i.name);
+        if (!n?.trim()) return;
+        await renameInstance(i.id, n.trim());
+        await this.load();
+        showToast("已改名");
+      })}>改名</button>
+      <button type="button" @click=${() => this.act(async () => { await duplicateInstance(i.id); await this.load(); showToast("已复制"); })}>复制版本</button>
+      <button type="button" @click=${() => this.act(async () => { showToast(await openInstanceFolder(i.id, "game")); })}>打开游戏文件夹</button>
+      <button type="button" @click=${() => this.act(async () => { const r = await writeLaunchScript(i.id); showToast(r.message_zh); })}>生成启动脚本</button>
+      <button type="button" @click=${() => this.act(async () => { const r = await exportInstance(i.id, false); showToast(r.message_zh); })}>导出（轻量）</button>
+      <button type="button" class="danger" @click=${() => this.act(async () => {
+        if (!confirm(`删除「${i.name}」？游戏文件也会删掉。`)) return;
+        await deleteInstance(i.id, true);
+        if (this.detailId === i.id) this.detailId = null;
+        await this.load();
+        showToast("已删除");
+      })}>删除</button>
+    </div>`;
+  }
+
+  private renderDetail(d: InstanceDto) {
+    const tabs: { id: Tab; label: string }[] = [
+      { id: "settings", label: "设置" },
+      { id: "installers", label: "自动安装" },
+      { id: "mods", label: "模组" },
+      { id: "worlds", label: "世界" },
+      { id: "resourcepacks", label: "资源包" },
+      { id: "shaders", label: "光影" },
+      { id: "export", label: "导出" },
+    ];
+    return html`
+      <button class="ghost back" type="button" @click=${() => (this.detailId = null)}>← 返回列表</button>
+      <h1>${d.name}</h1>
+      <p class="sub">${loaderLabel(d.loader)} ${versionId(d.version)}${d.loader_version ? ` · ${d.loader_version}` : ""}</p>
+      <div class="tabs">
+        ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
+      </div>
+      ${this.renderTab(d)}
+    `;
+  }
+
+  private renderTab(d: InstanceDto) {
+    switch (this.tab) {
+      case "settings":
+        return html`<div class="panel">
+          <h2>游戏设置</h2>
+          <div class="field"><label>名称</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 整合包…" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>游戏内存（MB，空白=用全局）</label><input type="number" min="512" placeholder="例如 4096" .value=${this.memDraft} @input=${(e: Event) => (this.memDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>Java 路径（可选）</label><input placeholder="留空则自动选择" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>窗口宽 × 高（可选）</label>
+            <div style="display:flex;gap:8px">
+              <input type="number" placeholder="宽" .value=${this.widthDraft} @input=${(e: Event) => (this.widthDraft = (e.target as HTMLInputElement).value)} />
+              <input type="number" placeholder="高" .value=${this.heightDraft} @input=${(e: Event) => (this.heightDraft = (e.target as HTMLInputElement).value)} />
+            </div>
+          </div>
+          <div class="field"><label>额外 JVM 参数（高级）</label><input placeholder="-XX:+UseG1GC …" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
+          <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
+        </div>`;
+      case "installers":
+        return html`<div class="panel">
+          <h2>自动安装 / 加载器</h2>
+          <p class="muted">给这个版本安装游戏文件或更换加载器。装好后回到启动页即可开玩。</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+              const ver = versionId(d.version);
+              if (d.loader === "vanilla") await installVersion(ver, true);
+              else await installLoaderVersion(ver, d.loader, d.loader_version ?? null, true);
+              await this.load();
+              showToast("安装完成");
+            })}>${d.version_ready ? "重新安装游戏文件" : "安装游戏文件"}</button>
+            <button class="ghost" type="button" @click=${() => this.goDownload("vanilla")}>去下载·原版选其他版本</button>
+          </div>
+          ${this.progress ? html`<p class="muted" style="margin-top:10px">${this.progress.stage_label} · ${this.progress.detail}</p>` : nothing}
+        </div>`;
+      case "mods":
+        return html`<div class="panel">
+          <h2>已安装的模组</h2>
+          ${this.mods.length === 0
+            ? html`<p class="muted">还没有模组。</p><button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>`
+            : this.mods.map((m) => {
+                const disabled = m.endsWith(".disabled");
+                return html`<div class="mod-row">
+                  <code>${m}</code>
+                  <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
+                  <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
+                </div>`;
+              })}
+        </div>`;
+      case "worlds":
+        return this.renderLocals(d, "saves", "世界 / 存档", "还没有存档。进游戏创建世界后会出现在这里。");
+      case "resourcepacks":
+        return this.renderLocals(d, "resourcepacks", "资源包", "还没有资源包。", "resourcepack");
+      case "shaders":
+        return this.renderLocals(d, "shaderpacks", "光影", "还没有光影包。", "shader");
+      case "export":
+        return html`<div class="panel">
+          <h2>发给好友</h2>
+          <p class="muted">导出这个版本的配置，或导入好友发来的分享包。</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, false)).message_zh); })}>导出轻量包</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出含模组</button>
+            <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
+          </div>
+        </div>`;
+    }
+  }
+
+  private renderLocals(d: InstanceDto, kind: string, title: string, empty: string, downloadTab?: string) {
+    return html`<div class="panel">
+      <h2>${title}</h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="ghost" type="button" @click=${() => this.act(async () => { showToast(await openInstanceFolder(d.id, kind === "saves" ? "saves" : kind)); })}>打开文件夹</button>
+        ${downloadTab ? html`<button class="primary" type="button" @click=${() => this.goDownload(downloadTab)}>去下载</button>` : nothing}
+      </div>
+      ${this.locals.length === 0
+        ? html`<p class="muted">${empty}</p>`
+        : this.locals.map((e) => html`<div class="local-row">
+            <span>${e.name}${e.is_dir ? "/" : ""} <span class="muted">${Math.round(e.size / 1024)} KB</span></span>
+            <button class="danger ghost" type="button" @click=${() => this.act(async () => {
+              if (!confirm(`删除 ${e.name}？`)) return;
+              await deleteLocalContent(d.id, kind, e.name);
+              await this.refreshTab();
+            })}>删除</button>
+          </div>`)}
+    </div>`;
+  }
+
+  private async saveSettings(d: InstanceDto) {
+    await this.act(async () => {
+      const patch: Record<string, unknown> = {
+        name: this.nameDraft.trim() || d.name,
+        category: this.catDraft.trim(),
+      };
+      if (this.memDraft.trim()) patch.memory_mb = Number(this.memDraft);
+      else patch.clear_memory = true;
+      if (this.javaDraft.trim()) patch.java_path = this.javaDraft.trim();
+      else patch.clear_java = true;
+      if (this.widthDraft && this.heightDraft) {
+        patch.width = Number(this.widthDraft);
+        patch.height = Number(this.heightDraft);
+      } else patch.clear_resolution = true;
+      if (this.jvmDraft.trim()) patch.jvm_args = this.jvmDraft.trim();
+      else patch.clear_jvm_args = true;
+      await updateInstance(d.id, patch);
+      await this.load();
+      showToast("已保存");
+    });
+  }
+
+  private async openCreate() {
+    this.showCreate = true;
+    this.versions = await listVersions(false);
+  }
+
+  private async onImport() {
+    const path = prompt("分享包完整路径");
+    if (!path?.trim()) return;
+    await this.act(async () => {
+      const r = await importInstance(path.trim());
+      showToast(r.message_zh);
+      await this.load();
+    });
+  }
+
+  private renderCreate() {
+    return html`<div class="panel" style="margin-top:16px">
+      <h2>添加版本</h2>
+      <div class="field"><label>名称</label><input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} /></div>
+      <div class="field"><label>游戏版本</label>
+        <select .value=${this.newVersion} @change=${async (e: Event) => { this.newVersion = (e.target as HTMLSelectElement).value; if (this.newLoader !== "vanilla") this.loaderVersions = await listLoaderVersions(this.newLoader, this.newVersion); }}>
+          ${this.versions.slice(0, 60).map((v) => html`<option value=${v.id}>${v.id} · ${versionType(v)}</option>`)}
+        </select>
+      </div>
+      <div class="field"><label>加载器</label>
+        <select .value=${this.newLoader} @change=${async (e: Event) => { this.newLoader = (e.target as HTMLSelectElement).value as LoaderId; this.loaderVersions = this.newLoader === "vanilla" ? [] : await listLoaderVersions(this.newLoader, this.newVersion); this.newLoaderVersion = this.loaderVersions[0]?.version ?? ""; }}>
+          <option value="vanilla">原版</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option>
+        </select>
+      </div>
+      ${this.newLoader !== "vanilla" ? html`<div class="field"><label>加载器版本</label>
+        <select .value=${this.newLoaderVersion} @change=${(e: Event) => (this.newLoaderVersion = (e.target as HTMLSelectElement).value)}>
+          ${this.loaderVersions.map((v) => html`<option value=${v.version}>${v.version}</option>`)}
+        </select></div>` : nothing}
+      <label class="muted"><input type="checkbox" .checked=${this.alsoInstall} @change=${(e: Event) => (this.alsoInstall = (e.target as HTMLInputElement).checked)} /> 添加后立刻安装</label>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+          const inst = await createInstance(this.newName.trim() || `我的世界 ${this.newVersion}`, this.newVersion, this.newLoader, this.newLoader === "vanilla" ? null : this.newLoaderVersion || null);
+          if (this.alsoInstall) {
+            if (this.newLoader === "vanilla") await installVersion(this.newVersion, true);
+            else await installLoaderVersion(this.newVersion, this.newLoader, this.newLoaderVersion || null, true);
+          }
+          this.showCreate = false;
+          await this.load();
+          await this.openDetail(inst.id);
+          showToast(`已添加「${inst.name}」`);
+        })}>添加</button>
+        <button class="ghost" type="button" @click=${() => (this.showCreate = false)}>取消</button>
+      </div>
+    </div>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "easymc-instance-page": InstancePage;
+  }
+}
