@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { enterUp } from "../styles/motion";
 
 /**
  * Empty-state block: 2D-centered inside its container.
@@ -79,6 +80,11 @@ export class EmptyState extends LitElement {
       /* Pages keep their own button styles; slot only for layout. */
     }
   `;
+
+  /** MI-7: a single fade + 8px rise on first mount (skipped under reduced-motion). */
+  protected firstUpdated() {
+    enterUp(this.renderRoot.querySelector(".stack"));
+  }
 
   render() {
     return html`

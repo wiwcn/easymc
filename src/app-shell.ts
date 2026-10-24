@@ -103,14 +103,14 @@ export class EasyMcApp extends LitElement {
       box-sizing: border-box;
       width: 100%;
     }
+    /* MD3 top-level transition: fade-through, NO spatial displacement (C-3).
+       Displacement is reserved for hierarchical (list → detail) navigation. */
     @keyframes page-in {
       from {
         opacity: 0;
-        transform: translateY(6px);
       }
       to {
         opacity: 1;
-        transform: none;
       }
     }
     @media (prefers-reduced-motion: reduce) {

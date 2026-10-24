@@ -151,3 +151,33 @@ pre,
     opacity: 0;
   }
 }
+
+/*
+  C-5: once a skeleton-backed page resolves loading, its content fades in over
+  the (now removed) skeleton. Pages opt in by adding `md-loaded` to their host
+  on the first render where loading is false — see each page's updated().
+*/
+easymc-home-page.md-loaded,
+easymc-download-page.md-loaded,
+easymc-instance-page.md-loaded,
+easymc-accounts-page.md-loaded {
+  animation: easymc-content-in var(--easymc-dur-fast) var(--easymc-ease-out) both;
+}
+
+@keyframes easymc-content-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  easymc-home-page.md-loaded,
+  easymc-download-page.md-loaded,
+  easymc-instance-page.md-loaded,
+  easymc-accounts-page.md-loaded {
+    animation: none;
+  }
+}

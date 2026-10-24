@@ -29,6 +29,7 @@ import { listenInstallProgress } from "../api";
 import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
+import { syncIndicator } from "../lib/indicator";
 import "../components/empty-state";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
@@ -118,23 +119,25 @@ export class InstancePage extends LitElement {
       border-radius: var(--md-sys-shape-corner-medium);
       box-shadow: var(--md-sys-elevation-2); padding: 6px;
       display: flex; flex-direction: column;
+      /* MI-8: enter from the trigger edge; exit one step faster. */
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transform: translateY(-6px) scale(0.96); transform-origin: top right;
+      transition:
+        opacity var(--easymc-dur-fast) var(--easymc-ease-out),
+        transform var(--easymc-dur-fast) var(--easymc-ease-out),
+        visibility 0s linear var(--easymc-dur-fast);
+    }
+    .menu-panel.open {
+      opacity: 1; visibility: visible; pointer-events: auto; transform: none;
+      transition:
+        opacity var(--easymc-dur-med) var(--easymc-ease-out),
+        transform var(--easymc-dur-med) var(--easymc-ease-out),
+        visibility 0s;
     }
     .menu-panel button { border: none; background: transparent; text-align: left; border-radius: 6px; padding: 8px 10px; }
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
     .back { margin-bottom: 8px; }
-    .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 14px; }
-    .tabs button {
-      border-radius: var(--md-sys-shape-corner-full);
-      background: transparent;
-      border: none;
-      color: var(--md-sys-color-on-surface-variant);
-      padding: 8px 14px;
-    }
-    .tabs button.on {
-      background: var(--md-sys-color-secondary-container);
-      color: var(--md-sys-color-on-secondary-container);
-      font-weight: 600;
-    }
+    /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
     .panel {
       padding: 16px;
       border-radius: var(--md-sys-shape-corner-large);
@@ -172,6 +175,7 @@ export class InstancePage extends LitElement {
     .mod-row code { flex: 1; font-size: var(--easymc-type-meta); word-break: break-all; }
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
+      .menu-panel, .menu-panel.open { transition: none; transform: none; }
     }
   `,
   ];
@@ -185,6 +189,17 @@ export class InstancePage extends LitElement {
   disconnectedCallback() {
     this.unprog?.();
     super.disconnectedCallback();
+  }
+
+  private revealed = false;
+
+  protected updated() {
+    syncIndicator(this.renderRoot);
+    // C-5: fade content in once the first load resolves (skeleton → content).
+    if (!this.loading && !this.revealed) {
+      this.revealed = true;
+      this.classList.add("md-loaded");
+    }
   }
 
   private get detail(): InstanceDto | null {
@@ -302,14 +317,14 @@ export class InstancePage extends LitElement {
         </div>
         <div class="menu-wrap" @click=${(e: Event) => e.stopPropagation()}>
           <button type="button" class="ghost" title="操作" @click=${() => (this.menuFor = this.menuFor === i.id ? null : i.id)}>⋮</button>
-          ${this.menuFor === i.id ? this.renderMenu(i) : nothing}
+          ${this.renderMenu(i, this.menuFor === i.id)}
         </div>
       </div>
     `;
   }
 
-  private renderMenu(i: InstanceDto) {
-    return html`<div class="menu-panel" role="menu">
+  private renderMenu(i: InstanceDto, open: boolean) {
+    return html`<div class="menu-panel ${open ? "open" : ""}" role="menu" aria-hidden=${open ? "false" : "true"}>
       <button type="button" @click=${() => this.act(async () => { await setActiveInstance(i.id); await this.load(); showToast("已设为启动页默认版本"); })}>设为启动默认</button>
       <button type="button" @click=${() => this.act(async () => { await launchInstance(i.id); showToast("游戏已启动"); })}>启动游戏</button>
       <button type="button" @click=${() => this.act(async () => {
@@ -347,8 +362,9 @@ export class InstancePage extends LitElement {
       <button class="ghost back" type="button" @click=${() => (this.detailId = null)}>← 返回列表</button>
       <h1>${instancePlayerLabel(d)}</h1>
       <p class="sub">${(d.name || "").trim() && (d.name || "").trim() !== instancePlayerLabel(d) ? `${d.name} · ` : ""}${d.loader_version ? `加载器 ${d.loader_version} · ` : ""}管理模组、世界与导出</p>
-      <div class="tabs">
-        ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
+      <div class="md-tabs" role="tablist" aria-label="版本管理">
+        <span class="md-tab-ind" aria-hidden="true"></span>
+        ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" role="tab" aria-selected=${this.tab === t.id} @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
       ${this.renderTab(d)}
     `;

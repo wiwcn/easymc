@@ -115,6 +115,194 @@ export const controlStyles = css`
     cursor: not-allowed;
   }
 
+  /* ——— State layer (MD3 §4.2): hover 8 / focus 12 / pressed 12 / dragged 16 ———
+     A currentColor overlay painted below the label (negative z-index) instead of
+     each page hand-rolling its own background swap. Opt in on any interactive
+     surface (nav item, row, card) by adding the md-state class. */
+  button.primary,
+  button.tonal,
+  button.ghost,
+  button.text,
+  button.danger,
+  button.launch,
+  .md-state {
+    position: relative;
+    isolation: isolate;
+  }
+  button.primary::after,
+  button.tonal::after,
+  button.ghost::after,
+  button.text::after,
+  button.danger::after,
+  button.launch::after,
+  .md-state::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--easymc-dur-press) var(--easymc-ease-out);
+  }
+  button.primary:hover:not(:disabled)::after,
+  button.tonal:hover:not(:disabled)::after,
+  button.ghost:hover:not(:disabled)::after,
+  button.text:hover:not(:disabled)::after,
+  button.danger:hover:not(:disabled)::after,
+  button.launch:hover:not(:disabled)::after,
+  .md-state:hover:not(:disabled)::after {
+    opacity: var(--md-sys-state-hover-opacity);
+  }
+  button.primary:focus-visible::after,
+  button.tonal:focus-visible::after,
+  button.ghost:focus-visible::after,
+  button.text:focus-visible::after,
+  button.danger:focus-visible::after,
+  button.launch:focus-visible::after,
+  .md-state:focus-visible::after {
+    opacity: var(--md-sys-state-focus-opacity);
+  }
+  button.primary:active:not(:disabled)::after,
+  button.tonal:active:not(:disabled)::after,
+  button.ghost:active:not(:disabled)::after,
+  button.text:active:not(:disabled)::after,
+  button.danger:active:not(:disabled)::after,
+  button.launch:active:not(:disabled)::after,
+  .md-state:active:not(:disabled)::after {
+    opacity: var(--md-sys-state-pressed-opacity);
+  }
+  /* Ripple layer (MD3 §4.7, restrained) — filled launch/primary + nav only.
+     A pointer-origin circle that expands then fades; reduced-motion never fires
+     (see styles/ripple.ts — it bails before creating the element). */
+  .md-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0);
+    z-index: -1;
+  }
+  /* Clip the ripple to the (pill) shape on ripple-enabled surfaces. */
+  button.launch,
+  button.primary {
+    overflow: hidden;
+  }
+
+  /* ——— Tabs + Segmented (MD3 MC-1 / MC-2) — one vocabulary, sliding indicator.
+     Markup: <div class="md-tabs"><span class="md-tab-ind"></span><button class="on">…</button></div>
+     The indicator position is driven by lib/indicator.ts (lateral, §4.3). */
+  .md-tabs,
+  .md-segmented {
+    position: relative;
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 3px;
+    margin-bottom: var(--easymc-space-4);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container-low);
+    width: fit-content;
+    max-width: 100%;
+    isolation: isolate;
+  }
+  .md-tabs .md-tab-ind,
+  .md-segmented .md-tab-ind {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: -1;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-secondary-container);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform var(--easymc-dur-med) var(--easymc-ease-out),
+      width var(--easymc-dur-med) var(--easymc-ease-out),
+      height var(--easymc-dur-med) var(--easymc-ease-out),
+      opacity var(--easymc-dur-fast) var(--easymc-ease-out);
+  }
+  .md-tabs button,
+  .md-segmented button {
+    position: relative;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: var(--md-sys-shape-corner-full);
+    color: var(--md-sys-color-on-surface-variant);
+    font-family: inherit;
+    font-size: var(--easymc-type-label);
+    font-weight: 500;
+    transition: color var(--easymc-dur-press) var(--easymc-ease-out);
+  }
+  .md-tabs button.on,
+  .md-segmented button.on {
+    color: var(--md-sys-color-on-secondary-container);
+    font-weight: 650;
+  }
+  .md-tabs button:focus-visible,
+  .md-segmented button:focus-visible {
+    outline: none;
+    box-shadow: var(--easymc-focus-ring);
+  }
+  .md-segmented button {
+    min-width: 96px;
+    justify-content: center;
+  }
+
+  /* ——— Chips (MD3 MC-4) — filter / assist — min 32px, unified type ——— */
+  .md-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--easymc-space-2);
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font-family: inherit;
+    font-size: var(--easymc-type-label);
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background var(--easymc-dur-press) var(--easymc-ease-out),
+      border-color var(--easymc-dur-press) var(--easymc-ease-out),
+      color var(--easymc-dur-press) var(--easymc-ease-out);
+  }
+  .md-chip.on {
+    border-color: transparent;
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+  }
+
+  /* ——— Checkbox / Radio (MD3 MC-3) — native control, MD3 tint + hit area ——— */
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--md-sys-color-primary);
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+  .md-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--easymc-space-2);
+    min-height: 24px;
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .md-tabs .md-tab-ind,
+    .md-segmented .md-tab-ind {
+      transition: none;
+    }
+  }
+
   /* ——— Surfaces (CF-1: elevation XOR border) ——— */
   .surf-elev {
     background: var(--md-sys-color-surface-container-lowest);
@@ -135,18 +323,12 @@ export const controlStyles = css`
     border: none;
   }
 
-  /* ——— Skeleton (LD-1) ——— */
+  /* ——— Skeleton (LD-1 · C-5: MD3 pulse, not a shimmer sweep) ——— */
   .skel {
     display: block;
     border-radius: var(--md-sys-shape-corner-medium);
-    background: linear-gradient(
-      90deg,
-      var(--md-sys-color-surface-container) 0%,
-      var(--md-sys-color-surface-container-high) 45%,
-      var(--md-sys-color-surface-container) 90%
-    );
-    background-size: 200% 100%;
-    animation: easymc-skel-shimmer 1.4s var(--easymc-ease-out) infinite;
+    background: var(--md-sys-color-surface-container-high);
+    animation: easymc-skel-pulse 1.5s var(--easymc-ease-out) infinite;
   }
   .skel-line {
     height: 0.9em;
@@ -159,9 +341,9 @@ export const controlStyles = css`
   .skel-block {
     width: 100%;
   }
-  @keyframes easymc-skel-shimmer {
-    0% { background-position: 100% 0; }
-    100% { background-position: -100% 0; }
+  @keyframes easymc-skel-pulse {
+    0%, 100% { background-color: var(--md-sys-color-surface-container-high); }
+    50% { background-color: var(--md-sys-color-surface-container-highest); }
   }
   @media (prefers-reduced-motion: reduce) {
     .skel {

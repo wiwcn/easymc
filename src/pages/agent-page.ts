@@ -524,6 +524,10 @@ export class AgentPage extends LitElement {
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
       min-height: 56px;
+      /* MI-5: hover lifts elevation 1 → 2 (dur-fast), no spring overshoot. */
+      transition:
+        background var(--easymc-dur-fast) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-fast) var(--easymc-ease-out);
     }
     button.tool .tool-copy {
       display: flex;

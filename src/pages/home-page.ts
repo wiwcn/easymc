@@ -28,6 +28,7 @@ import {
   versionType,
 } from "../types";
 import { showToast } from "../toast";
+import { rollNumber } from "../styles/motion";
 import "../components/empty-state";
 
 const PLAY = svg`<path d="M8 5.5v13l11-6.5L8 5.5Z" fill="currentColor"/>`;
@@ -350,6 +351,26 @@ export class HomePage extends LitElement {
       padding: 6px;
       display: flex;
       flex-direction: column;
+      /* MI-8: grow from the trigger's edge, exit faster than it entered. */
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-6px) scale(0.96);
+      transform-origin: top right;
+      transition:
+        opacity var(--easymc-dur-fast) var(--easymc-ease-out),
+        transform var(--easymc-dur-fast) var(--easymc-ease-out),
+        visibility 0s linear var(--easymc-dur-fast);
+    }
+    .menu-panel.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: none;
+      transition:
+        opacity var(--easymc-dur-med) var(--easymc-ease-out),
+        transform var(--easymc-dur-med) var(--easymc-ease-out),
+        visibility 0s;
     }
     .menu-panel button {
       border: none;
@@ -397,6 +418,13 @@ export class HomePage extends LitElement {
       background: var(--md-sys-color-primary);
       width: var(--w, 0%);
       transition: width var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    /* MI-4: odometer readout, fixed-width digits so it does not jitter. */
+    .pct {
+      font-size: var(--easymc-type-label);
+      font-weight: 650;
+      color: var(--md-sys-color-on-surface);
+      font-variant-numeric: tabular-nums;
     }
 
     /* ——— Instance grid ——— */
@@ -603,6 +631,7 @@ export class HomePage extends LitElement {
       .featured, .featured-top, .art, button.launch { transition: none; }
       button.vcard:active, button.launch:active { transform: none; }
       .bar > i { transition: none; }
+      .menu-panel, .menu-panel.open { transition: none; transform: none; }
     }
   `,
   ];
@@ -622,6 +651,18 @@ export class HomePage extends LitElement {
     window.removeEventListener("click", this.onDocClick);
     super.disconnectedCallback();
   }
+  private revealed = false;
+
+  protected updated() {
+    // MI-4: roll the install percentage (odometer) as progress arrives.
+    rollNumber(this.renderRoot.querySelector(".pct-n"), Math.round(this.progress?.percent ?? 0));
+    // C-5: fade content in once the first load resolves (skeleton → content).
+    if (!this.loading && !this.revealed) {
+      this.revealed = true;
+      this.classList.add("md-loaded");
+    }
+  }
+
   private onDocClick = () => {
     if (this.menuOpenId || this.featuredMenu || this.manageMenu) {
       this.menuOpenId = null;
@@ -824,7 +865,7 @@ export class HomePage extends LitElement {
               >
                 <svg viewBox="0 0 24 24">${MORE}</svg>
               </button>
-              ${this.featuredMenu ? this.renderMenu(f, true) : nothing}
+              ${this.renderMenu(f, true, this.featuredMenu)}
             </div>
           </div>
         </div>
@@ -832,6 +873,7 @@ export class HomePage extends LitElement {
           ? html`<div class="status-line">
               ${this.progress
                 ? html`<span>${this.progress.stage_label} · ${this.progress.detail}</span>
+                    <span class="pct" aria-hidden="true"><span class="pct-n"></span>%</span>
                     <div class="bar" style="flex:1 1 100%"><i style=${`--w:${pct ?? 0}%`}></i></div>`
                 : html`<span>${this.status}</span>`}
               ${this.launchFailed && !this.progress
@@ -845,10 +887,11 @@ export class HomePage extends LitElement {
     `;
   }
 
-  private renderMenu(f: InstanceDto, featured: boolean) {
+  private renderMenu(f: InstanceDto, featured: boolean, open: boolean) {
     return html`<div
-      class="menu-panel"
+      class="menu-panel ${open ? "open" : ""}"
       role="menu"
+      aria-hidden=${open ? "false" : "true"}
       style=${featured ? "" : "bottom:auto;top:calc(100% + 4px);"}
       @click=${(e: Event) => e.stopPropagation()}
     >
@@ -951,11 +994,9 @@ export class HomePage extends LitElement {
         >
           <svg viewBox="0 0 24 24">${MORE}</svg>
         </span>
-        ${this.menuOpenId === i.id
-          ? html`<div class="menu-wrap" style="position:absolute;top:40px;right:8px;z-index:20">
-              ${this.renderMenu(i, false)}
-            </div>`
-          : nothing}
+        <div class="menu-wrap" style="position:absolute;top:40px;right:8px;z-index:20">
+          ${this.renderMenu(i, false, this.menuOpenId === i.id)}
+        </div>
         <span class="tile" style=${`background:${tile.bg};color:${tile.fg}`} aria-hidden="true">
           <svg viewBox="0 0 24 24">${tileGlyph(i.loader)}</svg>
         </span>
@@ -1022,41 +1063,40 @@ export class HomePage extends LitElement {
             管理
             <svg viewBox="0 0 24 24">${MORE}</svg>
           </button>
-          ${this.manageMenu
-            ? html`<div
-                class="menu-panel"
-                role="menu"
-                @click=${(e: Event) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  @click=${() => {
-                    this.manageMenu = false;
-                    void this.openCreate();
-                  }}
-                >
-                  添加版本
-                </button>
-                <button
-                  type="button"
-                  @click=${() => {
-                    this.manageMenu = false;
-                    this.go("download");
-                  }}
-                >
-                  去下载中心
-                </button>
-                <button
-                  type="button"
-                  @click=${() => {
-                    this.manageMenu = false;
-                    this.go("instances");
-                  }}
-                >
-                  管理版本
-                </button>
-              </div>`
-            : nothing}
+          <div
+            class="menu-panel ${this.manageMenu ? "open" : ""}"
+            role="menu"
+            aria-hidden=${this.manageMenu ? "false" : "true"}
+            @click=${(e: Event) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              @click=${() => {
+                this.manageMenu = false;
+                void this.openCreate();
+              }}
+            >
+              添加版本
+            </button>
+            <button
+              type="button"
+              @click=${() => {
+                this.manageMenu = false;
+                this.go("download");
+              }}
+            >
+              去下载中心
+            </button>
+            <button
+              type="button"
+              @click=${() => {
+                this.manageMenu = false;
+                this.go("instances");
+              }}
+            >
+              管理版本
+            </button>
+          </div>
         </div>
       </div>
       ${this.renderFeatured(f)}

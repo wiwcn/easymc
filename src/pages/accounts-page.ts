@@ -287,6 +287,16 @@ export class AccountsPage extends LitElement {
     void this.refresh();
   }
 
+  private revealed = false;
+
+  protected updated() {
+    // C-5: fade content in once the first load resolves (skeleton → content).
+    if (!this.loading && !this.revealed) {
+      this.revealed = true;
+      this.classList.add("md-loaded");
+    }
+  }
+
   private async refresh() {
     this.loading = true;
     try {

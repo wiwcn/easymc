@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { AccountDto, AppMode, NavId } from "../types";
 import { accountKindBadgeClass, accountKindLabel } from "../lib/skin-avatar";
+import { syncIndicatorWithin } from "../lib/indicator";
 import "./skin-avatar";
 
 type Item = { id: NavId; label: string; icon: string };
@@ -54,10 +55,28 @@ export class SideNav extends LitElement {
       gap: var(--easymc-space-2);
     }
     nav {
+      position: relative;
+      isolation: isolate;
       display: flex;
       flex-direction: column;
       gap: 2px;
       flex: 1;
+    }
+    /* MI-1: active pill morphs between items instead of per-button fill. */
+    .nav-ind {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: -1;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-primary-container);
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        transform var(--easymc-dur-med) var(--easymc-ease-out),
+        width var(--easymc-dur-med) var(--easymc-ease-out),
+        height var(--easymc-dur-med) var(--easymc-ease-out),
+        opacity var(--easymc-dur-fast) var(--easymc-ease-out);
     }
     button.item {
       display: flex;
@@ -77,14 +96,15 @@ export class SideNav extends LitElement {
         color var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    button.item:hover {
+    button.item:not(.active):hover {
       background: var(--md-sys-color-surface-container);
     }
     button.item:active {
       transform: scale(0.98);
     }
+    /* Pill comes from .nav-ind so it can morph; active only recolours the label. */
     button.item.active {
-      background: var(--md-sys-color-primary-container);
+      background: transparent;
       color: var(--md-sys-color-on-primary-container);
       font-weight: 600;
     }
@@ -138,6 +158,39 @@ export class SideNav extends LitElement {
     }
     button.acct-card:focus-visible {
       box-shadow: var(--easymc-focus-ring);
+    }
+    /* MD3 state layer (§4.2): 8% hover / 12% focus · pressed, below the label */
+    button.item,
+    button.acct-card {
+      position: relative;
+      isolation: isolate;
+    }
+    button.item {
+      overflow: hidden; /* clip ripple (§4.7) */
+    }
+    button.item::after,
+    button.acct-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: currentColor;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.item:hover::after,
+    button.acct-card:hover::after {
+      opacity: var(--md-sys-state-hover-opacity);
+    }
+    button.item:focus-visible::after,
+    button.acct-card:focus-visible::after {
+      opacity: var(--md-sys-state-focus-opacity);
+    }
+    button.item:active::after,
+    button.acct-card:active::after {
+      opacity: var(--md-sys-state-pressed-opacity);
     }
     button.acct-card easymc-skin-avatar {
       --easymc-skin-avatar-size: 36px;
@@ -195,6 +248,9 @@ export class SideNav extends LitElement {
       button.acct-card:active {
         transform: none;
       }
+      .nav-ind {
+        transition: none;
+      }
     }
   `;
 
@@ -204,6 +260,7 @@ export class SideNav extends LitElement {
 
     return html`
       <nav aria-label="主导航">
+        <span class="nav-ind" aria-hidden="true"></span>
         ${NAV.map((it) => {
           const on = this.active === it.id;
           return html`
@@ -255,6 +312,11 @@ export class SideNav extends LitElement {
         </span>
       </button>
     `;
+  }
+
+  protected updated() {
+    const nav = this.renderRoot.querySelector("nav");
+    if (nav) syncIndicatorWithin(nav, ".nav-ind", "button.active");
   }
 
   private select(id: NavId) {

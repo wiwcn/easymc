@@ -19,6 +19,7 @@ import {
 } from "../api";
 import type { AppMode, CurseForgeStatusDto, LlmConfigViewDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
+import { syncIndicator } from "../lib/indicator";
 
 const MEM_MIN = 512;
 const MEM_MAX = 16384;
@@ -64,26 +65,7 @@ export class SettingsPage extends LitElement {
         font-size: var(--easymc-type-meta);
         margin: 0 0 var(--easymc-space-4);
       }
-      .tabs {
-        display: flex;
-        gap: 4px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
-      }
-      .tabs button {
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        padding: 8px 14px;
-        border-radius: 999px;
-        color: var(--md-sys-color-on-surface-variant);
-        font: inherit;
-      }
-      .tabs button.on {
-        background: var(--md-sys-color-secondary-container);
-        color: var(--md-sys-color-on-secondary-container);
-        font-weight: 600;
-      }
+      /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
       .card {
         padding: var(--easymc-space-4);
         margin-bottom: 12px;
@@ -178,6 +160,10 @@ export class SettingsPage extends LitElement {
     super.disconnectedCallback();
   }
 
+  protected updated() {
+    syncIndicator(this.renderRoot);
+  }
+
   private async refresh() {
     const [s, cf, msa, dir, llm, llmCfg, javas] = await Promise.all([
       getSettings(),
@@ -268,11 +254,14 @@ export class SettingsPage extends LitElement {
     return html`
       <h1>设置</h1>
       <p class="sub">启动环境、内存与使用偏好。账户请到「账户」页管理。高级选项默认折叠。</p>
-      <div class="tabs">
+      <div class="md-tabs" role="tablist" aria-label="设置分组">
+        <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map(
           (t) => html`<button
             class=${this.section === t.id ? "on" : ""}
             type="button"
+            role="tab"
+            aria-selected=${this.section === t.id}
             @click=${() => (this.section = t.id)}
           >
             ${t.label}
@@ -574,17 +563,22 @@ export class SettingsPage extends LitElement {
     return html`<div class="card">
         <h2>使用模式</h2>
         <p>Agent 模式让助手更显眼；标准模式是经典启动器布局。</p>
-        <div class="row">
+        <div class="md-segmented" role="radiogroup" aria-label="使用模式">
+          <span class="md-tab-ind" aria-hidden="true"></span>
           <button
-            class=${this.mode === "agent" ? "primary" : "ghost"}
+            class=${this.mode === "agent" ? "on" : ""}
             type="button"
+            role="radio"
+            aria-checked=${this.mode === "agent"}
             @click=${() => this.setMode("agent")}
           >
             Agent 模式
           </button>
           <button
-            class=${this.mode === "standard" ? "primary" : "ghost"}
+            class=${this.mode === "standard" ? "on" : ""}
             type="button"
+            role="radio"
+            aria-checked=${this.mode === "standard"}
             @click=${() => this.setMode("standard")}
           >
             标准模式

@@ -33,6 +33,7 @@ import type {
 } from "../types";
 import { loaderLabel, versionType } from "../types";
 import { showToast } from "../toast";
+import { syncIndicator } from "../lib/indicator";
 import "../components/empty-state";
 
 type DlTab = "vanilla" | "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
@@ -87,17 +88,7 @@ export class DownloadPage extends LitElement {
       box-sizing: border-box;
     }
     /* h1 / .sub → pageChromeStyles */
-    .tabs { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; margin-bottom: var(--easymc-space-4); }
-    .tabs button {
-      border: none; background: transparent; cursor: pointer;
-      padding: 9px 16px; border-radius: 999px;
-      color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); font-weight: 500;
-      transition: background var(--easymc-dur-press) var(--easymc-ease-out), color var(--easymc-dur-press) var(--easymc-ease-out);
-    }
-    .tabs button.on {
-      background: var(--md-sys-color-primary-container);
-      color: var(--md-sys-color-on-primary-container); font-weight: 650;
-    }
+    /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
     .search-row {
       display: flex; gap: var(--easymc-space-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-3);
     }
@@ -116,18 +107,7 @@ export class DownloadPage extends LitElement {
     .search svg { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); flex-shrink: 0; }
     .sources { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; }
     .sources .lbl { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-right: 2px; }
-    button.src {
-      display: inline-flex; align-items: center; gap: var(--easymc-space-2);
-      border: 1.5px solid var(--md-sys-color-outline-variant);
-      background: var(--md-sys-color-surface-container-lowest);
-      color: var(--md-sys-color-on-surface); border-radius: 999px; padding: 8px 14px;
-      font-size: var(--easymc-type-label); font-weight: 600; cursor: pointer;
-    }
-    button.src.on {
-      border-color: var(--md-sys-color-primary);
-      background: var(--md-sys-color-primary-container);
-      color: var(--md-sys-color-on-primary-container);
-    }
+    /* source filters → controlStyles .md-chip (MC-4) */
     .dot {
       width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
     }
@@ -200,6 +180,18 @@ export class DownloadPage extends LitElement {
     .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--easymc-space-3); }
     .ver-expand-skel { display: flex; flex-direction: column; gap: var(--easymc-space-2); padding: var(--easymc-space-2) 0; }
     .ver-skel { height: 72px; border-radius: 16px; }
+    /* MI-3: in-place disclosure expands from the card's top edge (restrained). */
+    .expand {
+      transform-origin: top;
+      animation: easymc-expand-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+    }
+    @keyframes easymc-expand-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .expand { animation: none; }
+    }
 
     .results-slot {
       flex: 1 1 auto;
@@ -312,6 +304,17 @@ export class DownloadPage extends LitElement {
   disconnectedCallback() {
     this.unprog?.();
     super.disconnectedCallback();
+  }
+
+  private revealed = false;
+
+  protected updated() {
+    syncIndicator(this.renderRoot);
+    // C-5: fade content in once the first load resolves (skeleton → content).
+    if (!this.loading && !this.revealed) {
+      this.revealed = true;
+      this.classList.add("md-loaded");
+    }
   }
 
   private get active(): InstanceDto | null {
@@ -460,8 +463,9 @@ export class DownloadPage extends LitElement {
             : "先在启动页选一个版本，或直接装整合包";
     return html`
       <p class="sub">${sub}</p>
-      <div class="tabs">
-        ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
+      <div class="md-tabs" role="tablist" aria-label="下载分类">
+        <span class="md-tab-ind" aria-hidden="true"></span>
+        ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" role="tab" aria-selected=${this.tab === t.id} @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
       </div>
       ${this.tab === "vanilla" ? this.renderVanilla() : this.renderMarket()}
     `;
@@ -650,10 +654,10 @@ export class DownloadPage extends LitElement {
       </div>
       <div class="sources" style="margin-bottom:14px">
         <span class="lbl">来源</span>
-        <button class="src ${this.source === "modrinth" ? "on" : ""}" type="button" @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>
+        <button class="md-chip ${this.source === "modrinth" ? "on" : ""}" type="button" aria-pressed=${this.source === "modrinth"} @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>
           <span class="dot mr"></span> Modrinth
         </button>
-        <button class="src ${this.source === "curseforge" ? "on" : ""}" type="button" @click=${() => { this.source = "curseforge"; void this.onSearch(); }}>
+        <button class="md-chip ${this.source === "curseforge" ? "on" : ""}" type="button" aria-pressed=${this.source === "curseforge"} @click=${() => { this.source = "curseforge"; void this.onSearch(); }}>
           <span class="dot cf"></span> CurseForge
         </button>
       </div>
@@ -725,7 +729,7 @@ export class DownloadPage extends LitElement {
         </div>
       </div>
       ${this.expandedId === p.id
-        ? html`<div>
+        ? html`<div class="expand">
             ${this.versionsLoading
               ? html`<div class="ver-expand-skel" aria-busy="true" aria-label="正在加载版本">
                   <div class="skel skel-line w60"></div>

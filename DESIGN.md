@@ -376,12 +376,12 @@ Phase 5：用 OKLCH 重建 primitive → semantic 映射；暗色主题单独构
 | 类别 | 规格 |
 |------|------|
 | **Feedback** | 按压缩放 / 色变 ~100–150ms（`--easymc-dur-press`）；toast 进出 |
-| **Continuity** | 页切 opacity + 轻微 translate（`--easymc-dur-page`，app-shell keyed remount） |
+| **Continuity** | 页切按 MD3：**顶层导航 fade-through（淡出→淡入，不位移）**；仅层级前进/后退（列表→详情）用横向位移。app-shell keyed remount |
 | **Lists** | 行进入短；卸载离开；stagger 总延迟封顶 ~140ms |
 | **Focal（安静）** | 仅 Home 启动英雄区一次入场（可选 300–500ms）；不多处重复 |
 | **A11y** | `prefers-reduced-motion: reduce` 去掉空间位移；保留有意义的透明度/状态变化 |
 
-Easing：`--easymc-ease-out` = `cubic-bezier(0.16, 1, 0.3, 1)`。**仅 CSS**——不加 motion 库。Routine 过渡 150–250ms；退出快于进入。
+Easing：`--easymc-ease-out` 映射 MD3 `easing.emphasized.decelerate`（`cubic-bezier(0.05, 0.7, 0.1, 1)`）。**以 CSS/WAAPI 为主**；允许 **`motion` 的 vanilla 入口**（motion.dev，**非 `motion/react`**）做弹簧与编排，且**必须可降级**（reduced-motion 或加载失败时回退 CSS transition；功能不依赖库）。Routine 过渡 150–250ms；退出快于进入。详见 [`docs/UI-MD3-MOTION-PLAN.md`](./docs/UI-MD3-MOTION-PLAN.md) §4.8。
 
 ---
 

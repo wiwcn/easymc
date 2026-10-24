@@ -79,14 +79,41 @@
     0 4px 12px oklch(0.24 0.015 185 / 0.12),
     0 2px 4px oklch(0.24 0.015 185 / 0.06);
 
-  /* ——— Motion (DESIGN §6.4 Operate) ——— */
-  --easymc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --easymc-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --easymc-dur-press: 120ms; /* feedback 100–150ms */
-  --easymc-dur-fast: 160ms;
-  --easymc-dur-med: 220ms; /* routine 150–250ms */
-  --easymc-dur-page: 240ms; /* continuity page cut */
-  --easymc-dur-focal: 400ms; /* quiet Home hero only */
+  /* ——— Motion (DESIGN §6.4 Operate · MD3 layered) ———
+     MD3 命名层为权威值；既有 --easymc-* 作为别名映射过去（不删旧名，零回归）。
+     弹簧曲线不落 token：由 `motion` 库运行时生成（docs/UI-MD3-MOTION-PLAN.md §4.8）。 */
+  /* MD3 easing */
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --md-sys-motion-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  /* MD3 duration (ms) */
+  --md-sys-motion-duration-short1: 50ms;
+  --md-sys-motion-duration-short2: 100ms;
+  --md-sys-motion-duration-short3: 150ms;
+  --md-sys-motion-duration-short4: 200ms;
+  --md-sys-motion-duration-medium1: 250ms;
+  --md-sys-motion-duration-medium2: 300ms;
+  --md-sys-motion-duration-medium3: 350ms;
+  --md-sys-motion-duration-medium4: 400ms;
+  --md-sys-motion-duration-long1: 450ms;
+  --md-sys-motion-duration-long2: 500ms;
+
+  /* Project aliases → MD3 (values align to MD3; names preserved for zero regression) */
+  --easymc-ease-out: var(--md-sys-motion-easing-emphasized-decelerate);
+  --easymc-ease-in: var(--md-sys-motion-easing-emphasized-accelerate);
+  --easymc-dur-press: var(--md-sys-motion-duration-short2); /* 100ms · feedback */
+  --easymc-dur-fast: var(--md-sys-motion-duration-short3); /* 150ms */
+  --easymc-dur-med: var(--md-sys-motion-duration-short4); /* 200ms · routine */
+  --easymc-dur-page: var(--md-sys-motion-duration-medium2); /* 300ms · continuity */
+  --easymc-dur-focal: var(--md-sys-motion-duration-medium4); /* 400ms · Home hero only */
+
+  /* MD3 state layer opacities (§4.2) */
+  --md-sys-state-hover-opacity: 0.08;
+  --md-sys-state-focus-opacity: 0.12;
+  --md-sys-state-pressed-opacity: 0.12;
+  --md-sys-state-dragged-opacity: 0.16;
 
   /* ——— Layout / type (TYP-1 · ~1.15 ratio) ——— */
   --easymc-nav-width: 212px;

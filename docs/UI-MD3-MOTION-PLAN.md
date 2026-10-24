@@ -3,7 +3,7 @@
 **日期：** 2026-10-24
 **触发：** William「我们来完善 ui，参考 reactbits.dev/c/micro 和谷歌官方 MD3 设计规范和案例，先出方案」
 **范围：** 在既有 MD3 OKLCH tokens + Operate 基础上，**补齐动效 / 微交互 / 组件状态完备度**；对齐 Material 3（含 Expressive 动效物理）规范，并**有取舍地**吸收 ReactBits Micro Interactions 的原理。
-**性质：** **本文只出方案与验收，不改任何 UI 代码**——待审阅批准后再开工。
+**性质：** 方案与验收标准。**2026-10-24 已批准并开工**——A/B/C/D 四批实施状态见 §5。
 **关联文档：** `DESIGN.md`（产品 SoT / §6.4 Motion thesis）· [`UI-IMPECCABLE-FULL-REMEDIATION.md`](./UI-IMPECCABLE-FULL-REMEDIATION.md)（全量 master，ID：E1–E4 / CMP-1 / CF-1 / TYP-1 / LD-1 / MOT-1 / TOK-1 / SP-1）· [`UI-EMPTY-LAYOUT-REMEDIATION.md`](./UI-EMPTY-LAYOUT-REMEDIATION.md)（空态深潜）
 
 ---
@@ -185,7 +185,7 @@
   - MD3 **effects spring**（颜色/透明度）≈ 高刚度无过冲 `{ stiffness: 1600, damping: 80 }`。
   - 标定后的常量集中一处（如 `src/styles/motion.ts`），组件只引用，不散落魔数。
 - **降级**：`prefers-reduced-motion: reduce` → 弹簧退化为 `standard` easing 直落或跳变；库加载失败 → 回退现有 CSS transition，**功能不依赖库**。
-- **打包/体积**：经 Vite 随包引入；预期 gzip 量级 < 20KB，PR 中记录实际体积。
+- **打包/体积（实测 2026-10-24 生产构建）**：JS `330.45 KB`（gzip `87.80 KB`）、CSS `12.05 KB`（gzip `2.86 KB`）。引入前基线 ≈ `254.9 KB / 59.7 KB` —— **实际远大于原「< 20KB」预期**。改用 `motion/mini`（`dom-mini.mjs` 仅转发 WAAPI 动画器、无弹簧能力）可大幅省体积，但**弹簧正是决策 A 的核心**；EasyMC 为 Tauri 本地桌面应用、资源随包本地分发、无网络成本，故**保留全量 vanilla 入口**，接受该体积。
 
 ---
 
@@ -197,6 +197,14 @@
 | **B. 状态完备** | Segmented（MC-1）、Tabs（MC-2）、Switch/Checkbox（MC-3）、Chips（MC-4）、全列表 skeleton（LD-1）；ripple 克制版落 filled 按钮/nav（§4.7） | MC-1..4 / LD-1 / §4.7 | **P0–P1** |
 | **C. 微交互** | MI-1 指示器 morph、MI-3 容器变换、MI-4 数字滚动、MI-8 弹层进出、MI-7 空态出场 | MI-1/3/4/7/8 | **P1** |
 | **D. 润色** | Skeleton 改 MD3 脉冲 + 内容淡入（C-5）、Menu 完整进出（MC-6）、卡片 quieter | C-5 / MC-6 / MI-5 | **P2** |
+
+**实施状态（2026-10-24 「同意修订，开工」；`tsc --noEmit` + `vite build` 均通过）**
+
+- **A 批次**：完成——motion token 层 + `--easymc-ease/dur-*` 别名、按钮/nav 状态层 8/12/12%、`page-in` 去位移、`src/styles/motion.ts` 弹簧常量表。
+- **B 批次**：完成——`.md-tabs`/`.md-segmented`/`.md-chip`/checkbox·radio 词表 + 滑动指示器（`src/lib/indicator.ts`）+ 克制 ripple（`src/styles/ripple.ts`）；LD-1 骨架统一为 `.skel/.skel-line/.skel-block`（download / instance / home / accounts）。
+- **C 批次**：完成——**MI-1** 侧栏指示器 morph（`side-nav` 复用 `syncIndicatorWithin`，`.nav-ind`）；**MI-4** 数字滚动（`rollNumber`，落点：启动页安装进度 %）；**MI-7** 空态出场（`enterUp`，作用于 `.stack`，不覆盖 `translateY(-4%)`）；**MI-8** 菜单进出（`.menu-panel.open`，进入 `short4` / 退出 `short3`，起始自触发边缘）。**MI-3 收敛**：下载卡「版本」就地展开仅做轻量 `expand` 入场（opacity + 6px），未做完整共享元素 morph（需 View Transitions，暂缓）。
+- **D 批次**：完成——**C-5** 骨架改 MD3 脉冲（`easymc-skel-pulse`）+ 加载后内容淡入（host 加 `.md-loaded`）；**MC-6** 与 MI-8 同一实现；**MI-5** 卡片 quieter（home `.vcard.selected` 既有；agent `button.tool` hover 补 `dur-fast` 过渡）。
+- **未落地**：`easymc-shots/motion/` 证据截录需在真机应用中人工录屏，本次未生成。
 
 与既有 master 的关系：本方案**不重开 IA**（§8.4 已定），只做**动效 + 状态 + 组件工艺**；E1–E4 空态、CF-1 幽灵卡、TYP-1 字阶、SP-1 间距、LD-1 骨架、CMP-1 按钮词表**仍按 master 现有 backlog 执行**，本文在其上补动效维度。
 
@@ -244,11 +252,11 @@
 ## 9. 审阅清单（给 William）
 
 - [x] §8 四个决策点已于 **2026-10-24 拍板**（motion 库 / 克制 ripple / 顶层去位移 / MD3 脉冲）
-- [ ] 同意 §1 策略「吸收原理、**不移植 ReactBits 组件本体**、仅引入 `motion` vanilla 入口」
-- [ ] 同意 §2.2 冲突裁决（C-1…C-5）
-- [ ] 同意 §4 落地设计（token / 状态层 / 转场 / 微交互 / 组件 / ripple / motion）
-- [ ] 同意 §8-K 对 `DESIGN.md §6.4` 的修订（这是引入 `motion` 的前置条件）
-- [ ] 批准后按 §5 顺序开工（**批准前不改 UI 代码、不改 DESIGN.md**）
+- [x] 同意 §1 策略「吸收原理、**不移植 ReactBits 组件本体**、仅引入 `motion` vanilla 入口」
+- [x] 同意 §2.2 冲突裁决（C-1…C-5）
+- [x] 同意 §4 落地设计（token / 状态层 / 转场 / 微交互 / 组件 / ripple / motion）
+- [x] 同意 §8-K 对 `DESIGN.md §6.4` 的修订（引入 `motion` 的前置条件，已修订）
+- [x] 2026-10-24「同意修订，开工」→ 已按 §5 顺序实施 A/B/C/D，见上方「实施状态」
 
 ---
 
