@@ -257,7 +257,7 @@ pub fn route(input: &str) -> IntentResult {
                 intent: Intent::InstallMod { query: q.clone() },
                 confidence: 0.8,
                 matched: format!("install:{q}"),
-                reply_zh: format!("将打开下载页搜索模组「{q}」。"),
+                reply_zh: format!("将搜索并安装模组「{q}」到当前版本。"),
             };
         }
     }
@@ -292,7 +292,7 @@ pub fn help_text() -> String {
 · 「内存 4G」— 把游戏内存调大一点
 · 「游戏文件夹」— 告诉你数据在哪
 · 「导出报告」— 打包日志方便发给别人
-· 「装 sodium」— 打开下载页搜索模组
+· 「装 sodium」— 搜索并安装到当前版本
 
 默认只在你电脑上跑规则诊断；配置了云端助手时才会联网。"#
         .into()

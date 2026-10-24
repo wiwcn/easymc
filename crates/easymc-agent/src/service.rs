@@ -104,12 +104,12 @@ pub async fn execute_intent(
             Ok((ar.message_zh.clone(), Some(report), Some(ar)))
         }
         Intent::InstallMod { query } => Ok((
-            format!("正在打开「下载」页搜索「{query}」。在结果里点安装即可。"),
+            format!("正在搜索模组「{query}」，找到后会装进当前选中的版本…"),
             None,
             Some(ActionResult {
                 ok: true,
-                action: "open_store".into(),
-                message_zh: format!("打开下载页搜索「{query}」"),
+                action: "install_mod".into(),
+                message_zh: format!("搜索并安装「{query}」"),
                 path: None,
                 value: Some(serde_json::json!({ "query": query, "tab": "mod" })),
             }),

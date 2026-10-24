@@ -6,7 +6,8 @@ use easymc_meta::{download_file, FetchResult, InstallProgress};
 use crate::curseforge;
 use crate::modrinth;
 use crate::types::{
-    loader_filter_name, ModFile, ModInstallResult, ModProject, ModSource, ModVersion, SearchQuery,
+    loader_filter_name, ModFile, ModInstallResult, ModProject, ModSource, ModVersion, ProjectType,
+    SearchQuery,
 };
 use crate::http::{modrinth_client, curseforge_client};
 
@@ -543,4 +544,122 @@ mod tests {
         let (_tmp, inst) = tmp_instance("miss");
         assert!(remove_mod(&inst, "nope.jar").is_err());
     }
+
+    #[test]
+    fn score_prefers_exact_slug() {
+        let exact = ModProject {
+            id: "1".into(),
+            slug: "sodium".into(),
+            name: "Sodium".into(),
+            description: "".into(),
+            source: ModSource::Modrinth,
+            downloads: 10,
+            author: None,
+            icon_url: None,
+            categories: vec![],
+        };
+        let other = ModProject {
+            id: "2".into(),
+            slug: "sodium-extra".into(),
+            name: "Sodium Extra".into(),
+            description: "".into(),
+            source: ModSource::Modrinth,
+            downloads: 9_999_999,
+            author: None,
+            icon_url: None,
+            categories: vec![],
+        };
+        assert!(score_mod_match("sodium", &exact) > score_mod_match("sodium", &other));
+    }
+}
+
+/// Score how well a marketplace project matches a free-text query.
+/// Higher is better. Pure / offline — used to pick a best hit after search.
+pub fn score_mod_match(query: &str, project: &ModProject) -> i64 {
+    let q = query.trim().to_ascii_lowercase();
+    if q.is_empty() {
+        return project.downloads.min(50_000) as i64;
+    }
+    let slug = project.slug.to_ascii_lowercase();
+    let name = project.name.to_ascii_lowercase();
+    let mut score: i64 = 0;
+    if slug == q || name == q {
+        score += 1_000_000;
+    } else if slug.starts_with(&q) || name.starts_with(&q) {
+        score += 500_000;
+    } else if slug.contains(&q) || name.contains(&q) {
+        score += 100_000;
+    }
+    // Prefer Modrinth slightly when scores otherwise tie (stable, no key).
+    if project.source == ModSource::Modrinth {
+        score += 1_000;
+    }
+    score += project.downloads.min(50_000) as i64;
+    score
+}
+
+/// Search Modrinth (and CurseForge when a key is configured), pick the best
+/// match for `query`, and install it into `instance.mods/`.
+///
+/// Filtering prefers the instance's game version + loader; if that yields
+/// nothing, falls back to an unfiltered search then lets `install_mod` pick
+/// a compatible file (or error clearly).
+pub async fn search_and_install_best(
+    instance: &Instance,
+    query: &str,
+    on_progress: impl Fn(InstallProgress),
+) -> Result<ModInstallResult> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Err(EasyMcError::msg("模组搜索词为空"));
+    }
+
+    let loader_filter = match instance.loader {
+        ModLoader::Vanilla => None,
+        other => Some(other),
+    };
+
+    let filtered = SearchQuery {
+        project_type: ProjectType::Mod,
+        text: query.to_string(),
+        game_version: Some(instance.version.as_str().to_string()),
+        loader: loader_filter,
+        limit: 15,
+        offset: 0,
+    };
+
+    let mut candidates = match search_mods(ModSource::Modrinth, &filtered).await {
+        Ok(v) => v,
+        Err(_) => Vec::new(),
+    };
+    if crate::curseforge::api_key().is_some() {
+        if let Ok(cf) = search_mods(ModSource::CurseForge, &filtered).await {
+            candidates.extend(cf);
+        }
+    }
+
+    if candidates.is_empty() {
+        let broad = SearchQuery {
+            game_version: None,
+            loader: None,
+            ..filtered.clone()
+        };
+        candidates = search_mods(ModSource::Modrinth, &broad).await.unwrap_or_default();
+        if candidates.is_empty() && crate::curseforge::api_key().is_some() {
+            if let Ok(cf) = search_mods(ModSource::CurseForge, &broad).await {
+                candidates.extend(cf);
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return Err(EasyMcError::msg(format!(
+            "没找到模组「{query}」。换个关键词试试，或去下载页手动搜。"
+        )));
+    }
+
+    candidates.sort_by_key(|p| std::cmp::Reverse(score_mod_match(query, p)));
+    let best = candidates[0].clone();
+
+    install_mod(instance, best.source, &best.id, None, on_progress).await
 }

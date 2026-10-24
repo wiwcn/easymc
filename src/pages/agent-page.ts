@@ -34,6 +34,8 @@ export class AgentPage extends LitElement {
   @state() private instances: InstanceDto[] = [];
   @state() private instanceId: string | null = null;
   @state() private error = "";
+  /** Failed install → offer one-tap jump to download search. */
+  @state() private pendingStoreQuery: string | null = null;
 
   static styles = [
     controlStyles,
@@ -429,21 +431,41 @@ export class AgentPage extends LitElement {
     if (action.action === "open_store") {
       return action.message_zh || reply;
     }
+    if (action.action === "install_mod") {
+      return action.message_zh || reply;
+    }
     return reply;
   }
 
+  private goDownloadSearch(query: string, tab = "mod") {
+    const q = query.trim();
+    if (!q) return;
+    sessionStorage.setItem("easymc-download-tab", tab);
+    sessionStorage.setItem("easymc-download-query", q);
+    this.pendingStoreQuery = null;
+    showToast(`去下载页搜索「${q}」`);
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
+    );
+  }
+
   private async applyAction(action: AgentActionDto) {
+    if (action.action === "install_mod") {
+      this.pendingStoreQuery = null;
+      showToast(action.ok ? "模组已安装" : "安装模组失败");
+      return;
+    }
     if (action.action === "open_store" || action.action === "install_mod_hint") {
       const val = action.value as { query?: string; tab?: string } | null;
       const query = val?.query?.trim() || "";
       const tab = val?.tab || "mod";
-      if (query) {
-        sessionStorage.setItem("easymc-download-tab", tab);
-        sessionStorage.setItem("easymc-download-query", query);
-        showToast(`去下载页搜索「${query}」`);
-        this.dispatchEvent(
-          new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
-        );
+      if (!query) return;
+      // Success deep-link (legacy) → navigate. Failure after install attempt → one confirm button.
+      if (action.ok) {
+        this.goDownloadSearch(query, tab);
+      } else {
+        this.pendingStoreQuery = query;
+        showToast("安装没成功，可点下方去下载页");
       }
       return;
     }
@@ -607,6 +629,19 @@ export class AgentPage extends LitElement {
                 )}
               </div>`}
 
+          ${this.pendingStoreQuery
+            ? html`<div class="quick-chips" role="group" aria-label="安装失败后的操作">
+                <button
+                  class="chip primary"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => this.goDownloadSearch(this.pendingStoreQuery || "")}
+                >
+                  去下载页搜索「${this.pendingStoreQuery}」
+                </button>
+              </div>`
+            : null}
+
           <div class="quick-chips" role="group" aria-label="快捷工具">
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>看上次报错</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>修好 Java</button>
@@ -619,7 +654,7 @@ export class AgentPage extends LitElement {
             <input
               placeholder=${llmOn
                 ? "说说遇到什么问题…"
-                : "例如：看上次报错 / 修好 Java / 内存 4G"}
+                : "例如：看上次报错 / 修好 Java / 装 sodium"}
               .value=${this.input}
               ?disabled=${this.busy}
               @input=${(e: Event) => {

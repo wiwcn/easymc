@@ -17,8 +17,8 @@ use easymc_agent::{ask, llm_status, run_diagnose, write_diagnostic_bundle, AskRe
 use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
 use easymc_mods::{
     api_key, api_key_source, install_mod, list_installed_mods, list_mod_versions, remove_mod,
-    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ModSource,
-    SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    search_and_install_best, search_mods, set_mod_disabled, sync_api_key_from_settings,
+    ApiKeySource, ModSource, SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 
 #[tokio::main]
@@ -748,14 +748,30 @@ async fn real_main() -> easymc_core::Result<()> {
                     let text = if let Some(i) = args.iter().position(|a| a == "--") {
                         args[i + 1..].join(" ")
                     } else if args.len() > 1 {
-                        // skip subcommand
-                        args[1..]
-                            .iter()
-                            .filter(|a| !a.starts_with("--") || *a == "--rules-only")
-                            .filter(|a| *a != "--rules-only")
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(" ")
+                        // skip flags (--rules-only, --instance ID) and keep the utterance
+                        let mut parts = Vec::new();
+                        let mut skip_next = false;
+                        for a in args[1..].iter() {
+                            if skip_next {
+                                skip_next = false;
+                                continue;
+                            }
+                            if a == "--rules-only" {
+                                continue;
+                            }
+                            if a == "--instance" {
+                                skip_next = true;
+                                continue;
+                            }
+                            if a.starts_with("--instance=") {
+                                continue;
+                            }
+                            if a.starts_with("--") {
+                                continue;
+                            }
+                            parts.push(a.clone());
+                        }
+                        parts.join(" ")
                     } else {
                         String::new()
                     };
@@ -771,7 +787,7 @@ async fn real_main() -> easymc_core::Result<()> {
                         &paths,
                         AskRequest {
                             text,
-                            instance_id: instance,
+                            instance_id: instance.clone(),
                             process_logs: None,
                             rules_only,
                             history: vec![],
@@ -797,6 +813,59 @@ async fn real_main() -> easymc_core::Result<()> {
                                     j.source
                                 ),
                                 Err(e) => println!("✗ 准备 Java {major} 失败：{e}"),
+                            }
+                        } else if action.action == "install_mod" {
+                            let query = action
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.get("query"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .trim()
+                                .to_string();
+                            let store = load_instances(&paths)?;
+                            let id = instance
+                                .clone()
+                                .filter(|s| !s.is_empty())
+                                .or(store.active_id.clone());
+                            let Some(id) = id else {
+                                println!("✗ 还没有选版本，没法安装「{query}」。可用 --instance ID");
+                                println!("→ 或在桌面端「下载」页搜索：{query}");
+                                return Ok(());
+                            };
+                            let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned()
+                            else {
+                                println!("✗ 找不到版本 {id}");
+                                return Ok(());
+                            };
+                            if matches!(inst.loader, ModLoader::Vanilla) {
+                                println!(
+                                    "✗ 版本「{}」是原版，通常装不了模组。请换成带加载器的版本。",
+                                    inst.name
+                                );
+                                return Ok(());
+                            }
+                            println!("→ 正在搜索并安装「{query}」到「{}」…", inst.name);
+                            match search_and_install_best(&inst, &query, |p| {
+                                if let Some(pct) = p.percent {
+                                    println!("  [{}] {:.0}% {}", p.stage_label, pct, p.detail);
+                                } else {
+                                    println!("  [{}] {}", p.stage_label, p.detail);
+                                }
+                            })
+                            .await
+                            {
+                                Ok(r) => {
+                                    let skipped = if r.skipped { "（已存在）" } else { "" };
+                                    println!(
+                                        "✓ 已安装「{}」{} → {}",
+                                        r.project_name, skipped, r.path
+                                    );
+                                }
+                                Err(e) => {
+                                    println!("✗ 安装「{query}」失败：{e}");
+                                    println!("→ 可在桌面端「下载」页手动搜索：{query}");
+                                }
                             }
                         } else if action.action == "open_store" {
                             if let Some(q) = action

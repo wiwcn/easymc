@@ -14,7 +14,7 @@ pub use curseforge::{
 };
 pub use install::{
     install_mod, list_installed_mods, list_mod_versions, mods_dir, remove_mod,
-    sanitize_mod_filename, search_mods, set_mod_disabled,
+    sanitize_mod_filename, score_mod_match, search_and_install_best, search_mods, set_mod_disabled,
 };
 pub use types::*;
 pub use content::{

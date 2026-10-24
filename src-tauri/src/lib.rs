@@ -27,10 +27,10 @@ use easymc_agent::{
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
-    list_installed_mods, list_local, list_mod_versions, local_dir, remove_mod, search_mods,
-    set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ContentInstallResult, LocalEntry,
-    ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult, ProjectType,
-    SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    list_installed_mods, list_local, list_mod_versions, local_dir, remove_mod, search_and_install_best,
+    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ContentInstallResult,
+    LocalEntry, ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult,
+    ProjectType, SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -914,7 +914,7 @@ async fn agent_ask(
         &state.paths,
         AskRequest {
             text,
-            instance_id,
+            instance_id: instance_id.clone(),
             process_logs,
             rules_only: rules_only.unwrap_or(false),
             history: history.unwrap_or_default(),
@@ -922,7 +922,7 @@ async fn agent_ask(
     )
     .await
     .map_err(|e| e.to_string())?;
-    // Run ensure_java for real and rewrite reply with success/fail in Chinese.
+    // Host-side side effects for actions that need real work (Java / mod install).
     if let Some(action) = resp.action.clone() {
         if action.action == "ensure_java" {
             let major = action
@@ -969,6 +969,142 @@ async fn agent_ask(
                         message_zh: msg,
                         path: None,
                         value: Some(serde_json::json!({ "major": major })),
+                    });
+                }
+            }
+        } else if action.action == "install_mod" {
+            let query = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("query"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            // Sync CF key so search can include CurseForge when configured.
+            if let Ok(settings) = load_settings(&state.paths) {
+                sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+            }
+            let store = match load_instances(&state.paths) {
+                Ok(s) => s,
+                Err(e) => {
+                    let msg = format!("读取版本列表失败：{e}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "install_mod".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "query": query })),
+                    });
+                    return Ok(resp);
+                }
+            };
+            let id = instance_id
+                .clone()
+                .filter(|s| !s.is_empty())
+                .or(store.active_id.clone());
+            let Some(id) = id else {
+                let msg = format!(
+                    "还没有选版本，没法直接安装「{query}」。\n请先在启动页选一个版本，或在助手顶部下拉里选，然后再说「装 {query}」。\n也可以去「下载」页手动搜索。"
+                );
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "open_store".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: Some(serde_json::json!({ "query": query, "tab": "mod" })),
+                });
+                return Ok(resp);
+            };
+            let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                let msg = format!("找不到版本 {id}，没法安装「{query}」。");
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "install_mod".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: Some(serde_json::json!({ "query": query, "instance_id": id })),
+                });
+                return Ok(resp);
+            };
+            if matches!(inst.loader, ModLoader::Vanilla) {
+                let msg = format!(
+                    "当前版本「{}」是原版，通常装不了模组。\n请先换成 Fabric / Quilt / Forge / NeoForge 版本，再说「装 {query}」。",
+                    inst.name
+                );
+                resp.reply_zh = msg.clone();
+                resp.action = Some(ActionResult {
+                    ok: false,
+                    action: "install_mod".into(),
+                    message_zh: msg,
+                    path: None,
+                    value: Some(serde_json::json!({
+                        "query": query,
+                        "instance_id": inst.id,
+                        "loader": "vanilla",
+                    })),
+                });
+                return Ok(resp);
+            }
+            let app2 = app.clone();
+            match search_and_install_best(&inst, &query, move |p| {
+                let _ = app2.emit("install-progress", &p);
+            })
+            .await
+            {
+                Ok(r) => {
+                    let skipped = if r.skipped { "（已存在，跳过下载）" } else { "" };
+                    let msg = format!(
+                        "已把「{}」装进版本「{}」。{}\n来源：{}\n版本：{}\n文件：{}\n路径：{}",
+                        r.project_name,
+                        inst.name,
+                        skipped,
+                        r.source.label_zh(),
+                        r.version_number,
+                        r.filename,
+                        r.path
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "install_mod".into(),
+                        message_zh: msg,
+                        path: Some(r.path.clone()),
+                        value: Some(serde_json::json!({
+                            "query": query,
+                            "source": r.source.as_str(),
+                            "project_id": r.project_id,
+                            "project_name": r.project_name,
+                            "version_id": r.version_id,
+                            "version_number": r.version_number,
+                            "filename": r.filename,
+                            "path": r.path,
+                            "instance_id": inst.id,
+                            "instance_name": inst.name,
+                            "skipped": r.skipped,
+                        })),
+                    });
+                }
+                Err(e) => {
+                    let msg = format!(
+                        "安装「{query}」到「{}」没成功：{e}\n可以换个关键词再试，或点下方去下载页手动搜。",
+                        inst.name
+                    );
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "open_store".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({
+                            "query": query,
+                            "tab": "mod",
+                            "instance_id": inst.id,
+                            "error": e.to_string(),
+                        })),
                     });
                 }
             }
