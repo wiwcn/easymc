@@ -42,14 +42,18 @@ export class InstallProgress extends LitElement {
     :host {
       display: block;
       box-sizing: border-box;
-    }
-    :host([variant="banner"]) {
+      /* Default (no variant attribute) is the sticky banner — pages drop the
+         element in bare, so hanging the pin on :host (not on an attribute the
+         caller may never set) is what actually keeps it pinned. */
       position: sticky;
       top: 0;
       z-index: 30;
-      /* Bleed over the page gutter so the sticky surface reads as a bar, not a
-         floating card, while its content stays on the page column. */
       margin: 0 0 var(--easymc-space-4);
+    }
+    :host([variant="inline"]) {
+      position: static;
+      z-index: auto;
+      margin: 0;
     }
     .wrap {
       display: flex;
@@ -62,9 +66,12 @@ export class InstallProgress extends LitElement {
         color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       /* CF-1: border only — no elevation on the same face. */
     }
-    :host([variant="banner"]) .wrap {
+    :host .wrap {
       /* Inset shadow as a separator only; it is not an elevation tier. */
       box-shadow: 0 1px 0 0 color-mix(in oklch, var(--md-sys-color-outline-variant) 35%, transparent);
+    }
+    :host([variant="inline"]) .wrap {
+      box-shadow: none;
     }
     .row {
       display: flex;
