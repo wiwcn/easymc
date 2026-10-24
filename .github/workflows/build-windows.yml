@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "GitHub Release tag (empty = artifact only)"
         required: false
-        default: "v0.1.0"
+        default: "v0.1.1"
 
 permissions:
   contents: write
@@ -88,7 +88,7 @@ jobs:
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easymc-windows-0.1.0
+          name: easymc-windows-0.1.1
           path: dist-windows/*
           if-no-files-found: error
           retention-days: 30
@@ -107,7 +107,7 @@ jobs:
           桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。
 
           ### 下载
-          - **EasyMC_0.1.0_x64-setup.exe** — NSIS 安装程序（推荐）
+          - **EasyMC_0.1.1_x64-setup.exe** — NSIS 安装程序（推荐）
           - **easymc-app.exe** — 免安装便携版（需自行放置；一般用 setup）
 
           ### 说明
@@ -117,7 +117,7 @@ jobs:
           MD
           )"
           # Normalize tag interpolation (heredoc was literal)
-          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。" "" "### 下载" "- **EasyMC_0.1.0_x64-setup.exe** — NSIS 安装程序（推荐）" "- **easymc-app.exe** — 免安装便携主程序" "" "### 说明" "- Java Edition 启动器（Rust + Lit + Tauri）" "- 含助手 / 下载 / 账户 / 一键环境等桌面 M1 能力" "- 默认窗口 1100×700")
+          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。" "" "### 下载" "- **EasyMC_0.1.1_x64-setup.exe** — NSIS 安装程序（推荐）" "- **easymc-app.exe** — 免安装便携主程序" "" "### 说明" "- Java Edition 启动器（Rust + Lit + Tauri）" "- 含助手 / 下载 / 账户 / 一键环境等桌面 M1 能力" "- 默认窗口 1100×700")
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist-windows/* --clobber
             gh release edit "$TAG" --title "EasyMC ${TAG}" --notes "$NOTES"
