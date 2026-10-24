@@ -13,22 +13,18 @@ const ICONS: Record<string, unknown> = {
   agent: svg`<path d="M8 10h8M9 14h6M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H13l-3 3v-3H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
 };
 
-const BASE: Item[] = [
+const NAV: Item[] = [
   { id: "home", label: "启动", icon: "home" },
   { id: "download", label: "下载", icon: "download" },
+  { id: "agent", label: "助手", icon: "agent" },
   { id: "multiplayer", label: "联机", icon: "multiplayer" },
   { id: "settings", label: "设置", icon: "settings" },
   { id: "more", label: "更多", icon: "more" },
 ];
 
-function itemsFor(mode: AppMode): Item[] {
-  const agent: Item = { id: "agent", label: "助手", icon: "agent" };
-  if (mode === "agent") {
-    // Agent mode: 助手 sits after 启动
-    return [BASE[0], agent, ...BASE.slice(1)];
-  }
-  // Standard: 助手 lives under 更多 — no top-level agent item
-  return BASE;
+/** Always show 助手 in the sidebar (both modes). Agent mode badges 「已开启」. */
+function itemsFor(_mode: AppMode): Item[] {
+  return NAV;
 }
 
 @customElement("easymc-side-nav")
@@ -148,10 +144,10 @@ export class SideNav extends LitElement {
         )}
       </nav>
       <div class="promo">
-        <strong>${this.mode === "agent" ? "助手已就绪" : "准备好了就开玩"}</strong>
+        <strong>${this.mode === "agent" ? "助手已开启" : "准备好了就开玩"}</strong>
         ${this.mode === "agent"
-          ? "游戏打不开或崩溃时，打开助手帮你看看"
-          : "选好版本，点启动游戏，就能玩"}
+          ? "游戏打不开或崩溃时，点侧栏「助手」帮你看看"
+          : "选好版本，点启动游戏；需要排错时打开「助手」"}
       </div>
     `;
   }

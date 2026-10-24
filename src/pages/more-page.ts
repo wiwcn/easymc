@@ -40,12 +40,8 @@ export class MorePage extends LitElement {
   render() {
     return html`
       <h1>更多</h1>
-      <p class="sub">助手、分享与关于 EasyMC。</p>
+      <p class="sub">分享、帮助与关于 EasyMC。助手在左侧边栏。</p>
       <div class="grid">
-        <button class="tile" type="button" @click=${() => this.go("agent")}>
-          <strong>助手</strong>
-          <span>${this.mode === "agent" ? "已开启 · 帮你看崩溃、修环境" : "诊断上次启动、问答装模建议"}</span>
-        </button>
         <button class="tile" type="button" @click=${() => this.go("instances")}>
           <strong>分享</strong>
           <span>在版本管理的「导出」里发给好友，或导入好友的分享包</span>

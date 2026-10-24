@@ -31,15 +31,35 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
     return {
       instances: [
         {
-          id: "default",
+          id: "preview-1211-fabric",
+          name: "生存模组包",
+          version: "1.21.1",
+          loader: "fabric",
+          loader_version: "0.16.9",
+          description: "浏览器预览",
+          version_ready: true,
+          category: "生存",
+        },
+        {
+          id: "preview-1211-vanilla",
           name: "1.21.1 · 原版",
           version: "1.21.1",
           loader: "vanilla",
           description: "浏览器预览",
+          version_ready: true,
+        },
+        {
+          id: "preview-1201-forge",
+          name: "科技向",
+          version: "1.20.1",
+          loader: "forge",
+          loader_version: "47.3.0",
+          description: "浏览器预览",
           version_ready: false,
+          category: "模组",
         },
       ],
-      active_id: "default",
+      active_id: "preview-1211-fabric",
     };
   }
   if (Array.isArray(raw)) {
@@ -79,8 +99,11 @@ export async function createInstance(
 }
 
 export async function setActiveInstance(instanceId: string): Promise<InstancesState> {
-  const raw = await invokeOrThrow<InstancesState>("set_active_instance_cmd", { instanceId });
-  return mapState(raw);
+  const raw = await invokeSafe<InstancesState>("set_active_instance_cmd", { instanceId });
+  if (raw) return mapState(raw);
+  // browser preview: keep selection client-side
+  const st = await listInstancesState();
+  return { instances: st.instances, active_id: instanceId };
 }
 
 export async function listAccounts(): Promise<AccountDto[]> {

@@ -239,7 +239,7 @@ export class InstancePage extends LitElement {
       </div>
       <div class="list">
         ${this.instances.length === 0
-          ? html`<p class="muted">还没有版本。点「添加版本」或去下载整合包。</p>`
+          ? html`<p class="muted">还没有版本。点「添加版本」，或 <button class="ghost" type="button" style="padding:0 4px;display:inline;border:none;text-decoration:underline;cursor:pointer" @click=${() => this.goDownload("modpack")}>去下载整合包</button>（会新建一个版本）。</p>`
           : this.instances.map((i) => this.renderRow(i))}
       </div>
       ${this.showCreate ? this.renderCreate() : nothing}
@@ -318,7 +318,7 @@ export class InstancePage extends LitElement {
         return html`<div class="panel">
           <h2>游戏设置</h2>
           <div class="field"><label>自定义名称（可选）</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
-          <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 整合包…" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 模组" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>游戏内存（MB，空白=用全局）</label><input type="number" min="512" placeholder="例如 4096" .value=${this.memDraft} @input=${(e: Event) => (this.memDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>Java 路径（可选）</label><input placeholder="留空则自动选择" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>窗口宽 × 高（可选）</label>
@@ -372,7 +372,7 @@ export class InstancePage extends LitElement {
           <p class="muted">导出这个版本的配置，或导入好友发来的分享包。</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, false)).message_zh); })}>导出轻量包</button>
-            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出含模组</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
             <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
           </div>
         </div>`;

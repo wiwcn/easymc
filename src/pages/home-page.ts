@@ -19,7 +19,7 @@ import {
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import type { AccountDto, InstanceDto, LoaderId, VersionSummary } from "../types";
-import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
+import { instancePlayerLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 
 @customElement("easymc-home-page")
@@ -51,7 +51,13 @@ export class HomePage extends LitElement {
   private unprog?: () => void;
 
   static styles = css`
-    :host { display: block; max-width: 640px; }
+    :host {
+      display: block;
+      position: relative;
+      min-height: calc(100vh - 96px);
+      max-width: 960px;
+      padding-bottom: 140px;
+    }
     h1 {
       font-size: 1.25rem;
       font-weight: 650;
@@ -62,59 +68,137 @@ export class HomePage extends LitElement {
     .sub {
       color: var(--md-sys-color-on-surface-variant);
       font-size: 0.875rem;
-      margin: 0 0 12px;
+      margin: 0 0 14px;
     }
-    .launch-row {
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    button.vcard {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      text-align: left;
+      padding: 14px 16px;
+      min-height: 96px;
+      border: 2px solid transparent;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      color: var(--md-sys-color-on-surface);
+      cursor: pointer;
+      transition:
+        background var(--easymc-dur-press) var(--easymc-ease-out),
+        border-color var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.vcard:hover {
+      background: var(--md-sys-color-surface-container);
+    }
+    button.vcard:active { transform: scale(0.985); }
+    button.vcard.selected {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+    .vcard .title {
+      font-size: 1.05rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    .vcard .meta {
+      font-size: 0.8rem;
+      opacity: 0.85;
+      color: inherit;
+    }
+    .vcard .badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: color-mix(in oklch, var(--md-sys-color-on-surface) 12%, transparent);
+    }
+    button.vcard.selected .badge {
+      background: color-mix(in oklch, var(--md-sys-color-on-primary-container) 16%, transparent);
+    }
+    .float {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 40;
+      width: min(360px, calc(100vw - 48px));
+      padding: 14px 16px;
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-3, 0 8px 28px color-mix(in oklch, black 22%, transparent));
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .float .info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .float .ver {
+      font-weight: 650;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+      color: var(--md-sys-color-on-surface);
+    }
+    .float .acc {
+      font-size: 0.8rem;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .float .actions {
       display: flex;
       gap: 8px;
       align-items: stretch;
-      flex-wrap: wrap;
     }
     button.play {
-      flex: 1 1 260px;
-      min-height: 52px;
+      flex: 1;
+      min-height: 48px;
       border: none;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
       cursor: pointer;
-      text-align: left;
-      padding: 10px 18px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 1px;
+      font-size: 1.02rem;
+      font-weight: 650;
       box-shadow: var(--md-sys-elevation-1);
-      transition: transform var(--easymc-dur-press) var(--easymc-ease-out),
-        filter var(--easymc-dur-press) var(--easymc-ease-out);
+      transition: filter var(--easymc-dur-press) var(--easymc-ease-out),
+        transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.play:hover { filter: brightness(1.05); }
     button.play:active { transform: scale(0.985); }
     button.play:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-    button.play .t1 { font-size: 1.05rem; font-weight: 650; }
-    button.play .t2 { font-size: 0.75rem; opacity: 0.92; }
-    .side {
-      display: flex;
-      gap: 8px;
-      align-items: stretch;
-    }
-    select.ver, button.ghost, button.menu {
+    .menu-wrap { position: relative; }
+    button.menu {
+      width: 44px;
       border: 1px solid var(--md-sys-color-outline-variant);
-      background: var(--md-sys-color-surface-container-lowest);
+      background: var(--md-sys-color-surface);
       color: var(--md-sys-color-on-surface);
-      border-radius: var(--md-sys-shape-corner-full);
-      padding: 0 16px;
-      min-height: 40px;
-      font-size: 0.9rem;
+      border-radius: var(--md-sys-shape-corner-large);
       cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
     }
-    select.ver { min-width: 160px; align-self: center; }
-    button.menu { width: 40px; padding: 0; font-size: 1.2rem; line-height: 1; position: relative; }
     .menu-panel {
       position: absolute;
       right: 0;
-      top: calc(100% + 6px);
-      z-index: 20;
+      bottom: calc(100% + 6px);
+      z-index: 50;
       min-width: 200px;
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: var(--md-sys-shape-corner-medium);
@@ -134,7 +218,18 @@ export class HomePage extends LitElement {
       font-size: 0.9rem;
     }
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
-    .menu-wrap { position: relative; align-self: center; }
+    .status {
+      font-size: 0.8rem;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .bar {
+      height: 6px; border-radius: 999px; background: var(--md-sys-color-surface-container-high);
+      overflow: hidden; margin-top: 6px;
+    }
+    .bar > i {
+      display: block; height: 100%; background: var(--md-sys-color-primary);
+      width: var(--w, 0%); transition: width var(--easymc-dur-press) var(--easymc-ease-out);
+    }
     .card {
       margin-top: 12px;
       padding: 12px 14px;
@@ -144,15 +239,6 @@ export class HomePage extends LitElement {
     .card h2 { margin: 0 0 6px; font-size: 0.9rem; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; }
-    .status { margin-top: 12px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
-    .bar {
-      height: 6px; border-radius: 999px; background: var(--md-sys-color-surface-container-high);
-      overflow: hidden; margin-top: 8px;
-    }
-    .bar > i {
-      display: block; height: 100%; background: var(--md-sys-color-primary);
-      width: var(--w, 0%); transition: width var(--easymc-dur-press) var(--easymc-ease-out);
-    }
     pre.logs {
       max-height: 180px; overflow: auto; font-size: 0.75rem;
       background: var(--md-sys-color-surface-container); padding: 10px; border-radius: 8px;
@@ -173,10 +259,15 @@ export class HomePage extends LitElement {
       border-radius: var(--md-sys-shape-corner-full); padding: 8px 16px; cursor: pointer;
     }
     button.ghost {
+      border: 1px solid var(--md-sys-color-outline-variant);
       background: transparent;
+      color: var(--md-sys-color-on-surface);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 8px 14px;
+      cursor: pointer;
     }
     @media (prefers-reduced-motion: reduce) {
-      button.play:active { transform: none; }
+      button.vcard:active, button.play:active { transform: none; }
       .bar > i { transition: none; }
     }
   `;
@@ -225,9 +316,14 @@ export class HomePage extends LitElement {
   }
 
   private async onSelect(id: string) {
-    const st = await setActiveInstance(id);
-    this.instances = st.instances;
-    this.activeId = st.active_id;
+    try {
+      const st = await setActiveInstance(id);
+      this.instances = st.instances;
+      this.activeId = st.active_id;
+    } catch {
+      // browser preview: setActiveInstance may throw without Tauri
+      this.activeId = id;
+    }
   }
 
   private async onPlay() {
@@ -314,45 +410,41 @@ export class HomePage extends LitElement {
     }
   }
 
-  render() {
-    if (this.loading) return html`<p class="muted">加载中…</p>`;
-    const f = this.current;
+  private renderCard(i: InstanceDto) {
+    const label = instancePlayerLabel(i);
+    const custom = (i.name || "").trim();
+    const showCustom = custom && custom !== label && !custom.startsWith(versionId(i.version));
+    const selected = i.id === (this.activeId ?? this.current?.id);
+    return html`
+      <button
+        class="vcard ${selected ? "selected" : ""}"
+        type="button"
+        aria-pressed=${selected ? "true" : "false"}
+        @click=${() => this.onSelect(i.id)}
+      >
+        <span class="title">${label}</span>
+        ${showCustom ? html`<span class="meta">${custom}</span>` : nothing}
+        <span class="badge">${i.version_ready ? "已安装" : "未安装"}${i.category ? ` · ${i.category}` : ""}</span>
+      </button>
+    `;
+  }
+
+  private renderFloat(f: InstanceDto) {
     const acc = this.account;
-    if (!f) {
-      return html`
-        <h1>还没有可玩的版本</h1>
-        <p class="sub">先添加一个游戏版本，就可以启动游戏了。</p>
-        <div class="row">
-          <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
-          <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
-        </div>
-        ${this.showCreate ? this.renderCreate() : nothing}
-      `;
-    }
-    const ver = versionId(f.version);
     const ready = !!f.version_ready;
     const playLabel = ready ? "启动游戏" : "安装并启动";
     const verLabel = instancePlayerLabel(f);
-    const sub = acc ? `${verLabel} · ${acc.username}` : verLabel;
     const pct = this.progress?.percent;
     return html`
-      <h1>准备好了就开玩</h1>
-      <p class="sub">选好版本，点下面按钮进入 Minecraft。账户在设置里改。</p>
-
-      <div class="launch-row">
-        <button class="play" type="button" ?disabled=${this.busy} @click=${() => this.onPlay()}>
-          <span class="t1">${this.busy ? "请稍候…" : playLabel}</span>
-          <span class="t2">${sub}</span>
-        </button>
-        <div class="side">
-          <select
-            class="ver"
-            aria-label="切换版本"
-            .value=${f.id}
-            @change=${(e: Event) => this.onSelect((e.target as HTMLSelectElement).value)}
-          >
-            ${this.instances.map((i) => html`<option value=${i.id}>${instancePlayerLabel(i)}</option>`)}
-          </select>
+      <div class="float" role="region" aria-label="启动">
+        <div class="info">
+          <div class="ver">${verLabel}</div>
+          <div class="acc">${acc ? `以 ${acc.username} 进入` : "账户在设置里改"}</div>
+        </div>
+        <div class="actions">
+          <button class="play" type="button" ?disabled=${this.busy} @click=${() => this.onPlay()}>
+            ${this.busy ? "请稍候…" : playLabel}
+          </button>
           <div class="menu-wrap">
             <button
               class="menu"
@@ -368,9 +460,12 @@ export class HomePage extends LitElement {
             </button>
             ${this.menuOpen
               ? html`<div class="menu-panel" role="menu" @click=${(e: Event) => e.stopPropagation()}>
-                  <button type="button" @click=${() => { this.menuOpen = false; this.openCreate(); }}>添加版本</button>
-                  <button type="button" @click=${() => { this.menuOpen = false; this.go("download"); }}>去下载内容</button>
                   <button type="button" @click=${() => { this.menuOpen = false; this.go("instances"); }}>管理此版本</button>
+                  <button type="button" @click=${async () => {
+                    this.menuOpen = false;
+                    try { showToast(await openInstanceFolder(f.id, "game")); }
+                    catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
+                  }}>打开游戏文件夹</button>
                   <button type="button" ?disabled=${this.busy} @click=${async () => {
                     this.menuOpen = false;
                     try {
@@ -378,11 +473,6 @@ export class HomePage extends LitElement {
                       showToast(r.message_zh);
                     } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
                   }}>生成启动脚本</button>
-                  <button type="button" @click=${async () => {
-                    this.menuOpen = false;
-                    try { showToast(await openInstanceFolder(f.id, "game")); }
-                    catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
-                  }}>打开游戏文件夹</button>
                   <button type="button" @click=${() => { this.menuOpen = false; this.showLogs = !this.showLogs; }}>
                     ${this.showLogs ? "隐藏日志" : "查看日志"}
                   </button>
@@ -393,22 +483,48 @@ export class HomePage extends LitElement {
               : nothing}
           </div>
         </div>
+        ${this.status || this.progress
+          ? html`<div class="status">
+              ${this.progress
+                ? html`${this.progress.stage_label} · ${this.progress.detail}
+                    <div class="bar"><i style=${`--w:${pct ?? 0}%`}></i></div>`
+                : this.status}
+            </div>`
+          : nothing}
       </div>
+    `;
+  }
 
-      ${this.status || this.progress
-        ? html`<div class="status">
-            ${this.progress
-              ? html`${this.progress.stage_label} · ${this.progress.detail}
-                  <div class="bar"><i style=${`--w:${pct ?? 0}%`}></i></div>`
-              : this.status}
-          </div>`
-        : nothing}
-
+  render() {
+    if (this.loading) return html`<p class="muted">加载中…</p>`;
+    const f = this.current;
+    if (!f) {
+      return html`
+        <h1>还没有可玩的版本</h1>
+        <p class="sub">先添加一个游戏版本，就可以启动游戏了。</p>
+        <div class="row">
+          <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
+          <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
+        </div>
+        ${this.showCreate ? this.renderCreate() : nothing}
+      `;
+    }
+    return html`
+      <h1>选一个版本开玩</h1>
+      <p class="sub">点卡片选中版本，右下角启动。账户在设置里改。</p>
+      <div class="toolbar">
+        <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
+        <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
+        <button class="ghost" type="button" @click=${() => this.go("instances")}>管理版本</button>
+      </div>
+      <div class="grid" role="listbox" aria-label="版本列表">
+        ${this.instances.map((i) => this.renderCard(i))}
+      </div>
       ${this.showLogs
         ? html`<div class="card"><h2>启动日志</h2><pre class="logs">${this.logs.join("\n") || "（暂无）"}</pre></div>`
         : nothing}
-
       ${this.showCreate ? this.renderCreate() : nothing}
+      ${this.renderFloat(f)}
     `;
   }
 
@@ -421,7 +537,7 @@ export class HomePage extends LitElement {
       <div class="create">
         <h2 style="margin-top:0">添加版本</h2>
         <div class="row" style="margin-bottom:8px">
-          <input placeholder="自定义名称（可选，启动页仍显示版本·加载器）" .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} />
+          <input placeholder="自定义名称（可选，卡片仍显示版本·加载器）" .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} />
           <select .value=${this.newLoader} @change=${(e: Event) => { this.newLoader = (e.target as HTMLSelectElement).value as LoaderId; void this.refreshLoaderVersions(); }}>
             <option value="vanilla">原版</option>
             <option value="fabric">Fabric</option>
