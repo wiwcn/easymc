@@ -17,7 +17,7 @@
 - [quantumlauncher](https://github.com/Mrmayman/quantumlauncher)、[basalt-launcher](https://github.com/MegalithOfficial/basalt-launcher)、[nitrolaunch](https://github.com/Nitrolaunch/nitrolaunch)、[shard](https://github.com/Th0rgal/shard)
 - 其它 Tauri/Rust JE 启动器：定期 `gh search` 再扫一轮，有用的能力记进缺口清单
 
-UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体文案/素材/品牌皮）；日后做视觉对齐。Impeccable 仍是质量底线。
+UI 视觉仍走 EasyMC 自有 MD3 / Impeccable，不抄参照的皮肤。
 
 ## 固定节奏
 
@@ -49,4 +49,4 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - 不写 MCBBS
 - 不用 Cursor（CloudAgent / GitHub MCP / 付费后台助手）；本机 Shell + gh_token 即可
 - 不把密钥写进 git
-- 不搬参照启动器的具体文案、素材与品牌皮；布局/IA 可对齐，视觉对齐后续推进
+- 不把参照启动器的 UI 皮直接搬过来
