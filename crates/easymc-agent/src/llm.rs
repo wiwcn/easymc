@@ -310,7 +310,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「装 <模组名>」/ install_mod — 搜索并装进当前版本；\
 · 「已装模组」/ list_installed_mods — 列出当前版本 mods；\
 · 「推荐模组 科技|魔法|生存|性能」/ suggest_mods — 按主题推荐互补模组；\
-· 「制作整合包」/ create_modpack — 从当前版本导出 Modrinth `.mrpack` 整合包；\
+· 「制作整合包」/ create_modpack — 从当前版本导出 EasyMC 分享包（zip+清单，非完整 mrpack）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
 不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
 }
@@ -385,7 +385,7 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
             "type": "function",
             "function": {
                 "name": "create_modpack",
-                "description": "从当前版本导出 Modrinth .mrpack 整合包（可被 Prism / Modrinth App 打开）。",
+                "description": "从当前版本制作/导出整合包草稿（EasyMC share zip）。",
                 "parameters": { "type": "object", "properties": {} }
             }
         },

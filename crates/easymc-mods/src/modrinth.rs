@@ -63,8 +63,6 @@ struct FileDto {
 struct HashesDto {
     #[serde(default)]
     sha1: Option<String>,
-    #[serde(default)]
-    sha512: Option<String>,
 }
 
 fn map_project(h: SearchHit) -> ModProject {
@@ -100,7 +98,6 @@ fn map_version(v: VersionDto) -> ModVersion {
                 size: if f.size > 0 { Some(f.size) } else { None },
                 primary: f.primary,
                 sha1: f.hashes.sha1,
-                sha512: f.hashes.sha512,
             })
             .collect(),
     }
@@ -238,10 +235,6 @@ pub struct HashLookup {
     pub project_id: String,
     pub version_id: String,
     pub filename: Option<String>,
-    pub download_url: Option<String>,
-    pub sha1: Option<String>,
-    pub sha512: Option<String>,
-    pub file_size: Option<u64>,
 }
 
 /// Resolve a local jar SHA-1 via Modrinth `version_file` API. Returns None on 404.
@@ -267,25 +260,15 @@ pub async fn lookup_by_sha1(sha1_hex: &str) -> Result<Option<HashLookup>> {
         .json()
         .await
         .map_err(|e| EasyMcError::Http(format!("解析 Modrinth hash 结果失败: {e}")))?;
-    let matched = v
+    let filename = v
         .files
         .iter()
-        .find(|f| {
-            f.hashes
-                .sha1
-                .as_ref()
-                .map(|h| h.eq_ignore_ascii_case(&sha1_hex))
-                .unwrap_or(false)
-        })
-        .or_else(|| v.files.iter().find(|f| f.primary))
-        .or_else(|| v.files.first());
+        .find(|f| f.primary)
+        .or_else(|| v.files.first())
+        .map(|f| f.filename.clone());
     Ok(Some(HashLookup {
         project_id: v.project_id,
         version_id: v.id,
-        filename: matched.map(|f| f.filename.clone()),
-        download_url: matched.map(|f| f.url.clone()).filter(|u| !u.is_empty()),
-        sha1: matched.and_then(|f| f.hashes.sha1.clone()),
-        sha512: matched.and_then(|f| f.hashes.sha512.clone()),
-        file_size: matched.and_then(|f| if f.size > 0 { Some(f.size) } else { None }),
+        filename,
     }))
 }

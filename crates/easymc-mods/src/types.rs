@@ -71,8 +71,6 @@ pub struct ModFile {
     pub size: Option<u64>,
     pub primary: bool,
     pub sha1: Option<String>,
-    #[serde(default)]
-    pub sha512: Option<String>,
 }
 
 /// What kind of marketplace project to search / install.

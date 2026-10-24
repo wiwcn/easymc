@@ -78,61 +78,11 @@ fn parse_loader(s: &str) -> ModLoader {
     ModLoader::parse_loose(s).unwrap_or(ModLoader::Vanilla)
 }
 
-
-fn looks_like_mrpack(path: &Path) -> bool {
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    if ext == "mrpack" {
-        return true;
-    }
-    if ext == "zip" {
-        if let Ok(file) = File::open(path) {
-            if let Ok(z) = ZipArchive::new(file) {
-                let names: Vec<String> = z
-                    .file_names()
-                    .map(|n| n.replace('\\', "/"))
-                    .collect();
-                let has_mr = names
-                    .iter()
-                    .any(|n| n == "modrinth.index.json" || n.ends_with("/modrinth.index.json"));
-                let has_emc = names.iter().any(|n| {
-                    n == MANIFEST_NAME || n.ends_with(&format!("/{MANIFEST_NAME}"))
-                });
-                return has_mr && !has_emc;
-            }
-        }
-    }
-    false
-}
-
 pub async fn import_instance(
     paths: &Paths,
     bundle_path: &Path,
     opts: ImportOptions,
 ) -> Result<ImportResult> {
-    if looks_like_mrpack(bundle_path) {
-        let r = easymc_mods::install_mrpack_file(
-            paths,
-            bundle_path,
-            opts.name.as_deref(),
-            |_| {},
-        )
-        .await?;
-        return Ok(ImportResult {
-            instance_id: r.instance_id,
-            instance_name: r.instance_name,
-            mods_copied: r.overrides,
-            mods_downloaded: r.files_downloaded,
-            mods_missing: r.files_failed,
-            memory_applied: None,
-            message_zh: r.message_zh,
-            path_loaded: bundle_path.display().to_string(),
-        });
-    }
-
     let (manifest, zip_path) = read_manifest_from_path(bundle_path)?;
     let name = opts
         .name

@@ -912,7 +912,7 @@ export class AgentPage extends LitElement {
       return;
     }
     if (action.action === "build_pack") {
-      showToast(action.ok ? "整合包已制作好（.mrpack）" : "制作整合包失败");
+      showToast(action.ok ? "整合包已制作好" : "制作整合包失败");
       return;
     }
     if (action.action === "set_download_source" && action.ok) {
@@ -1671,7 +1671,7 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>
-              <span class="tool-copy"><strong>导出整合包</strong><span>制作当前版本 Modrinth .mrpack</span></span>
+              <span class="tool-copy"><strong>导出整合包</strong><span>制作当前版本 EasyMC 分享包（zip）</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>

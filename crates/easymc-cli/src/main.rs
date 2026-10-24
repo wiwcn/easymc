@@ -697,7 +697,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 .first()
                 .cloned()
                 .ok_or_else(|| easymc_core::EasyMcError::msg(
-                    "usage: export-instance <instance-id> [--mrpack|--pack|--easymc-pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]",
+                    "usage: export-instance <instance-id> [--pack|--metadata] [--out PATH] [--notes TEXT] [--no-resolve]",
                 ))?;
             let store = load_instances(&paths)?;
             let inst = store
@@ -705,10 +705,8 @@ async fn real_main() -> easymc_core::Result<()> {
                 .iter()
                 .find(|i| i.id == id)
                 .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {id}")))?;
-            let mode = if args.iter().any(|a| a == "--easymc-pack") {
+            let mode = if args.iter().any(|a| a == "--pack") {
                 ShareMode::Pack
-            } else if args.iter().any(|a| a == "--pack" || a == "--mrpack") {
-                ShareMode::Mrpack
             } else {
                 ShareMode::Metadata
             };
@@ -734,7 +732,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 .first()
                 .cloned()
                 .ok_or_else(|| easymc_core::EasyMcError::msg(
-                    "usage: import-instance <file.json|file.zip|file.mrpack> [--name NAME] [--apply-memory] [--offline]",
+                    "usage: import-instance <file.json|file.zip> [--name NAME] [--apply-memory] [--offline]",
                 ))?;
             let name = flag_value(&args, "--name");
             let apply_memory = args.iter().any(|a| a == "--apply-memory");
@@ -979,12 +977,12 @@ async fn real_main() -> easymc_core::Result<()> {
                                 println!("✗ 找不到版本 {id}");
                                 return Ok(());
                             };
-                            println!("→ 正在导出 .mrpack「{}」…", inst.name);
+                            println!("→ 正在导出分享包「{}」…", inst.name);
                             match export_instance(
                                 &paths,
                                 &inst,
                                 ExportOptions {
-                                    mode: ShareMode::Mrpack,
+                                    mode: ShareMode::Pack,
                                     notes: Some("CLI agent 制作整合包".into()),
                                     output: None,
                                     resolve_modrinth: true,

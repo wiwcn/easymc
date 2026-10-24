@@ -754,7 +754,7 @@ export class LibraryPage extends LitElement {
 
   private async onExport(inst: InstanceDto, pack: boolean) {
     this.busy = true;
-    this.status = pack ? "正在导出 .mrpack 整合包…" : "正在导出分享配置…";
+    this.status = pack ? "正在导出整合包…" : "正在导出分享配置…";
     try {
       const res = await exportInstance(inst.id, pack);
       this.status = res.message_zh;
@@ -775,7 +775,7 @@ export class LibraryPage extends LitElement {
 
   private async onImport() {
     const path = window.prompt(
-      "导入路径（EasyMC .json/.zip，或 Modrinth .mrpack）",
+      "导入分享包路径（好友发来的 .json 配置或 .zip 整合包）",
       "",
     );
     if (!path?.trim()) return;
@@ -1146,7 +1146,7 @@ export class LibraryPage extends LitElement {
             ?disabled=${this.busy}
             @click=${() => this.onExport(inst, true)}
           >
-            导出 .mrpack 整合包
+            分享给好友（含模组）
           </button>
         </div>
       </article>

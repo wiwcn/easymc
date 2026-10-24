@@ -1535,7 +1535,7 @@ async fn agent_ask(
                 &state.paths,
                 &inst,
                 ExportOptions {
-                    mode: ShareMode::Mrpack,
+                    mode: ShareMode::Pack,
                     notes: Some("由助手「制作整合包」导出".into()),
                     output: None,
                     resolve_modrinth: true,
@@ -1545,7 +1545,7 @@ async fn agent_ask(
             {
                 Ok(r) => {
                     let msg = format!(
-                        "整合包已生成（Modrinth .mrpack）。\n版本：「{}」\n模组数：{}\n路径：{}\n{}",
+                        "整合包已生成。\n版本：「{}」\n模组数：{}\n路径：{}\n{}",
                         inst.name, r.mod_count, r.path, r.message_zh
                     );
                     resp.reply_zh = msg.clone();
@@ -1560,10 +1560,7 @@ async fn agent_ask(
                             "path": r.path,
                             "mod_count": r.mod_count,
                             "bytes": r.bytes,
-                            "mode": "mrpack",
-                            "format": "mrpack",
-                            "resolved": r.resolved,
-                            "overrides": r.overrides,
+                            "mode": "pack",
                         })),
                     });
                 }
@@ -1665,7 +1662,7 @@ async fn export_instance_cmd(
         .ok_or_else(|| format!("实例不存在: {instance_id}"))?
         .clone();
     let mode = if pack.unwrap_or(false) {
-        ShareMode::Mrpack
+        ShareMode::Pack
     } else {
         ShareMode::Metadata
     };
