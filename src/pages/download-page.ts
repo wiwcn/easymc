@@ -324,7 +324,7 @@ export class DownloadPage extends LitElement {
     this.activeId = st.active_id;
     this.cf = cf;
     if (this.tab === "vanilla") await this.loadVanilla();
-    else if (this.query.trim()) await this.onSearch();
+    else await this.onSearch(); // empty query → popular/hot
   }
 
   private async loadVanilla() {
@@ -346,6 +346,7 @@ export class DownloadPage extends LitElement {
     this.error = "";
     this.expandedId = null;
     if (t === "vanilla") await this.loadVanilla();
+    else await this.onSearch(); // empty query → popular/hot
   }
 
   private projectType(): ProjectTypeId {
@@ -638,7 +639,7 @@ export class DownloadPage extends LitElement {
       <div class="search-row">
         <div class="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input placeholder="搜索模组、工具、整合包…" .value=${this.query} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
+          <input placeholder="搜索…（留空显示热门）" .value=${this.query} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
         </div>
         <button class="primary" type="button" ?disabled=${this.loading} @click=${() => this.onSearch()}>搜索</button>
         ${this.instances.length
@@ -649,10 +650,10 @@ export class DownloadPage extends LitElement {
       </div>
       <div class="sources" style="margin-bottom:14px">
         <span class="lbl">来源</span>
-        <button class="src ${this.source === "modrinth" ? "on" : ""}" type="button" @click=${() => (this.source = "modrinth")}>
+        <button class="src ${this.source === "modrinth" ? "on" : ""}" type="button" @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>
           <span class="dot mr"></span> Modrinth
         </button>
-        <button class="src ${this.source === "curseforge" ? "on" : ""}" type="button" @click=${() => (this.source = "curseforge")}>
+        <button class="src ${this.source === "curseforge" ? "on" : ""}" type="button" @click=${() => { this.source = "curseforge"; void this.onSearch(); }}>
           <span class="dot cf"></span> CurseForge
         </button>
       </div>
@@ -685,8 +686,8 @@ export class DownloadPage extends LitElement {
       ${!this.loading && this.results.length === 0 && !this.error
         ? html`<div class="results-slot"><easymc-empty-state
             variant="panel"
-            title="没有符合筛选的结果"
-            description="换个关键词试试，或留空看看热门"
+            title="暂时没有结果"
+            description="换个关键词，或点搜索查看热门内容"
           >
             <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>清空筛选</button>
           </easymc-empty-state></div>`

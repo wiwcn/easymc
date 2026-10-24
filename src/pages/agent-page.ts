@@ -7,6 +7,9 @@ import {
   agentBumpMemory,
   agentDataDir,
   agentExportDiagnostics,
+  agentLlmConfigClear,
+  agentLlmConfigGet,
+  agentLlmConfigSave,
   agentLlmStatus,
   agentUndoProposal,
   listInstancesState,
@@ -21,6 +24,7 @@ import type {
   ChangeProposalDto,
   DiagnoseReportDto,
   InstanceDto,
+  LlmConfigViewDto,
   LlmStatusDto,
 } from "../types";
 
@@ -52,6 +56,12 @@ export class AgentPage extends LitElement {
   @state() private error = "";
   /** Failed install → offer one-tap jump to download search. */
   @state() private pendingStoreQuery: string | null = null;
+  @state() private showLlmForm = false;
+  @state() private llmCfg: LlmConfigViewDto | null = null;
+  @state() private llmBase = "";
+  @state() private llmKey = "";
+  @state() private llmModel = "";
+  @state() private llmBusy = false;
 
   static styles = [
     controlStyles,
@@ -429,8 +439,17 @@ export class AgentPage extends LitElement {
   }
 
   private async boot() {
-    const [st, inst] = await Promise.all([agentLlmStatus(), listInstancesState()]);
+    const [st, cfg, inst] = await Promise.all([
+      agentLlmStatus(),
+      agentLlmConfigGet(),
+      listInstancesState(),
+    ]);
     this.llm = st;
+    this.llmCfg = cfg;
+    this.llmBase = cfg.base_url || "";
+    this.llmModel = cfg.model || "deepseek-chat";
+    this.llmKey = "";
+    this.showLlmForm = !st.configured;
     this.instances = inst.instances;
     this.instanceId = inst.active_id;
     this.turns = [
@@ -781,6 +800,46 @@ export class AgentPage extends LitElement {
     `;
   }
 
+  private goSettingsLlm() {
+    sessionStorage.setItem("easymc-settings-section", "other");
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "settings", bubbles: true, composed: true }),
+    );
+  }
+
+  private async saveLlm() {
+    this.llmBusy = true;
+    this.error = "";
+    try {
+      this.llm = await agentLlmConfigSave(this.llmBase, this.llmKey, this.llmModel);
+      this.llmCfg = await agentLlmConfigGet();
+      this.llmKey = "";
+      showToast(this.llm.configured ? "云端助手已启用" : "已保存");
+      if (this.llm.configured) this.showLlmForm = false;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.llmBusy = false;
+    }
+  }
+
+  private async clearLlm() {
+    this.llmBusy = true;
+    try {
+      this.llm = await agentLlmConfigClear();
+      this.llmCfg = await agentLlmConfigGet();
+      this.llmBase = "";
+      this.llmKey = "";
+      this.llmModel = "deepseek-chat";
+      this.showLlmForm = true;
+      showToast("已清除云端助手配置");
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.llmBusy = false;
+    }
+  }
+
   render() {
     const llmOn = this.llm?.configured;
     return html`
@@ -795,6 +854,18 @@ export class AgentPage extends LitElement {
                 </span>
               </h1>
               <p class="sub">游戏崩了、启动不了？让助手帮你看看哪里坏了。</p>
+              <div class="row" style="margin-top:8px">
+                <button
+                  class="ghost"
+                  type="button"
+                  @click=${() => (this.showLlmForm = !this.showLlmForm)}
+                >
+                  ${this.showLlmForm ? "收起 API 配置" : "配置云端 API"}
+                </button>
+                <button class="ghost" type="button" @click=${() => this.goSettingsLlm()}>
+                  设置里配置
+                </button>
+              </div>
             </div>
             <label class="row" style="margin:0">
               <select
@@ -812,6 +883,65 @@ export class AgentPage extends LitElement {
           </div>
 
           ${this.error ? html`<p class="err">${this.error}</p>` : null}
+
+          ${this.showLlmForm
+            ? html`<div class="card" style="margin-bottom:12px">
+                <h3 style="margin:0 0 6px">云端助手 API</h3>
+                <p class="muted" style="margin:0 0 10px">
+                  OpenAI 兼容接口。保存到本机 <code>~/.config/easymc/llm.env</code>。
+                  ${this.llmCfg?.api_key_set
+                    ? html`当前密钥：${this.llmCfg.api_key_hint}`
+                    : "尚未保存密钥。"}
+                </p>
+                <label class="row" style="width:100%; margin-bottom:8px">
+                  <span style="min-width:5.5em">Base URL</span>
+                  <input
+                    style="flex:1"
+                    placeholder="https://api.example.com"
+                    .value=${this.llmBase}
+                    @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
+                  />
+                </label>
+                <label class="row" style="width:100%; margin-bottom:8px">
+                  <span style="min-width:5.5em">API Key</span>
+                  <input
+                    style="flex:1"
+                    type="password"
+                    autocomplete="off"
+                    placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存密钥" : "sk-…"}
+                    .value=${this.llmKey}
+                    @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
+                  />
+                </label>
+                <label class="row" style="width:100%; margin-bottom:8px">
+                  <span style="min-width:5.5em">Model</span>
+                  <input
+                    style="flex:1"
+                    placeholder="deepseek-chat"
+                    .value=${this.llmModel}
+                    @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
+                  />
+                </label>
+                <div class="row">
+                  <button
+                    class="primary"
+                    type="button"
+                    ?disabled=${this.llmBusy}
+                    @click=${() => void this.saveLlm()}
+                  >
+                    保存并启用
+                  </button>
+                  <button
+                    class="ghost"
+                    type="button"
+                    ?disabled=${this.llmBusy}
+                    @click=${() => void this.clearLlm()}
+                  >
+                    清除
+                  </button>
+                </div>
+              </div>`
+            : nothing}
 
           ${this.report
             ? html`

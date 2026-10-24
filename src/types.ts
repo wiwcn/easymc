@@ -171,6 +171,15 @@ export interface LlmStatusDto {
   mode: string;
 }
 
+export interface LlmConfigViewDto {
+  path?: string | null;
+  base_url: string;
+  model: string;
+  api_key_set: boolean;
+  api_key_hint: string;
+  configured: boolean;
+}
+
 export interface AgentFinding {
   id: string;
   severity: "info" | "warn" | "error" | string;

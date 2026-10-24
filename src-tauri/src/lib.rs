@@ -21,9 +21,10 @@ use easymc_share::{
     ShareMode,
 };
 use easymc_agent::{
-    apply_proposal, ask, bump_memory, llm_status, parse_proposal, run_diagnose, show_data_dir,
-    try_load_dotenv_llm, undo_proposal, write_diagnostic_bundle, ActionResult, AskRequest,
-    AskResponse, ChatMessage, DiagnoseReport, LlmStatus,
+    apply_proposal, ask, bump_memory, clear_llm_config, llm_status, parse_proposal, read_llm_config,
+    run_diagnose, save_llm_config, show_data_dir, try_load_dotenv_llm, undo_proposal,
+    write_diagnostic_bundle, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
+    LlmConfigView, LlmStatus,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -903,6 +904,25 @@ fn agent_llm_status() -> LlmStatus {
 }
 
 #[tauri::command]
+fn agent_llm_config_get() -> LlmConfigView {
+    read_llm_config()
+}
+
+#[tauri::command]
+fn agent_llm_config_save(
+    base_url: String,
+    api_key: String,
+    model: String,
+) -> Result<LlmStatus, String> {
+    save_llm_config(&base_url, &api_key, &model).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn agent_llm_config_clear() -> Result<LlmStatus, String> {
+    clear_llm_config().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn agent_diagnose(
     state: State<'_, AppState>,
     instance_id: Option<String>,
@@ -1633,6 +1653,9 @@ pub fn run() {
             remove_mod_cmd,
             set_mod_disabled_cmd,
             agent_llm_status,
+            agent_llm_config_get,
+            agent_llm_config_save,
+            agent_llm_config_clear,
             agent_diagnose,
             agent_ask,
             agent_data_dir,

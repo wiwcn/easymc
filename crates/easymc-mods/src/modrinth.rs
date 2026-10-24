@@ -122,6 +122,12 @@ fn build_facets(query: &SearchQuery) -> String {
 pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
     let client = modrinth_client()?;
     let limit = query.limit.clamp(1, 100);
+    // Empty query → downloads (popular/hot); otherwise relevance.
+    let index = if query.text.trim().is_empty() {
+        "downloads"
+    } else {
+        "relevance"
+    };
     let resp = client
         .get(format!("{BASE}/search"))
         .query(&[
@@ -129,7 +135,7 @@ pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
             ("facets", &build_facets(query)),
             ("limit", &limit.to_string()),
             ("offset", &query.offset.to_string()),
-            ("index", "relevance"),
+            ("index", index),
         ])
         .send()
         .await

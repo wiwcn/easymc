@@ -17,7 +17,8 @@ pub use actions::{
 pub use diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 pub use intent::{route, Intent, IntentResult};
 pub use llm::{
-    llm_status, try_load_dotenv_llm, LlmConfig, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY,
+    clear_llm_config, llm_env_path, llm_status, read_llm_config, save_llm_config,
+    try_load_dotenv_llm, LlmConfig, LlmConfigView, LlmStatus, OpenAiCompatibleProvider, ENV_API_KEY,
     ENV_BASE_URL, ENV_MODEL,
 };
 pub use patterns::{scan_log, Finding, FindingSeverity};

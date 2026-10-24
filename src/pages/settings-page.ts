@@ -3,6 +3,9 @@ import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   agentDataDir,
+  agentLlmConfigClear,
+  agentLlmConfigGet,
+  agentLlmConfigSave,
   agentLlmStatus,
   curseforgeConfigured,
   detectJava,
@@ -14,7 +17,7 @@ import {
   updateSettings,
   type JavaInstallDto,
 } from "../api";
-import type { AppMode, CurseForgeStatusDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
+import type { AppMode, CurseForgeStatusDto, LlmConfigViewDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
 import { showToast } from "../toast";
 
 const MEM_MIN = 512;
@@ -31,6 +34,11 @@ export class SettingsPage extends LitElement {
   @state() private msaDraft = "";
   @state() private dataDir = "";
   @state() private llm: LlmStatusDto | null = null;
+  @state() private llmCfg: LlmConfigViewDto | null = null;
+  @state() private llmBase = "";
+  @state() private llmKey = "";
+  @state() private llmModel = "";
+  @state() private llmBusy = false;
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
   @state() private javaList: JavaInstallDto[] = [];
   @state() private javaBusy = false;
@@ -151,6 +159,16 @@ export class SettingsPage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    const sec = sessionStorage.getItem("easymc-settings-section") as
+      | "launch"
+      | "multiplayer"
+      | "personal"
+      | "other"
+      | null;
+    if (sec && ["launch", "multiplayer", "personal", "other"].includes(sec)) {
+      this.section = sec;
+      sessionStorage.removeItem("easymc-settings-section");
+    }
     void this.refresh();
   }
 
@@ -161,12 +179,13 @@ export class SettingsPage extends LitElement {
   }
 
   private async refresh() {
-    const [s, cf, msa, dir, llm, javas] = await Promise.all([
+    const [s, cf, msa, dir, llm, llmCfg, javas] = await Promise.all([
       getSettings(),
       curseforgeConfigured(),
       msaStatus(),
       agentDataDir(),
       agentLlmStatus(),
+      agentLlmConfigGet(),
       detectJava(),
     ]);
     this.settings = s;
@@ -175,6 +194,10 @@ export class SettingsPage extends LitElement {
     this.msa = msa;
     this.dataDir = dir.path;
     this.llm = llm;
+    this.llmCfg = llmCfg;
+    this.llmBase = llmCfg.base_url || "";
+    this.llmModel = llmCfg.model || "deepseek-chat";
+    this.llmKey = "";
     this.javaList = javas;
     if (!this.javaBusy) {
       const best = javas.find((j) => j.major >= 21) ?? javas[0];
@@ -428,35 +451,106 @@ export class SettingsPage extends LitElement {
             清除
           </button>
         </div>
-        <h2 style="margin-top:16px">云端助手（可选）</h2>
+        <h2 style="margin-top:16px">云端助手 API</h2>
         <p>
-          默认只用本机规则诊断。若要启用云端对话，在本机创建配置文件（不要把密钥写进项目或 git）：
+          默认只用本机规则诊断。填写下方 OpenAI 兼容接口后，助手页可走云端对话。密钥只保存在本机
+          <code>~/.config/easymc/llm.env</code>，不会进 git。
         </p>
-        <p><code>~/.config/easymc/llm.env</code></p>
-        <p class="muted">
-          写入：EASYMC_LLM_BASE_URL、EASYMC_LLM_API_KEY，可选 EASYMC_LLM_MODEL。也可用同名环境变量。
-        </p>
-        <div class="muted">
+        <div class="muted" style="margin-bottom:8px">
           状态：${
             this.llm?.configured
               ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
               : "未配置（仅本地助手）"
           }
+          ${this.llmCfg?.path ? html`<br /><code class="path">${this.llmCfg.path}</code>` : nothing}
         </div>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">Base URL</span>
+          <input
+            style="flex:1"
+            placeholder="https://api.example.com 或 …/v1"
+            .value=${this.llmBase}
+            @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">API Key</span>
+          <input
+            style="flex:1"
+            type="password"
+            autocomplete="off"
+            placeholder=${this.llmCfg?.api_key_set ? `已保存 ${this.llmCfg.api_key_hint}（留空则保持）` : "sk-…"}
+            .value=${this.llmKey}
+            @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">Model</span>
+          <input
+            style="flex:1"
+            placeholder="deepseek-chat"
+            .value=${this.llmModel}
+            @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
+          />
+        </label>
         <div class="row" style="margin-top:8px">
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.saveLlm()}
+          >
+            保存并启用
+          </button>
           <button
             class="ghost"
             type="button"
-            @click=${async () => {
-              this.llm = await agentLlmStatus();
-              showToast(this.llm.configured ? "云端助手已就绪" : "仍是本地助手");
-            }}
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.clearLlm()}
           >
-            刷新状态
+            清除
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.refresh()}
+          >
+            刷新
           </button>
         </div>
       </details>
     `;
+  }
+
+  private async saveLlm() {
+    this.llmBusy = true;
+    try {
+      this.llm = await agentLlmConfigSave(this.llmBase, this.llmKey, this.llmModel);
+      this.llmCfg = await agentLlmConfigGet();
+      this.llmKey = "";
+      showToast(this.llm.configured ? "云端助手已启用" : "已保存，但仍未就绪");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.llmBusy = false;
+    }
+  }
+
+  private async clearLlm() {
+    this.llmBusy = true;
+    try {
+      this.llm = await agentLlmConfigClear();
+      this.llmCfg = await agentLlmConfigGet();
+      this.llmBase = "";
+      this.llmKey = "";
+      this.llmModel = "deepseek-chat";
+      showToast("已清除云端助手配置");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.llmBusy = false;
+    }
   }
 
   private renderMp() {

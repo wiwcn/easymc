@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -467,6 +467,35 @@ export async function agentLlmStatus(): Promise<LlmStatusDto> {
       mode: "rules_only",
     }
   );
+}
+
+export async function agentLlmConfigGet(): Promise<LlmConfigViewDto> {
+  return (
+    (await invokeSafe<LlmConfigViewDto>("agent_llm_config_get")) ?? {
+      path: null,
+      base_url: "",
+      model: "deepseek-chat",
+      api_key_set: false,
+      api_key_hint: "",
+      configured: false,
+    }
+  );
+}
+
+export async function agentLlmConfigSave(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+): Promise<LlmStatusDto> {
+  return invokeOrThrow<LlmStatusDto>("agent_llm_config_save", {
+    baseUrl,
+    apiKey,
+    model,
+  });
+}
+
+export async function agentLlmConfigClear(): Promise<LlmStatusDto> {
+  return invokeOrThrow<LlmStatusDto>("agent_llm_config_clear");
 }
 
 export async function agentDiagnose(instanceId?: string | null): Promise<DiagnoseReportDto> {

@@ -313,6 +313,7 @@ export class StorePage extends LitElement {
     this.instances = state.instances;
     this.activeId = state.active_id;
     this.cf = await curseforgeConfigured();
+    await this.onSearch(); // empty query → popular/hot
   }
 
   private async onSaveCfKey() {
@@ -357,7 +358,9 @@ export class StorePage extends LitElement {
         20,
       );
       if (!this.results.length) {
-        this.error = "无结果。可换关键词或检查实例版本/加载器筛选。";
+        this.error = this.query.trim()
+          ? "无结果。可换关键词或检查实例版本/加载器筛选。"
+          : "暂时没有热门结果，稍后再试或换个来源。";
       }
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
@@ -457,7 +460,7 @@ export class StorePage extends LitElement {
         </button>
         <input
           type="search"
-          placeholder="搜索模组…"
+          placeholder="搜索模组…（留空显示热门）"
           .value=${this.query}
           @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)}
           @keydown=${(e: KeyboardEvent) => {
