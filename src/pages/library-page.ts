@@ -74,13 +74,13 @@ export class LibraryPage extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: 1.35rem;
+      font-size: var(--easymc-type-display);
       font-weight: 700;
     }
     .sub {
       margin: 4px 0 0;
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
     }
     .btn {
       display: inline-flex;
@@ -90,7 +90,7 @@ export class LibraryPage extends LitElement {
       padding: 10px 18px;
       border: none;
       border-radius: var(--md-sys-shape-corner-full);
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
       font-weight: 600;
       cursor: pointer;
     }
@@ -108,7 +108,7 @@ export class LibraryPage extends LitElement {
     }
     .btn.sm {
       padding: 6px 12px;
-      font-size: 0.8rem;
+      font-size: var(--easymc-type-meta);
     }
     .grid {
       display: grid;
@@ -131,17 +131,17 @@ export class LibraryPage extends LitElement {
     }
     .card h3 {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: var(--easymc-type-body);
     }
     .meta {
-      font-size: 0.82rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
     }
     .badge {
       display: inline-block;
       padding: 2px 10px;
       border-radius: var(--md-sys-shape-corner-full);
-      font-size: 0.72rem;
+      font-size: var(--easymc-type-meta);
       font-weight: 600;
       background: var(--md-sys-color-surface-container-highest);
     }
@@ -166,7 +166,7 @@ export class LibraryPage extends LitElement {
     }
     .status {
       margin: 0 0 14px;
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
       min-height: 1.2em;
     }
@@ -182,13 +182,13 @@ export class LibraryPage extends LitElement {
     }
     .panel h2 {
       margin: 0;
-      font-size: 1.1rem;
+      font-size: var(--easymc-type-title);
     }
     label {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       font-weight: 500;
       color: var(--md-sys-color-on-surface-variant);
     }
@@ -211,7 +211,7 @@ export class LibraryPage extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       font-weight: 500;
       color: var(--md-sys-color-on-surface-variant);
       cursor: pointer;
@@ -253,7 +253,7 @@ export class LibraryPage extends LitElement {
       display: flex;
       gap: 6px;
       align-items: center;
-      font-size: 0.75rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
     }
     .empty {
@@ -278,13 +278,13 @@ export class LibraryPage extends LitElement {
       gap: 12px;
       align-items: baseline;
       margin-bottom: 8px;
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
       font-weight: 600;
     }
     .progress-head .muted {
       font-weight: 500;
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.8rem;
+      font-size: var(--easymc-type-meta);
     }
     .bar {
       height: 8px;
@@ -304,7 +304,7 @@ export class LibraryPage extends LitElement {
     }
     .progress-detail {
       margin-top: 8px;
-      font-size: 0.8rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       word-break: break-all;
     }
@@ -316,7 +316,7 @@ export class LibraryPage extends LitElement {
       margin-bottom: 12px;
     }
     .field-label {
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
     }
     .chip-row {
@@ -343,12 +343,12 @@ export class LibraryPage extends LitElement {
       flex-direction: column;
       gap: 6px;
       margin-bottom: 12px;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
     }
     .field select {
       font: inherit;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: var(--md-sys-shape-corner-small); /* CMP-5: form field */
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface);
     }
@@ -359,7 +359,6 @@ export class LibraryPage extends LitElement {
       border-radius: var(--md-sys-shape-corner-extra-large);
       background: var(--md-sys-color-surface-container-low);
       box-shadow: var(--md-sys-elevation-1);
-      animation: panel-in var(--easymc-dur-med) var(--easymc-ease-out) both;
     }
     .detail-head {
       display: flex;
@@ -371,7 +370,7 @@ export class LibraryPage extends LitElement {
     }
     .detail-head h2 {
       margin: 0;
-      font-size: 1.15rem;
+      font-size: var(--easymc-type-title);
       letter-spacing: -0.02em;
     }
     .detail-head .meta {
@@ -399,18 +398,11 @@ export class LibraryPage extends LitElement {
       padding: 10px 12px;
       border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-surface-container-lowest);
-      font-size: 0.9rem;
-      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+      font-size: var(--easymc-type-label);
     }
     .mod-row.leaving {
       animation: row-out var(--easymc-dur-fast) var(--easymc-ease-in) both;
     }
-    .mod-rows .mod-row:nth-child(1) { animation-delay: 0ms; }
-    .mod-rows .mod-row:nth-child(2) { animation-delay: 25ms; }
-    .mod-rows .mod-row:nth-child(3) { animation-delay: 50ms; }
-    .mod-rows .mod-row:nth-child(4) { animation-delay: 75ms; }
-    .mod-rows .mod-row:nth-child(5) { animation-delay: 100ms; }
-    .mod-rows .mod-row:nth-child(n+6) { animation-delay: 120ms; }
     .mod-row .name {
       flex: 1;
       min-width: 0;
@@ -418,10 +410,10 @@ export class LibraryPage extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
     }
     .mod-row .badge.off {
-      font-size: 0.72rem;
+      font-size: var(--easymc-type-meta);
       padding: 2px 8px;
       border-radius: 999px;
       background: var(--md-sys-color-warning-container);
@@ -435,7 +427,7 @@ export class LibraryPage extends LitElement {
       background: var(--md-sys-color-error);
       color: var(--md-sys-color-on-error);
       font: inherit;
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       cursor: pointer;
       flex-shrink: 0;
     }
@@ -502,20 +494,12 @@ export class LibraryPage extends LitElement {
       background: var(--md-sys-color-warning-container);
       color: var(--md-sys-color-on-warning-container);
     }
-    @keyframes row-in {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
     @keyframes row-out {
       from { opacity: 1; transform: none; }
       to { opacity: 0; transform: translateX(12px); }
     }
-    @keyframes panel-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: none; }
-    }
     @media (prefers-reduced-motion: reduce) {
-      .detail, .mod-row, .mod-row.leaving { animation: none; }
+      .mod-row.leaving { animation: none; opacity: 0; }
       .card:active, .btn:active:not(:disabled), .chip:active { transform: none; }
     }
   `;

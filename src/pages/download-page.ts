@@ -110,6 +110,7 @@ export class DownloadPage extends LitElement {
     }
     .search input {
       flex: 1; border: none; background: transparent; padding: 0; outline: none;
+      border-radius: 0; /* CMP-5: pill lives on .search shell */
       font-size: var(--easymc-type-body); color: var(--md-sys-color-on-surface);
     }
     .search svg { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); flex-shrink: 0; }
@@ -135,7 +136,15 @@ export class DownloadPage extends LitElement {
     .bar {
       display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--easymc-space-3);
     }
-    input, select, button {
+    /* CMP-5: form fields use small radius; search / tabs / chips stay pill */
+    input, select {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface);
+      border-radius: var(--md-sys-shape-corner-small);
+      padding: 8px 14px; font-size: var(--easymc-type-label);
+    }
+    button {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);

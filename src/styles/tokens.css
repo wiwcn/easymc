@@ -31,7 +31,7 @@
   --md-sys-color-surface-container-high: oklch(0.915 0.014 186);
   --md-sys-color-surface-container-highest: oklch(0.895 0.016 186);
   --md-sys-color-on-surface: oklch(0.24 0.015 185);
-  --md-sys-color-on-surface-variant: oklch(0.42 0.02 185);
+  --md-sys-color-on-surface-variant: oklch(0.38 0.02 185); /* A11Y-3: ~AA on surface */
   --md-sys-color-outline: oklch(0.52 0.02 185);
   --md-sys-color-outline-variant: oklch(0.80 0.018 185);
   --md-sys-color-inverse-surface: oklch(0.28 0.015 185);

@@ -81,14 +81,15 @@ pre,
     transform: none;
   }
 
-  /* Drop spatial motion; keep color / opacity / width state feedback */
+  /*
+    MOT-1 / §8.6: do NOT zero all animation durations (kills useful state feedback).
+    Drop only spatial transforms globally; keep color / opacity / width / shadow transitions.
+    Entrance keyframes are disabled per-component.
+  */
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-property: color, background-color, border-color, opacity, box-shadow, filter !important;
-    transition-duration: var(--easymc-dur-press) !important;
+    transition-property: color, background-color, border-color, opacity, box-shadow, filter, width, height, max-height !important;
   }
 }
 

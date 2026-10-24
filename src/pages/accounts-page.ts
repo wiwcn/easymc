@@ -127,7 +127,7 @@ export class AccountsPage extends LitElement {
       }
       .acct-meta {
         font-size: var(--easymc-type-meta);
-        opacity: 0.85;
+        color: var(--md-sys-color-on-surface-variant); /* A11Y-3 */
         margin-top: 2px;
         display: flex;
         gap: 6px;

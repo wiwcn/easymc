@@ -46,14 +46,10 @@ export class AgentPage extends LitElement {
     }
     .layout {
       display: grid;
-      grid-template-columns: 1fr 220px;
+      grid-template-columns: 1fr 240px;
       gap: var(--easymc-space-4);
       height: 100%;
       min-height: 0;
-    }
-    @media (max-width: 820px) {
-      .layout { grid-template-columns: 1fr; }
-      .tools { display: none; }
     }
     .main-col {
       display: flex;
@@ -95,6 +91,7 @@ export class AgentPage extends LitElement {
     }
     button,
     .chip {
+      min-height: 32px; /* A11Y-4 */
       padding: 8px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -102,6 +99,7 @@ export class AgentPage extends LitElement {
       color: var(--md-sys-color-on-surface);
       cursor: pointer;
       font: inherit;
+      font-size: var(--easymc-type-label);
       transition:
         background var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
@@ -112,7 +110,7 @@ export class AgentPage extends LitElement {
     button:active:not(:disabled), .chip:active { transform: scale(0.98); }
     select {
       padding: 8px 12px;
-      border-radius: 12px;
+      border-radius: var(--md-sys-shape-corner-small); /* CMP-5: form field */
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
@@ -183,7 +181,7 @@ export class AgentPage extends LitElement {
     }
     .meta {
       font-size: var(--easymc-type-meta);
-      opacity: 0.7;
+      color: var(--md-sys-color-on-surface-variant); /* A11Y-3: no opacity stack */
       margin-top: 4px;
     }
     .composer {
@@ -205,30 +203,45 @@ export class AgentPage extends LitElement {
       flex-direction: column;
       gap: var(--easymc-space-2);
       padding: var(--easymc-space-4);
-      border-radius: 18px;
-      background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      background: var(--md-sys-color-surface-container);
+      box-shadow: none; /* AG-1: tray; cards carry elevation */
+      border: none;
       align-self: start;
     }
     .tools h2 {
-      margin: 0 0 4px;
+      margin: 0 0 var(--easymc-space-2);
       font-size: var(--easymc-type-label);
       font-weight: 650;
       color: var(--md-sys-color-on-surface-variant);
       letter-spacing: 0.02em;
       text-transform: none;
     }
+    .tool-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--easymc-space-2);
+    }
     button.tool {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: var(--easymc-space-2);
+      text-align: left;
+      width: 100%;
+      padding: var(--easymc-space-3) var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-large);
+      border: none;
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1); /* AG-1 card stack */
+      min-height: 56px;
+    }
+    button.tool .tool-copy {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 2px;
-      text-align: left;
-      width: 100%;
-      padding: var(--easymc-space-3);
-      border-radius: 14px;
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
-      background: var(--md-sys-color-surface);
+      min-width: 0;
     }
     button.tool strong {
       font-size: var(--easymc-type-label);
@@ -240,15 +253,39 @@ export class AgentPage extends LitElement {
       color: var(--md-sys-color-on-surface-variant);
       line-height: 1.3;
     }
+    button.tool .chev {
+      color: var(--md-sys-color-outline);
+      font-size: 1.1em;
+      line-height: 1;
+    }
     button.tool:hover {
       background: var(--md-sys-color-primary-container);
-      border-color: transparent;
+      box-shadow: var(--md-sys-elevation-2);
+    }
+    button.tool:hover strong {
+      color: var(--md-sys-color-on-primary-container);
+    }
+    button.tool:hover span {
+      color: var(--md-sys-color-on-primary-container);
+      opacity: 0.85;
     }
     .tools .note {
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
-      margin-top: 4px;
+      margin-top: var(--easymc-space-2);
       line-height: 1.35;
+    }
+    /* ADAPT-1: chips when tools column hidden */
+    .quick-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--easymc-space-2);
+      margin-bottom: var(--easymc-space-3);
+    }
+    /* ADAPT-1: after .tools {display:flex} so hide wins */
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+      .tools { display: none; }
     }
     .findings {
       display: flex;
@@ -301,8 +338,8 @@ export class AgentPage extends LitElement {
       {
         role: "assistant",
         content: st.configured
-          ? "本地助手和云端助手都已就绪。可以直接提问，或点「帮我看看上次为什么崩了」。"
-          : "本地助手已就绪，不联网也能用。可以说「看上次报错」「确保 Java 21」「装 sodium」「内存 4G」。",
+          ? "本地 + 云端助手已就绪。点快捷操作，或直接提问。"
+          : "本地助手已就绪。点快捷操作，或直接提问。",
         mode: st.mode,
       },
     ];
@@ -478,7 +515,7 @@ export class AgentPage extends LitElement {
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="说说启动不了、崩了，或者点右侧快捷工具"
+                  description="说说启动不了、崩了，或点下方快捷操作"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
@@ -496,6 +533,14 @@ export class AgentPage extends LitElement {
                   `,
                 )}
               </div>`}
+
+          <div class="quick-chips" role="group" aria-label="快捷工具">
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>看上次报错</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>修好 Java</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDataDir()}>游戏文件夹</button>
+            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onExport()}>导出报告</button>
+          </div>
 
           <div class="composer">
             <input
@@ -517,26 +562,28 @@ export class AgentPage extends LitElement {
 
         <aside class="tools" aria-label="快捷工具">
           <h2>快捷工具</h2>
-          <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-            <strong>看上次报错</strong>
-            <span>分析崩溃日志，给出修法</span>
-          </button>
-          <button class="tool" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>
-            <strong>修好 Java</strong>
-            <span>检查并准备合适的 Java</span>
-          </button>
-          <button class="tool" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>
-            <strong>内存调到 4 GB</strong>
-            <span>给游戏多留一点内存</span>
-          </button>
-          <button class="tool" ?disabled=${this.busy} @click=${() => this.onDataDir()}>
-            <strong>打开游戏文件夹</strong>
-            <span>去改配置或找存档</span>
-          </button>
-          <button class="tool" ?disabled=${this.busy} @click=${() => this.onExport()}>
-            <strong>导出问题报告</strong>
-            <span>发给朋友或自己留档</span>
-          </button>
+          <div class="tool-stack">
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
+              <span class="tool-copy"><strong>看上次报错</strong><span>分析崩溃日志，给出修法</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onEnsureJava()}>
+              <span class="tool-copy"><strong>修好 Java</strong><span>检查并准备合适的 Java</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>
+              <span class="tool-copy"><strong>内存调到 4 GB</strong><span>给游戏多留一点内存</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onDataDir()}>
+              <span class="tool-copy"><strong>打开游戏文件夹</strong><span>去改配置或找存档</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button class="tool" ?disabled=${this.busy} @click=${() => this.onExport()}>
+              <span class="tool-copy"><strong>导出问题报告</strong><span>发给朋友或自己留档</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+          </div>
           <p class="note">工具在你这台电脑上执行，不会乱改游戏以外的东西。</p>
         </aside>
       </div>

@@ -1,10 +1,11 @@
 import { LitElement, css, html } from "lit";
 import { customElement } from "lit/decorators.js";
-import { pageChromeStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 
 @customElement("easymc-multiplayer-page")
 export class MultiplayerPage extends LitElement {
   static styles = [
+    controlStyles,
     pageChromeStyles,
     css`
       :host {
@@ -54,6 +55,13 @@ export class MultiplayerPage extends LitElement {
         line-height: 1.6;
         max-width: 320px;
       }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--easymc-space-2);
+        justify-content: center;
+        margin-top: var(--easymc-space-5);
+      }
     `,
   ];
 
@@ -70,6 +78,19 @@ export class MultiplayerPage extends LitElement {
           <li>邀请码一键进房</li>
           <li>查看延迟与人数</li>
         </ul>
+        <div class="actions">
+          <button
+            class="ghost"
+            type="button"
+            @click=${() =>
+              window.open(
+                "https://github.com/wiwcn/easymc/issues/new?title=%E8%81%94%E6%9C%BA%E9%9C%80%E6%B1%82&body=%E6%88%91%E6%83%B3%E8%A6%81%E7%9A%84%E8%81%94%E6%9C%BA%E6%96%B9%E5%BC%8F%EF%BC%9A%0A",
+                "_blank",
+              )}
+          >
+            告诉我你想怎么联机
+          </button>
+        </div>
       </div>
     `;
   }

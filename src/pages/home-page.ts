@@ -172,16 +172,11 @@ export class HomePage extends LitElement {
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
       overflow: hidden;
       margin-bottom: var(--easymc-space-5);
-      animation: focal-in var(--easymc-dur-focal) var(--easymc-ease-out) both;
       transition:
         margin var(--easymc-dur-med) var(--easymc-ease-out);
     }
     .featured.compact {
       margin-bottom: var(--easymc-space-4);
-    }
-    @keyframes focal-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: none; }
     }
     .featured-top {
       display: flex;
@@ -255,6 +250,10 @@ export class HomePage extends LitElement {
       letter-spacing: -0.03em;
       color: var(--md-sys-color-on-surface);
       line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
     }
     .featured.compact .feat-title {
       margin: 0 0 6px;
@@ -269,6 +268,9 @@ export class HomePage extends LitElement {
       margin-bottom: var(--easymc-space-3);
     }
     .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px; /* A11Y-4 decorative chip floor */
       font-size: var(--easymc-type-meta);
       font-weight: 600;
       padding: var(--easymc-space-1) var(--easymc-space-3);
@@ -467,6 +469,10 @@ export class HomePage extends LitElement {
       font-weight: 650;
       letter-spacing: -0.02em;
       line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
     }
     .vcard .meta {
       font-size: var(--easymc-type-meta);
@@ -577,7 +583,6 @@ export class HomePage extends LitElement {
       color: var(--md-sys-color-on-surface);
     }
     @media (prefers-reduced-motion: reduce) {
-      .featured { animation: none; }
       .featured, .featured-top, .art, button.launch { transition: none; }
       button.vcard:active, button.launch:active { transform: none; }
       .bar > i { transition: none; }
@@ -957,8 +962,8 @@ export class HomePage extends LitElement {
             title="咦？似乎什么都没有…"
             description="还没有可玩的版本。加一个，或者去下载中心逛逛？"
           >
-            <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
-            <button class="ghost" type="button" @click=${() => this.go("download")}>去下载中心</button>
+            <button class="primary" type="button" @click=${() => this.go("download")}>去下载中心</button>
+            <button class="ghost" type="button" @click=${() => this.openCreate()}>添加版本</button>
           </easymc-empty-state>
           ${this.showCreate ? this.renderCreate() : nothing}
         </div>

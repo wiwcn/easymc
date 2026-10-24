@@ -53,21 +53,22 @@ export class StorePage extends LitElement {
     }
     h1 {
       margin: 0 0 4px;
-      font-size: 1.5rem;
+      font-size: var(--easymc-type-display);
     }
     .sub {
       margin: 0 0 16px;
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.95rem;
+      font-size: var(--easymc-type-body);
     }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: var(--easymc-space-3);
     }
     .chip {
+      min-height: 32px;
       padding: 8px 14px;
       border-radius: var(--md-sys-shape-corner-full);
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -93,7 +94,7 @@ export class StorePage extends LitElement {
     /* primary / ghost → controlStyles (CMP-1); size tweak */
     button.primary { padding: 10px 18px; }
     .meta {
-      font-size: 0.85rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
       margin-bottom: 12px;
     }
@@ -136,29 +137,29 @@ export class StorePage extends LitElement {
     .list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--easymc-space-2);
     }
     .card {
       display: grid;
-      grid-template-columns: 48px 1fr auto;
-      gap: 12px;
+      grid-template-columns: 44px 1fr auto;
+      gap: var(--easymc-space-3);
       align-items: start;
-      padding: 14px;
+      padding: var(--easymc-space-3) var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-low);
       box-shadow: var(--md-sys-elevation-1);
     }
     .icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: var(--md-sys-shape-corner-medium);
       object-fit: cover;
       background: var(--md-sys-color-surface-container-highest);
     }
     .icon.placeholder {
       display: grid;
       place-items: center;
-      font-size: 1.4rem;
+      font-size: var(--easymc-type-title);
     }
     .title {
       font-weight: 600;
@@ -166,13 +167,13 @@ export class StorePage extends LitElement {
     }
     .desc {
       margin: 0;
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
       color: var(--md-sys-color-on-surface-variant);
       line-height: 1.4;
     }
     .stats {
       margin-top: 6px;
-      font-size: 0.8rem;
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
     }
     .actions {
@@ -190,7 +191,7 @@ export class StorePage extends LitElement {
     .versions select {
       width: 100%;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: var(--md-sys-shape-corner-small); /* CMP-5: form field */
       border: 1px solid var(--md-sys-color-outline-variant);
       font: inherit;
       margin-bottom: 8px;
@@ -216,12 +217,12 @@ export class StorePage extends LitElement {
       flex: 1;
       min-width: 180px;
       padding: 8px 12px;
-      border-radius: var(--md-sys-shape-corner-full);
+      border-radius: var(--md-sys-shape-corner-small); /* CMP-5: form field */
       border: 1px solid var(--md-sys-color-outline-variant);
       font: inherit;
     }
     code {
-      font-size: 0.85em;
+      font-size: var(--easymc-type-meta);
       background: var(--md-sys-color-surface-container-highest);
       padding: 1px 5px;
       border-radius: 4px;
@@ -241,26 +242,13 @@ export class StorePage extends LitElement {
     .chip:active {
       transform: scale(0.98);
     }
-    .card {
-      animation: row-in var(--easymc-dur-med) var(--easymc-ease-out) both;
-    }
-    .list .card:nth-child(1) { animation-delay: 0ms; }
-    .list .card:nth-child(2) { animation-delay: 30ms; }
-    .list .card:nth-child(3) { animation-delay: 60ms; }
-    .list .card:nth-child(4) { animation-delay: 90ms; }
-    .list .card:nth-child(5) { animation-delay: 120ms; }
-    .list .card:nth-child(n+6) { animation-delay: 140ms; }
-    @keyframes row-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: none; }
-    }
     .hint {
       margin-top: 20px;
       padding: 12px 14px;
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.9rem;
+      font-size: var(--easymc-type-label);
       line-height: 1.45;
     }
     .hint button {
@@ -292,7 +280,6 @@ export class StorePage extends LitElement {
       color: var(--md-sys-color-warning);
     }
     @media (prefers-reduced-motion: reduce) {
-      .card { animation: none; }
       button.primary:active:not(:disabled),
       button.ghost:active:not(:disabled),
       .chip:active { transform: none; }
