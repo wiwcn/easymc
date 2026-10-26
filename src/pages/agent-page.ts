@@ -62,6 +62,12 @@ const TOOL_TITLES: Record<string, string> = {
   disable_mod: "禁用模组",
   list_instances: "版本列表",
   list_versions: "版本列表",
+  select_instance: "切换版本",
+  switch_instance: "切换版本",
+  switch_version: "切换版本",
+  open_latest_log: "打开日志",
+  open_log: "打开日志",
+  list_accounts: "账户列表",
   import_mrpack: "导入整合包",
   import_modpack: "导入整合包",
   build_pack: "制作整合包",
@@ -1157,9 +1163,13 @@ ${extraContent}` : t.content,
       return;
     }
     if (actionId === "open_folder" || actionId === "reveal_path") {
+      if (tool.path && (tool.name === "open_latest_log" || tool.name === "open_log" || tool.name === "diagnostics" || tool.name === "build_pack")) {
+        showToast(`路径：${tool.path}`);
+        return;
+      }
       if (this.instanceId) {
         try {
-          await openInstanceFolder(this.instanceId, "root");
+          await openInstanceFolder(this.instanceId, tool.name === "open_latest_log" ? "game" : "root");
           showToast("已打开文件夹");
         } catch (e) {
           showToast(String(e));
@@ -1180,6 +1190,12 @@ ${extraContent}` : t.content,
     if (actionId === "open_home") {
       this.dispatchEvent(
         new CustomEvent("nav-change", { detail: "home", bubbles: true, composed: true }),
+      );
+      return;
+    }
+    if (actionId === "open_accounts") {
+      this.dispatchEvent(
+        new CustomEvent("nav-change", { detail: "accounts", bubbles: true, composed: true }),
       );
     }
   }
@@ -1697,6 +1713,22 @@ ${extraContent}` : t.content,
               @click=${() => this.onAsk("版本列表", runningTool("list_instances"))}
             >
               <span class="tool-copy"><strong>版本列表</strong><span>看看已安装了哪些版本</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button
+              class="tool"
+              ?disabled=${this.busy}
+              @click=${() => this.onAsk("打开日志", runningTool("open_latest_log"))}
+            >
+              <span class="tool-copy"><strong>打开日志</strong><span>定位 latest.log / 崩溃报告</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button
+              class="tool"
+              ?disabled=${this.busy}
+              @click=${() => this.onAsk("账户列表", runningTool("list_accounts"))}
+            >
+              <span class="tool-copy"><strong>账户列表</strong><span>看看已保存的正版 / 离线账号</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>

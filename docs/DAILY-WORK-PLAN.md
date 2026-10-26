@@ -25,7 +25,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 |------|------|
 | 工作日约 10:00 | 例行开发：拉最新 → 对照参照/缺口清单推进 → Agent 工具/skill → 有实质改动则打 Windows 包 |
 | 每周至少一次 | GitHub 再搜 JE 启动器，更新「可借鉴」与缺口 |
-| 按需 | 定稿后更新 Release（当前线：v0.1.1+） |
+| 按需 | 定稿后更新 Release（当前线：v0.1.2） |
 
 ## 每日清单（按优先级）
 
@@ -50,3 +50,15 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - 不用 Cursor（CloudAgent / GitHub MCP / 付费后台助手）；本机 Shell + gh_token 即可
 - 不把密钥写进 git
 - 不搬参照启动器的具体文案、素材与品牌皮；布局/IA 可对齐，视觉对齐后续推进
+
+## 周扫描备忘（2026-10-26）
+
+核心参照仍活跃：Prism ★10.9k、HMCL ★10.7k、PCL ★9.3k、FCL ★5.1k、SJMCL ★769、Pandora ★942；`scl` 已久未更新。
+
+本周值得留意的新线（能力借鉴，不抄皮）：
+- [LumilioCL](https://github.com/EdwinZhanCN/LumilioCL) — Rust + GPUI
+- [OctaneLauncher](https://github.com/karlsson1000/OctaneLauncher) — 多加载器 + 内置模组浏览
+- [AlloyMC](https://github.com/Elchi-dev/AlloyMC) — Modrinth/CF URL 整合包、一键更新
+- Tauri 同族：swift-client、cookie-launcher、plume-launcher、nexus-launcher
+
+EasyMC 缺口对照（滚动）：实例导入多样性（Prism）、Agent/扩展协作（SJMCL）、Android 真启动（FCL，桌面优先后置）。

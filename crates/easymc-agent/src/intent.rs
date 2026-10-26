@@ -34,6 +34,12 @@ pub enum Intent {
     },
     /// List installed instances / versions.
     ListInstances,
+    /// Switch the active instance by name / version / id query.
+    SelectInstance { query: String },
+    /// Reveal latest.log or newest crash-report path for the current version.
+    OpenLatestLog { instance_id: Option<String> },
+    /// List saved accounts (no tokens).
+    ListAccounts,
     /// Import a local Modrinth `.mrpack` (or EasyMC share) into a new version.
     ImportMrpack { path: String },
     /// Search Modrinth (+ CF if key) without installing — structured hits for agent cite / InstallMod.
@@ -446,6 +452,93 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
+    // select / switch version
+    for (prefix, _) in [
+        ("切换版本 ", ()),
+        ("选择版本 ", ()),
+        ("换成版本 ", ()),
+        ("用版本 ", ()),
+        ("switch version ", ()),
+        ("select version ", ()),
+        ("switch instance ", ()),
+        ("select instance ", ()),
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty() && q.len() < 80 {
+                return IntentResult {
+                    intent: Intent::SelectInstance { query: q },
+                    confidence: 0.9,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在切换版本…".into(),
+                };
+            }
+        }
+    }
+    if t.contains("切换到") && (t.contains("版本") || t.contains("instance")) {
+        let q = t
+            .replace("切换到", " ")
+            .replace("版本", " ")
+            .replace("instance", " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !q.is_empty() && q.len() < 80 {
+            return IntentResult {
+                intent: Intent::SelectInstance { query: q },
+                confidence: 0.85,
+                matched: "切换到".into(),
+                reply_zh: "正在切换版本…".into(),
+            };
+        }
+    }
+
+    let log_file_keys = [
+        "打开日志",
+        "打开最新日志",
+        "最新日志",
+        "日志文件",
+        "打开崩溃报告",
+        "崩溃报告在哪",
+        "看日志文件",
+        "open log",
+        "open latest log",
+        "latest log",
+        "show log file",
+    ];
+    for k in log_file_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::OpenLatestLog { instance_id: None },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在定位日志文件…".into(),
+            };
+        }
+    }
+
+    let acct_keys = [
+        "账户列表",
+        "账号列表",
+        "有哪些账户",
+        "有哪些账号",
+        "我的账户",
+        "我的账号",
+        "list accounts",
+        "list account",
+        "show accounts",
+    ];
+    for k in acct_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::ListAccounts,
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在列出账户…".into(),
+            };
+        }
+    }
+
     let import_keys = [
         "导入整合包",
         "安装整合包",
@@ -773,6 +866,9 @@ pub fn help_text() -> String {
 · 「检查模组」/「已装模组」— 列出当前版本已装模组
 · 「禁用 sodium」/「启用 iris」— 启用或禁用模组（改名 .jar.disabled）
 · 「版本列表」— 看看已安装了哪些版本
+· 「切换版本 1.21.1」— 把当前版本切到匹配的那一个
+· 「打开日志」— 定位当前版本的 latest.log / 崩溃报告
+· 「账户列表」— 看看已保存的正版 / 离线账号
 · 「导入整合包 /path/to/pack.mrpack」— 把本地 .mrpack 装成新版本
 · 「制作整合包」— 从当前版本导出 Modrinth .mrpack 整合包
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
@@ -819,6 +915,15 @@ mod tests {
             other => panic!("{:?}", other),
         }
         assert!(matches!(route("版本列表").intent, Intent::ListInstances));
+        match route("切换版本 1.21.1").intent {
+            Intent::SelectInstance { query } => assert!(query.contains("1.21")),
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(
+            route("打开日志").intent,
+            Intent::OpenLatestLog { .. }
+        ));
+        assert!(matches!(route("账户列表").intent, Intent::ListAccounts));
         match route("导入整合包 /tmp/demo.mrpack").intent {
             Intent::ImportMrpack { path } => assert!(path.contains("mrpack")),
             other => panic!("{:?}", other),

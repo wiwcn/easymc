@@ -81,6 +81,9 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
         "toggle_mod" | "enable_mod" | "disable_mod" => ("启用/禁用模组", Some("模组")),
         "list_instances" | "list_versions" => ("版本列表", Some("版本")),
+        "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
+        "open_latest_log" | "open_log" => ("打开日志", Some("文件")),
+        "list_accounts" => ("账户列表", Some("账户")),
         "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
@@ -225,6 +228,36 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("count", "版本数", format!("{c}")));
             }
         }
+        "select_instance" | "switch_instance" | "switch_version" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(ver) = v.get("version").and_then(|x| x.as_str()) {
+                out.push(arg("mc", "MC", ver));
+            }
+            if let Some(l) = v.get("loader").and_then(|x| x.as_str()) {
+                out.push(arg("loader", "加载器", l));
+            }
+            if let Some(q) = v.get("query").and_then(|x| x.as_str()) {
+                out.push(arg("query", "关键词", q));
+            }
+        }
+        "open_latest_log" | "open_log" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(k) = v.get("kind").and_then(|x| x.as_str()) {
+                out.push(arg("kind", "类型", k));
+            }
+            if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
+                out.push(arg("path", "日志", p));
+            }
+        }
+        "list_accounts" => {
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "账户数", format!("{c}")));
+            }
+        }
         "import_mrpack" | "import_modpack" => {
             if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
                 out.push(arg("path", ".mrpack", p));
@@ -318,6 +351,16 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         }
         "list_instances" if ok => {
             acts.push(ui("open_home", "去启动页"));
+        }
+        "select_instance" if ok => {
+            acts.push(ui("open_home", "去启动页"));
+        }
+        "open_latest_log" if ok => {
+            acts.push(ui("reveal_path", "打开日志位置"));
+            acts.push(ui("run_diagnose", "分析这份日志"));
+        }
+        "list_accounts" if ok => {
+            acts.push(ui("open_accounts", "去账户管理"));
         }
         _ => {}
     }

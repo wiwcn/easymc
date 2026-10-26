@@ -7,7 +7,8 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use easymc_core::{
-    load_instances, load_settings, save_settings, DownloadSource, Paths, Result,
+    load_accounts, load_instances, load_settings, save_settings, set_active_instance,
+    AccountKind, DownloadSource, Paths, Result,
 };
 
 use crate::diagnose::DiagnoseReport;
@@ -582,6 +583,303 @@ pub fn list_instances(paths: &Paths) -> ActionResult {
             "count": store.instances.len(),
             "active_id": active,
             "instances": items,
+        })),
+    }
+}
+
+
+/// Switch the active / current game version by name, id, or version string (PCL-style).
+pub fn select_instance(paths: &Paths, query: &str) -> ActionResult {
+    let q = query.trim();
+    if q.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "select_instance".into(),
+            message_zh: "请告诉我要切换到哪个版本，例如：切换版本 1.21.1".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "select_instance".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    if store.instances.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "select_instance".into(),
+            message_zh: "还没有安装任何版本。去「下载」页装一个吧。".into(),
+            path: None,
+            value: Some(serde_json::json!({ "count": 0 })),
+        };
+    }
+    let ql = q.to_lowercase();
+    let matches: Vec<_> = store
+        .instances
+        .iter()
+        .filter(|inst| {
+            inst.id.to_lowercase().contains(&ql)
+                || inst.name.to_lowercase().contains(&ql)
+                || inst.version.0.to_lowercase().contains(&ql)
+                || inst.loader.as_str().to_lowercase().contains(&ql)
+        })
+        .collect();
+    if matches.is_empty() {
+        let names: Vec<_> = store.instances.iter().map(|i| i.name.as_str()).collect();
+        return ActionResult {
+            ok: false,
+            action: "select_instance".into(),
+            message_zh: format!(
+                "没找到匹配「{q}」的版本。已安装：{}",
+                names.join("、")
+            ),
+            path: None,
+            value: Some(serde_json::json!({
+                "query": q,
+                "count": store.instances.len(),
+            })),
+        };
+    }
+    if matches.len() > 1 {
+        let lines: Vec<_> = matches
+            .iter()
+            .map(|i| format!("{} · {} · {}", i.name, i.version.0, i.loader.as_str()))
+            .collect();
+        return ActionResult {
+            ok: false,
+            action: "select_instance".into(),
+            message_zh: format!(
+                "「{q}」匹配到多个版本，请说得更具体一点：\n{}",
+                lines.join("\n")
+            ),
+            path: None,
+            value: Some(serde_json::json!({
+                "query": q,
+                "matches": matches.iter().map(|i| serde_json::json!({
+                    "id": i.id,
+                    "name": i.name,
+                    "version": i.version.0,
+                    "loader": i.loader.as_str(),
+                })).collect::<Vec<_>>(),
+            })),
+        };
+    }
+    let target = matches[0];
+    if store.active_id.as_deref() == Some(target.id.as_str()) {
+        return ActionResult {
+            ok: true,
+            action: "select_instance".into(),
+            message_zh: format!(
+                "当前已经是「{}」（{} · {}）。",
+                target.name,
+                target.version.0,
+                target.loader.as_str()
+            ),
+            path: Some(target.game_dir.clone()),
+            value: Some(serde_json::json!({
+                "instance_id": target.id,
+                "instance_name": target.name,
+                "version": target.version.0,
+                "loader": target.loader.as_str(),
+                "changed": false,
+            })),
+        };
+    }
+    match set_active_instance(paths, &target.id) {
+        Ok(_) => ActionResult {
+            ok: true,
+            action: "select_instance".into(),
+            message_zh: format!(
+                "已切换到「{}」（{} · {}）。启动页会跟着重显示这个版本。",
+                target.name,
+                target.version.0,
+                target.loader.as_str()
+            ),
+            path: Some(target.game_dir.clone()),
+            value: Some(serde_json::json!({
+                "instance_id": target.id,
+                "instance_name": target.name,
+                "version": target.version.0,
+                "loader": target.loader.as_str(),
+                "changed": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "select_instance".into(),
+            message_zh: format!("切换版本失败：{e}"),
+            path: None,
+            value: None,
+        },
+    }
+}
+
+/// Locate latest.log or the newest crash-report for the current / given instance.
+pub fn open_latest_log(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "open_latest_log".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "open_latest_log".into(),
+            message_zh: "还没有选版本。请先在启动页选一个，或说「版本列表」。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "open_latest_log".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let game = paths.instance_game_dir(&id);
+    let latest = game.join("logs").join("latest.log");
+    let crash_dir = game.join("crash-reports");
+    let mut newest_crash: Option<(std::time::SystemTime, PathBuf)> = None;
+    if let Ok(rd) = fs::read_dir(&crash_dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) != Some("txt") {
+                continue;
+            }
+            if let Ok(mt) = e.metadata().and_then(|m| m.modified()) {
+                if newest_crash
+                    .as_ref()
+                    .map(|(t, _)| mt > *t)
+                    .unwrap_or(true)
+                {
+                    newest_crash = Some((mt, p));
+                }
+            }
+        }
+    }
+    let (kind, path) = if latest.is_file() {
+        ("latest.log", latest)
+    } else if let Some((_, p)) = newest_crash {
+        ("crash-report", p)
+    } else {
+        return ActionResult {
+            ok: false,
+            action: "open_latest_log".into(),
+            message_zh: format!(
+                "版本「{}」还没有 latest.log 或崩溃报告。先启动一次游戏，或从「查看崩溃」粘贴日志。",
+                inst.name
+            ),
+            path: Some(game.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "game_dir": inst.game_dir,
+            })),
+        };
+    };
+    let kind_zh = if kind == "latest.log" {
+        "最新日志 latest.log"
+    } else {
+        "最近一份崩溃报告"
+    };
+    ActionResult {
+        ok: true,
+        action: "open_latest_log".into(),
+        message_zh: format!(
+            "版本「{}」的{}：\n{}",
+            inst.name,
+            kind_zh,
+            path.display()
+        ),
+        path: Some(path.display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "kind": kind,
+            "path": path.display().to_string(),
+        })),
+    }
+}
+
+/// List saved Minecraft accounts (no tokens) for the agent card.
+pub fn list_accounts(paths: &Paths) -> ActionResult {
+    let store = match load_accounts(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "list_accounts".into(),
+                message_zh: format!("读取账户失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    if store.accounts.is_empty() {
+        return ActionResult {
+            ok: true,
+            action: "list_accounts".into(),
+            message_zh: "还没有账户。点侧栏左下角当前账号卡，添加正版、离线或皮肤站登录。".into(),
+            path: None,
+            value: Some(serde_json::json!({ "count": 0, "accounts": [] })),
+        };
+    }
+    let active = store.active_id.clone();
+    let mut lines = Vec::new();
+    let mut items = Vec::new();
+    for acc in &store.accounts {
+        let kind_zh = match acc.kind {
+            AccountKind::Microsoft => "正版",
+            AccountKind::Offline => "离线",
+        };
+        let mark = if Some(&acc.id) == active.as_ref() {
+            "★ "
+        } else {
+            ""
+        };
+        lines.push(format!("{mark}{}（{kind_zh}）", acc.username));
+        items.push(serde_json::json!({
+            "id": acc.id,
+            "username": acc.username,
+            "kind": kind_zh,
+            "active": Some(&acc.id) == active.as_ref(),
+        }));
+    }
+    ActionResult {
+        ok: true,
+        action: "list_accounts".into(),
+        message_zh: format!(
+            "已保存 {} 个账户（★ 为当前）：\n{}",
+            store.accounts.len(),
+            lines.join("\n")
+        ),
+        path: None,
+        value: Some(serde_json::json!({
+            "count": store.accounts.len(),
+            "active_id": active,
+            "accounts": items,
         })),
     }
 }

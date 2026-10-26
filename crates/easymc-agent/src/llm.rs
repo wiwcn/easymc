@@ -314,6 +314,9 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「导入整合包 <路径>」/ import_mrpack — 把本地 `.mrpack` 装成新版本；\
 · 「禁用/启用 <模组>」/ toggle_mod — 启用或禁用模组；\
 · 「版本列表」/ list_instances — 列出已装版本；\
+· 「切换版本 <名>」/ select_instance — 切换当前版本；\
+· 「打开日志」/ open_latest_log — 定位 latest.log 或崩溃报告；\
+· 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
 不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
 }
@@ -432,6 +435,36 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
         {
             "type": "function",
             "function": {
+                "name": "select_instance",
+                "description": "按名称、版本号或加载器关键词切换当前游戏版本。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "版本名 / MC 版本号 / 加载器关键词" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "open_latest_log",
+                "description": "定位当前版本的 latest.log 或最新崩溃报告文件路径，便于玩家打开或继续诊断。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_accounts",
+                "description": "列出已保存的 Minecraft 账户（正版/离线），不含访问令牌。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "ensure_java",
                 "description": "检查并准备合适的 Java。",
                 "parameters": {
@@ -544,6 +577,20 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
             }
         }
         "list_instances" | "list_versions" => "版本列表".into(),
+        "select_instance" | "switch_instance" | "switch_version" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "版本列表".into()
+            } else {
+                format!("切换版本 {q}")
+            }
+        }
+        "open_latest_log" | "open_log" => "打开日志".into(),
+        "list_accounts" => "账户列表".into(),
         "ensure_java" => {
             let major = args.get("major").and_then(|x| x.as_u64()).unwrap_or(21);
             format!("确保 Java {major}")
