@@ -7,7 +7,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use easymc_core::{
-    load_accounts, load_instances, load_settings, save_settings, set_active_instance,
+    load_accounts, load_instances, load_settings, save_accounts, save_settings, set_active_instance,
     AccountKind, DownloadSource, Paths, Result,
 };
 
@@ -880,6 +880,245 @@ pub fn list_accounts(paths: &Paths) -> ActionResult {
             "count": store.accounts.len(),
             "active_id": active,
             "accounts": items,
+        })),
+    }
+}
+
+
+/// Switch the active Minecraft account by username / id (no tokens in the card).
+pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
+    let q = query.trim();
+    if q.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "select_account".into(),
+            message_zh: "请告诉我要切换到哪个账户，例如：切换账户 Steve".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let mut store = match load_accounts(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "select_account".into(),
+                message_zh: format!("读取账户失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    if store.accounts.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "select_account".into(),
+            message_zh: "还没有账户。点侧栏左下角当前账号卡添加正版、离线或皮肤站登录。".into(),
+            path: None,
+            value: Some(serde_json::json!({ "count": 0 })),
+        };
+    }
+    let ql = q.to_lowercase();
+    let matches: Vec<_> = store
+        .accounts
+        .iter()
+        .filter(|acc| {
+            acc.id.to_lowercase().contains(&ql)
+                || acc.username.to_lowercase().contains(&ql)
+                || match acc.kind {
+                    AccountKind::Microsoft => ql == "正版" || ql == "microsoft" || ql == "msa" || ql == "正版账户" || ql == "正版账号",
+                    AccountKind::Offline => ql == "离线" || ql == "offline" || ql == "离线账户" || ql == "离线账号",
+                }
+        })
+        .cloned()
+        .collect();
+    // Prefer username/id hits over kind-only hits when query is a kind word alone
+    let matches = if matches.len() > 1 && (ql == "正版" || ql == "microsoft" || ql == "msa" || ql == "离线" || ql == "offline") {
+        matches
+    } else if matches.len() > 1 {
+        let tight: Vec<_> = matches
+            .iter()
+            .filter(|acc| {
+                acc.id.to_lowercase().contains(&ql) || acc.username.to_lowercase().contains(&ql)
+            })
+            .cloned()
+            .collect();
+        if tight.is_empty() { matches } else { tight }
+    } else {
+        matches
+    };
+    if matches.is_empty() {
+        let names: Vec<_> = store.accounts.iter().map(|a| a.username.as_str()).collect();
+        return ActionResult {
+            ok: false,
+            action: "select_account".into(),
+            message_zh: format!(
+                "没找到匹配「{q}」的账户。已保存：{}",
+                names.join("、")
+            ),
+            path: None,
+            value: Some(serde_json::json!({
+                "query": q,
+                "count": store.accounts.len(),
+            })),
+        };
+    }
+    if matches.len() > 1 {
+        let lines: Vec<_> = matches
+            .iter()
+            .map(|a| {
+                let kind_zh = match a.kind {
+                    AccountKind::Microsoft => "正版",
+                    AccountKind::Offline => "离线",
+                };
+                format!("{}（{kind_zh}）", a.username)
+            })
+            .collect();
+        return ActionResult {
+            ok: false,
+            action: "select_account".into(),
+            message_zh: format!(
+                "「{q}」匹配到多个账户，请说得更具体一点：\n{}",
+                lines.join("\n")
+            ),
+            path: None,
+            value: Some(serde_json::json!({
+                "query": q,
+                "matches": matches.iter().map(|a| serde_json::json!({
+                    "id": a.id,
+                    "username": a.username,
+                    "kind": match a.kind {
+                        AccountKind::Microsoft => "正版",
+                        AccountKind::Offline => "离线",
+                    },
+                })).collect::<Vec<_>>(),
+            })),
+        };
+    }
+    let target = &matches[0];
+    let kind_zh = match target.kind {
+        AccountKind::Microsoft => "正版",
+        AccountKind::Offline => "离线",
+    };
+    if store.active_id.as_deref() == Some(target.id.as_str()) {
+        return ActionResult {
+            ok: true,
+            action: "select_account".into(),
+            message_zh: format!("当前已经是「{}」（{kind_zh}）。", target.username),
+            path: None,
+            value: Some(serde_json::json!({
+                "account_id": target.id,
+                "username": target.username,
+                "kind": kind_zh,
+                "changed": false,
+            })),
+        };
+    }
+    store.active_id = Some(target.id.clone());
+    match save_accounts(paths, &store) {
+        Ok(()) => ActionResult {
+            ok: true,
+            action: "select_account".into(),
+            message_zh: format!(
+                "已切换到「{}」（{kind_zh}）。下次启动游戏会用这个账户。",
+                target.username
+            ),
+            path: None,
+            value: Some(serde_json::json!({
+                "account_id": target.id,
+                "username": target.username,
+                "kind": kind_zh,
+                "changed": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "select_account".into(),
+            message_zh: format!("切换账户失败：{e}"),
+            path: None,
+            value: None,
+        },
+    }
+}
+
+/// Locate (and create if missing) the screenshots folder for the current / given version.
+pub fn open_screenshots(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "open_screenshots".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "open_screenshots".into(),
+            message_zh: "还没有选版本。请先在启动页选一个，或说「版本列表」。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "open_screenshots".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let game = paths.instance_game_dir(&id);
+    let shots = game.join("screenshots");
+    if !shots.is_dir() {
+        if let Err(e) = fs::create_dir_all(&shots) {
+            return ActionResult {
+                ok: false,
+                action: "open_screenshots".into(),
+                message_zh: format!("没法创建截图文件夹：{e}"),
+                path: Some(game.display().to_string()),
+                value: None,
+            };
+        }
+    }
+    let mut count = 0usize;
+    if let Ok(rd) = fs::read_dir(&shots) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_ascii_lowercase();
+            if name.ends_with(".png") || name.ends_with(".jpg") || name.ends_with(".jpeg") {
+                count += 1;
+            }
+        }
+    }
+    let tip = if count == 0 {
+        "还没有截图。进游戏按 F2 拍一张就会出现在这里。".to_string()
+    } else {
+        format!("里面大约有 {count} 张截图。")
+    };
+    ActionResult {
+        ok: true,
+        action: "open_screenshots".into(),
+        message_zh: format!(
+            "版本「{}」的截图文件夹：\n{}\n{}",
+            inst.name,
+            shots.display(),
+            tip
+        ),
+        path: Some(shots.display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "path": shots.display().to_string(),
+            "count": count,
         })),
     }
 }

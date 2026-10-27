@@ -4,8 +4,8 @@ use easymc_core::{load_settings, Paths, Result};
 
 use crate::actions::{
     bump_memory, check_mods, env_status_summary, list_accounts, list_instances, open_latest_log,
-    select_instance, set_download_source, show_data_dir, show_instance_dir, suggest_memory_text,
-    toggle_mod, write_diagnostic_bundle, ActionResult,
+    open_screenshots, select_account, select_instance, set_download_source, show_data_dir,
+    show_instance_dir, suggest_memory_text, toggle_mod, write_diagnostic_bundle, ActionResult,
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
@@ -257,6 +257,15 @@ pub async fn execute_intent(
         }
         Intent::ListAccounts => {
             let ar = list_accounts(paths);
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::SelectAccount { query } => {
+            let ar = select_account(paths, query);
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::OpenScreenshots { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let ar = open_screenshots(paths, id.as_deref());
             Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::ImportMrpack { path } => {

@@ -465,6 +465,28 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
         {
             "type": "function",
             "function": {
+                "name": "select_account",
+                "description": "按用户名或账户 id 切换当前 Minecraft 账户（不含令牌）。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "用户名 / 账户 id / 正版|离线" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "open_screenshots",
+                "description": "定位（必要时创建）当前版本的 screenshots 截图文件夹。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "ensure_java",
                 "description": "检查并准备合适的 Java。",
                 "parameters": {
@@ -591,6 +613,19 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
         }
         "open_latest_log" | "open_log" => "打开日志".into(),
         "list_accounts" => "账户列表".into(),
+        "select_account" | "switch_account" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "账户列表".into()
+            } else {
+                format!("切换账户 {q}")
+            }
+        }
+        "open_screenshots" | "screenshots" => "打开截图".into(),
         "ensure_java" => {
             let major = args.get("major").and_then(|x| x.as_u64()).unwrap_or(21);
             format!("确保 Java {major}")

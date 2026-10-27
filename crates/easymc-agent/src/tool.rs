@@ -84,6 +84,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
         "open_latest_log" | "open_log" => ("打开日志", Some("文件")),
         "list_accounts" => ("账户列表", Some("账户")),
+        "select_account" | "switch_account" => ("切换账户", Some("账户")),
+        "open_screenshots" | "screenshots" => ("打开截图", Some("文件")),
         "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
@@ -258,6 +260,28 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("count", "账户数", format!("{c}")));
             }
         }
+        "select_account" | "switch_account" => {
+            if let Some(n) = v.get("username").and_then(|x| x.as_str()) {
+                out.push(arg("username", "账户", n));
+            }
+            if let Some(k) = v.get("kind").and_then(|x| x.as_str()) {
+                out.push(arg("kind", "类型", k));
+            }
+            if let Some(q) = v.get("query").and_then(|x| x.as_str()) {
+                out.push(arg("query", "关键词", q));
+            }
+        }
+        "open_screenshots" | "screenshots" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "截图数", format!("{c}")));
+            }
+            if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
+                out.push(arg("path", "文件夹", p));
+            }
+        }
         "import_mrpack" | "import_modpack" => {
             if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
                 out.push(arg("path", ".mrpack", p));
@@ -361,6 +385,12 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         }
         "list_accounts" if ok => {
             acts.push(ui("open_accounts", "去账户管理"));
+        }
+        "select_account" if ok => {
+            acts.push(ui("open_accounts", "去账户管理"));
+        }
+        "open_screenshots" if ok => {
+            acts.push(ui("reveal_path", "打开截图文件夹"));
         }
         _ => {}
     }

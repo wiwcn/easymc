@@ -40,6 +40,10 @@ pub enum Intent {
     OpenLatestLog { instance_id: Option<String> },
     /// List saved accounts (no tokens).
     ListAccounts,
+    /// Switch the active account by username / id query.
+    SelectAccount { query: String },
+    /// Open (or create) the screenshots folder for the current version.
+    OpenScreenshots { instance_id: Option<String> },
     /// Import a local Modrinth `.mrpack` (or EasyMC share) into a new version.
     ImportMrpack { path: String },
     /// Search Modrinth (+ CF if key) without installing — structured hits for agent cite / InstallMod.
@@ -517,6 +521,57 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
+    // switch account (before bare list keys that are substrings of longer phrases)
+    for (prefix, _) in [
+        ("切换账户 ", ()),
+        ("切换账号 ", ()),
+        ("选择账户 ", ()),
+        ("选择账号 ", ()),
+        ("换成账户 ", ()),
+        ("换成账号 ", ()),
+        ("用账户 ", ()),
+        ("用账号 ", ()),
+        ("switch account ", ()),
+        ("select account ", ()),
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty() && q.len() < 80 {
+                return IntentResult {
+                    intent: Intent::SelectAccount { query: q },
+                    confidence: 0.9,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在切换账户…".into(),
+                };
+            }
+        }
+    }
+    if (t.contains("切换账户") || t.contains("切换账号") || t.contains("换成账户") || t.contains("换成账号"))
+        && !t.contains("账户列表")
+        && !t.contains("账号列表")
+    {
+        let q = t
+            .replace("切换账户", " ")
+            .replace("切换账号", " ")
+            .replace("换成账户", " ")
+            .replace("换成账号", " ")
+            .replace("选择账户", " ")
+            .replace("选择账号", " ")
+            .replace("switch account", " ")
+            .replace("select account", " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !q.is_empty() && q.len() < 80 {
+            return IntentResult {
+                intent: Intent::SelectAccount { query: q },
+                confidence: 0.85,
+                matched: "切换账户".into(),
+                reply_zh: "正在切换账户…".into(),
+            };
+        }
+    }
+
     let acct_keys = [
         "账户列表",
         "账号列表",
@@ -538,6 +593,28 @@ pub fn route(input: &str) -> IntentResult {
             };
         }
     }
+
+    let shot_keys = [
+        "打开截图",
+        "截图文件夹",
+        "打开截图文件夹",
+        "截图在哪",
+        "看截图",
+        "screenshots",
+        "open screenshots",
+        "screenshot folder",
+    ];
+    for k in shot_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::OpenScreenshots { instance_id: None },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在定位截图文件夹…".into(),
+            };
+        }
+    }
+
 
     let import_keys = [
         "导入整合包",
@@ -869,6 +946,8 @@ pub fn help_text() -> String {
 · 「切换版本 1.21.1」— 把当前版本切到匹配的那一个
 · 「打开日志」— 定位当前版本的 latest.log / 崩溃报告
 · 「账户列表」— 看看已保存的正版 / 离线账号
+· 「切换账户 Steve」— 把当前账户切到匹配的那一个
+· 「打开截图」— 定位当前版本的截图文件夹
 · 「导入整合包 /path/to/pack.mrpack」— 把本地 .mrpack 装成新版本
 · 「制作整合包」— 从当前版本导出 Modrinth .mrpack 整合包
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
@@ -924,6 +1003,14 @@ mod tests {
             Intent::OpenLatestLog { .. }
         ));
         assert!(matches!(route("账户列表").intent, Intent::ListAccounts));
+        match route("切换账户 Steve").intent {
+            Intent::SelectAccount { query } => assert!(query.to_lowercase().contains("steve")),
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(
+            route("打开截图").intent,
+            Intent::OpenScreenshots { .. }
+        ));
         match route("导入整合包 /tmp/demo.mrpack").intent {
             Intent::ImportMrpack { path } => assert!(path.contains("mrpack")),
             other => panic!("{:?}", other),
