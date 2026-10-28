@@ -51,14 +51,15 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - 不把密钥写进 git
 - 不搬参照启动器的具体文案、素材与品牌皮；布局/IA 可对齐，视觉对齐后续推进
 
-## 周扫描备忘（2026-10-26）
+## 周扫描备忘（2026-10-28）
 
-核心参照仍活跃：Prism ★10.9k、HMCL ★10.7k、PCL ★9.3k、FCL ★5.1k、SJMCL ★769、Pandora ★942；`scl` 已久未更新。
+核心参照仍活跃：Prism / HMCL / PCL / FCL / SJMCL / Pandora；`scl` 已 archived。
 
-本周值得留意的新线（能力借鉴，不抄皮）：
-- [LumilioCL](https://github.com/EdwinZhanCN/LumilioCL) — Rust + GPUI
-- [OctaneLauncher](https://github.com/karlsson1000/OctaneLauncher) — 多加载器 + 内置模组浏览
-- [AlloyMC](https://github.com/Elchi-dev/AlloyMC) — Modrinth/CF URL 整合包、一键更新
-- Tauri 同族：swift-client、cookie-launcher、plume-launcher、nexus-launcher
+本周值得留意（能力借鉴，不抄皮）：
+- [OneLauncher](https://github.com/Polyfrost/OneLauncher) — 纯 Rust monorepo（launcher + client core）
+- [PandoraLauncher](https://github.com/Moulberry/PandoraLauncher) — 现代实例管理（持续更新）
+- [quantumlauncher](https://github.com/Mrmayman/quantumlauncher)、[nitrolaunch](https://github.com/Nitrolaunch/nitrolaunch)、[portablemc](https://github.com/theorzr/portablemc)
+- Tauri 同族：plume-launcher、swift-client、cookie-launcher、nexus-launcher
+- 另见 horizon-rust（服务端向，非启动器主参照）
 
-EasyMC 缺口对照（滚动）：实例导入多样性（Prism）、Agent/扩展协作（SJMCL）、Android 真启动（FCL，桌面优先后置）。
+EasyMC 缺口对照（滚动）：实例导入多样性（Prism/Pandora）、Agent/扩展协作（SJMCL）、游戏内文件夹快捷入口（本日已补 mods/资源包/光影/存档）、Android 真启动（FCL，桌面优先后置）。
