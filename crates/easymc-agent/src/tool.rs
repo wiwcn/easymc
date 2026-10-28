@@ -86,6 +86,11 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "list_accounts" => ("账户列表", Some("账户")),
         "select_account" | "switch_account" => ("切换账户", Some("账户")),
         "open_screenshots" | "screenshots" => ("打开截图", Some("文件")),
+        "open_mods" => ("打开模组文件夹", Some("文件")),
+        "open_resourcepacks" => ("打开资源包文件夹", Some("文件")),
+        "open_shaderpacks" => ("打开光影文件夹", Some("文件")),
+        "open_saves" => ("打开存档文件夹", Some("文件")),
+        "open_game_folder" => ("打开游戏文件夹", Some("文件")),
         "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
@@ -282,6 +287,25 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("path", "文件夹", p));
             }
         }
+        "open_mods" | "open_resourcepacks" | "open_shaderpacks" | "open_saves"
+        | "open_game_folder" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(k) = v
+                .get("kind_zh")
+                .and_then(|x| x.as_str())
+                .or_else(|| v.get("kind").and_then(|x| x.as_str()))
+            {
+                out.push(arg("kind", "类型", k));
+            }
+            if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
+                out.push(arg("count", "数量", format!("{c}")));
+            }
+            if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
+                out.push(arg("path", "文件夹", p));
+            }
+        }
         "import_mrpack" | "import_modpack" => {
             if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
                 out.push(arg("path", ".mrpack", p));
@@ -391,6 +415,19 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         }
         "open_screenshots" if ok => {
             acts.push(ui("reveal_path", "打开截图文件夹"));
+        }
+        "open_mods" | "open_resourcepacks" | "open_shaderpacks" | "open_saves"
+        | "open_game_folder"
+            if ok =>
+        {
+            let label = match name {
+                "open_mods" => "打开模组文件夹",
+                "open_resourcepacks" => "打开资源包文件夹",
+                "open_shaderpacks" => "打开光影文件夹",
+                "open_saves" => "打开存档文件夹",
+                _ => "打开文件夹",
+            };
+            acts.push(ui("reveal_path", label));
         }
         _ => {}
     }

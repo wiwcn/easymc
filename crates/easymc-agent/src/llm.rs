@@ -316,6 +316,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「版本列表」/ list_instances — 列出已装版本；\
 · 「切换版本 <名>」/ select_instance — 切换当前版本；\
 · 「打开日志」/ open_latest_log — 定位 latest.log 或崩溃报告；\
+· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
 不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
@@ -487,6 +488,23 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
         {
             "type": "function",
             "function": {
+                "name": "open_game_folder",
+                "description": "定位（必要时创建）当前版本的 mods / resourcepacks / shaderpacks / saves 文件夹。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "description": "mods | resourcepacks | shaderpacks | saves"
+                        }
+                    },
+                    "required": ["kind"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "ensure_java",
                 "description": "检查并准备合适的 Java。",
                 "parameters": {
@@ -626,6 +644,28 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
             }
         }
         "open_screenshots" | "screenshots" => "打开截图".into(),
+        "open_game_folder" | "open_mods" | "open_resourcepacks" | "open_shaderpacks"
+        | "open_saves" => {
+            let kind = args
+                .get("kind")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_ascii_lowercase();
+            match kind.as_str() {
+                "mods" | "mod" | "模组" => "打开模组文件夹".into(),
+                "resourcepacks" | "resourcepack" | "资源包" | "材质" | "材质包" => {
+                    "打开资源包".into()
+                }
+                "shaderpacks" | "shaderpack" | "shader" | "光影" | "光影包" => "打开光影".into(),
+                "saves" | "save" | "worlds" | "存档" | "世界" => "打开存档".into(),
+                _ if name == "open_mods" => "打开模组文件夹".into(),
+                _ if name == "open_resourcepacks" => "打开资源包".into(),
+                _ if name == "open_shaderpacks" => "打开光影".into(),
+                _ if name == "open_saves" => "打开存档".into(),
+                _ => "打开模组文件夹".into(),
+            }
+        }
         "ensure_java" => {
             let major = args.get("major").and_then(|x| x.as_u64()).unwrap_or(21);
             format!("确保 Java {major}")

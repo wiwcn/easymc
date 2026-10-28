@@ -1122,3 +1122,154 @@ pub fn open_screenshots(paths: &Paths, instance_id: Option<&str>) -> ActionResul
         })),
     }
 }
+
+
+/// Which game-dir subfolder to reveal (PCL/HMCL-style 「打开 xxx 文件夹」).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GameFolderKind {
+    Mods,
+    ResourcePacks,
+    ShaderPacks,
+    Saves,
+}
+
+impl GameFolderKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Mods => "mods",
+            Self::ResourcePacks => "resourcepacks",
+            Self::ShaderPacks => "shaderpacks",
+            Self::Saves => "saves",
+        }
+    }
+
+    pub fn label_zh(self) -> &'static str {
+        match self {
+            Self::Mods => "模组",
+            Self::ResourcePacks => "资源包",
+            Self::ShaderPacks => "光影",
+            Self::Saves => "存档",
+        }
+    }
+
+    pub fn dir_name(self) -> &'static str {
+        self.as_str()
+    }
+
+    pub fn empty_tip(self) -> &'static str {
+        match self {
+            Self::Mods => "还没有模组。去下载页装几个，或把 .jar 丢进这个文件夹。",
+            Self::ResourcePacks => "还没有资源包。把资源包 zip 丢进来，进游戏就能选。",
+            Self::ShaderPacks => "还没有光影包。装好光影模组后，把光影包丢进这里。",
+            Self::Saves => "还没有存档。进游戏新建或加入世界后会出现在这里。",
+        }
+    }
+
+    pub fn parse_loose(s: &str) -> Option<Self> {
+        let t = s.trim().to_ascii_lowercase();
+        match t.as_str() {
+            "mods" | "mod" | "模组" => Some(Self::Mods),
+            "resourcepacks" | "resourcepack" | "resource_packs" | "资源包" | "材质" | "材质包" => {
+                Some(Self::ResourcePacks)
+            }
+            "shaderpacks" | "shaderpack" | "shader_packs" | "shader" | "shaders" | "光影" | "光影包" => {
+                Some(Self::ShaderPacks)
+            }
+            "saves" | "save" | "worlds" | "world" | "存档" | "世界" => Some(Self::Saves),
+            _ => None,
+        }
+    }
+}
+
+/// Locate (and create if missing) a common game subfolder for the current version.
+pub fn open_game_folder(
+    paths: &Paths,
+    instance_id: Option<&str>,
+    kind: GameFolderKind,
+) -> ActionResult {
+    let action = format!("open_{}", kind.as_str());
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action,
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action,
+            message_zh: "还没有选版本。请先在启动页选一个，或说「版本列表」。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action,
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let game = paths.instance_game_dir(&id);
+    let folder = game.join(kind.dir_name());
+    if !folder.is_dir() {
+        if let Err(e) = fs::create_dir_all(&folder) {
+            return ActionResult {
+                ok: false,
+                action,
+                message_zh: format!("没法创建{}文件夹：{e}", kind.label_zh()),
+                path: Some(game.display().to_string()),
+                value: None,
+            };
+        }
+    }
+    let mut count = 0usize;
+    if let Ok(rd) = fs::read_dir(&folder) {
+        for e in rd.flatten() {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with('.') {
+                continue;
+            }
+            count += 1;
+        }
+    }
+    let tip = if count == 0 {
+        kind.empty_tip().to_string()
+    } else {
+        format!("里面大约有 {count} 项。")
+    };
+    ActionResult {
+        ok: true,
+        action,
+        message_zh: format!(
+            "版本「{}」的{}文件夹：\n{}\n{}",
+            inst.name,
+            kind.label_zh(),
+            folder.display(),
+            tip
+        ),
+        path: Some(folder.display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "kind": kind.as_str(),
+            "kind_zh": kind.label_zh(),
+            "path": folder.display().to_string(),
+            "count": count,
+        })),
+    }
+}

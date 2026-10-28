@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::actions::GameFolderKind;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Intent {
@@ -44,6 +46,11 @@ pub enum Intent {
     SelectAccount { query: String },
     /// Open (or create) the screenshots folder for the current version.
     OpenScreenshots { instance_id: Option<String> },
+    /// Open (or create) a common game subfolder: mods / resourcepacks / shaderpacks / saves.
+    OpenGameFolder {
+        folder: GameFolderKind,
+        instance_id: Option<String>,
+    },
     /// Import a local Modrinth `.mrpack` (or EasyMC share) into a new version.
     ImportMrpack { path: String },
     /// Search Modrinth (+ CF if key) without installing — structured hits for agent cite / InstallMod.
@@ -378,8 +385,79 @@ pub fn route(input: &str) -> IntentResult {
     }
 
 
+    // Open game subfolders (before「检查模组」so 「打开模组文件夹」wins)
+    let folder_specs: &[(&[&str], GameFolderKind)] = &[
+        (
+            &[
+                "打开模组文件夹",
+                "模组文件夹",
+                "打开 mods",
+                "mods 文件夹",
+                "mods文件夹",
+                "open mods folder",
+                "mods folder",
+            ],
+            GameFolderKind::Mods,
+        ),
+        (
+            &[
+                "打开资源包",
+                "资源包文件夹",
+                "打开材质",
+                "材质包文件夹",
+                "打开 resourcepacks",
+                "resourcepacks",
+                "open resource packs",
+                "resource pack folder",
+            ],
+            GameFolderKind::ResourcePacks,
+        ),
+        (
+            &[
+                "打开光影",
+                "光影文件夹",
+                "光影包文件夹",
+                "打开 shaderpacks",
+                "shaderpacks",
+                "open shaders",
+                "shader pack folder",
+            ],
+            GameFolderKind::ShaderPacks,
+        ),
+        (
+            &[
+                "打开存档",
+                "存档文件夹",
+                "打开世界",
+                "世界文件夹",
+                "打开 saves",
+                "saves 文件夹",
+                "saves文件夹",
+                "open saves",
+                "worlds folder",
+                "saves folder",
+            ],
+            GameFolderKind::Saves,
+        ),
+    ];
+    for (keys, kind) in folder_specs {
+        for k in *keys {
+            if t.contains(k) {
+                return IntentResult {
+                    intent: Intent::OpenGameFolder {
+                        folder: *kind,
+                        instance_id: None,
+                    },
+                    confidence: 0.9,
+                    matched: (*k).into(),
+                    reply_zh: format!("正在定位{}文件夹…", kind.label_zh()),
+                };
+            }
+        }
+    }
+
     // toggle / enable / disable mod
-    let toggle_enable_keys = ["启用模组", "开启模组", "打开模组", "enable mod", "enablemod"];
+    let toggle_enable_keys = ["启用模组", "开启模组", "enable mod", "enablemod"];
     let toggle_disable_keys = ["禁用模组", "关闭模组", "停用模组", "disable mod", "disablemod"];
     let toggle_flip_keys = ["切换模组", "toggle mod", "togglemod"];
     for (keys, enable) in [
@@ -948,6 +1026,7 @@ pub fn help_text() -> String {
 · 「账户列表」— 看看已保存的正版 / 离线账号
 · 「切换账户 Steve」— 把当前账户切到匹配的那一个
 · 「打开截图」— 定位当前版本的截图文件夹
+· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」— 定位常见游戏文件夹
 · 「导入整合包 /path/to/pack.mrpack」— 把本地 .mrpack 装成新版本
 · 「制作整合包」— 从当前版本导出 Modrinth .mrpack 整合包
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
@@ -1010,6 +1089,34 @@ mod tests {
         assert!(matches!(
             route("打开截图").intent,
             Intent::OpenScreenshots { .. }
+        ));
+        assert!(matches!(
+            route("打开模组文件夹").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::Mods,
+                ..
+            }
+        ));
+        assert!(matches!(
+            route("打开资源包").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::ResourcePacks,
+                ..
+            }
+        ));
+        assert!(matches!(
+            route("打开光影").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::ShaderPacks,
+                ..
+            }
+        ));
+        assert!(matches!(
+            route("打开存档").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::Saves,
+                ..
+            }
         ));
         match route("导入整合包 /tmp/demo.mrpack").intent {
             Intent::ImportMrpack { path } => assert!(path.contains("mrpack")),

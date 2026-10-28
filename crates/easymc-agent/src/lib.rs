@@ -12,9 +12,10 @@ mod service;
 mod tool;
 
 pub use actions::{
-    bump_memory, check_mods, env_status_summary, list_accounts, list_instances, open_latest_log,
-    open_screenshots, select_account, select_instance, set_download_source, show_data_dir,
-    show_instance_dir, toggle_mod, write_diagnostic_bundle, ActionResult,
+    bump_memory, check_mods, env_status_summary, list_accounts, list_instances, open_game_folder,
+    open_latest_log, open_screenshots, select_account, select_instance, set_download_source,
+    show_data_dir, show_instance_dir, toggle_mod, write_diagnostic_bundle, ActionResult,
+    GameFolderKind,
 };
 pub use diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 pub use intent::{route, Intent, IntentResult};
