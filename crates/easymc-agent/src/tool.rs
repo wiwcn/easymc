@@ -82,6 +82,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "toggle_mod" | "enable_mod" | "disable_mod" => ("启用/禁用模组", Some("模组")),
         "list_instances" | "list_versions" => ("版本列表", Some("版本")),
         "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
+        "rename_instance" | "rename_version" => ("重命名版本", Some("版本")),
+        "duplicate_instance" | "duplicate_version" | "copy_instance" => ("复制版本", Some("版本")),
         "open_latest_log" | "open_log" => ("打开日志", Some("文件")),
         "list_accounts" => ("账户列表", Some("账户")),
         "select_account" | "switch_account" => ("切换账户", Some("账户")),
@@ -90,6 +92,9 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_resourcepacks" => ("打开资源包文件夹", Some("文件")),
         "open_shaderpacks" => ("打开光影文件夹", Some("文件")),
         "open_saves" => ("打开存档文件夹", Some("文件")),
+        "open_config" => ("打开配置文件夹", Some("文件")),
+        "open_logs" => ("打开日志文件夹", Some("文件")),
+        "open_crash-reports" | "open_crash_reports" => ("打开崩溃报告文件夹", Some("文件")),
         "open_game_folder" => ("打开游戏文件夹", Some("文件")),
         "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
@@ -249,6 +254,28 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("query", "关键词", q));
             }
         }
+        "rename_instance" | "rename_version" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "新名称", n));
+            }
+            if let Some(p) = v.get("previous_name").and_then(|x| x.as_str()) {
+                out.push(arg("previous", "原名称", p));
+            }
+        }
+        "duplicate_instance" | "duplicate_version" | "copy_instance" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "新版本", n));
+            }
+            if let Some(s) = v.get("source_name").and_then(|x| x.as_str()) {
+                out.push(arg("source", "来源", s));
+            }
+            if let Some(ver) = v.get("version").and_then(|x| x.as_str()) {
+                out.push(arg("mc", "MC", ver));
+            }
+            if let Some(l) = v.get("loader").and_then(|x| x.as_str()) {
+                out.push(arg("loader", "加载器", l));
+            }
+        }
         "open_latest_log" | "open_log" => {
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "版本", n));
@@ -288,6 +315,7 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
             }
         }
         "open_mods" | "open_resourcepacks" | "open_shaderpacks" | "open_saves"
+        | "open_config" | "open_logs" | "open_crash-reports" | "open_crash_reports"
         | "open_game_folder" => {
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "版本", n));
@@ -403,6 +431,13 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         "select_instance" if ok => {
             acts.push(ui("open_home", "去启动页"));
         }
+        "rename_instance" if ok => {
+            acts.push(ui("open_home", "去启动页"));
+        }
+        "duplicate_instance" if ok => {
+            acts.push(ui("open_home", "去启动页"));
+            acts.push(ui("reveal_path", "打开新版本文件夹"));
+        }
         "open_latest_log" if ok => {
             acts.push(ui("reveal_path", "打开日志位置"));
             acts.push(ui("run_diagnose", "分析这份日志"));
@@ -417,6 +452,7 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
             acts.push(ui("reveal_path", "打开截图文件夹"));
         }
         "open_mods" | "open_resourcepacks" | "open_shaderpacks" | "open_saves"
+        | "open_config" | "open_logs" | "open_crash-reports" | "open_crash_reports"
         | "open_game_folder"
             if ok =>
         {
@@ -425,6 +461,9 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
                 "open_resourcepacks" => "打开资源包文件夹",
                 "open_shaderpacks" => "打开光影文件夹",
                 "open_saves" => "打开存档文件夹",
+                "open_config" => "打开配置文件夹",
+                "open_logs" => "打开日志文件夹",
+                "open_crash-reports" | "open_crash_reports" => "打开崩溃报告文件夹",
                 _ => "打开文件夹",
             };
             acts.push(ui("reveal_path", label));

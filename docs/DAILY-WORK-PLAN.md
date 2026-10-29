@@ -25,7 +25,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 |------|------|
 | 工作日约 10:00 | 例行开发：拉最新 → 对照参照/缺口清单推进 → Agent 工具/skill → 有实质改动则打 Windows 包 |
 | 每周至少一次 | GitHub 再搜 JE 启动器，更新「可借鉴」与缺口 |
-| 按需 | 定稿后更新 Release（当前线：v0.1.4） |
+| 按需 | 定稿后更新 Release（当前线：v0.1.5） |
 
 ## 每日清单（按优先级）
 
@@ -62,4 +62,9 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - Tauri 同族：plume-launcher、swift-client、cookie-launcher、nexus-launcher
 - 另见 horizon-rust（服务端向，非启动器主参照）
 
-EasyMC 缺口对照（滚动）：实例导入多样性（Prism/Pandora）、Agent/扩展协作（SJMCL）、游戏内文件夹快捷入口（本日已补 mods/资源包/光影/存档）、Android 真启动（FCL，桌面优先后置）。
+EasyMC 缺口对照（滚动）：实例导入多样性（Prism/Pandora）、Agent/扩展协作（SJMCL）、游戏内文件夹快捷入口（已补 mods/资源包/光影/存档/配置/日志/崩溃报告）、版本重命名与复制（2026-10-29 Agent）、Android 真启动（FCL，桌面优先后置）。
+
+## 日更备忘（2026-10-29）
+
+- Agent：`rename_instance` / `duplicate_instance`（工具卡 + skill）；`open_game_folder` 扩到 config / logs / crash-reports。
+- 线升到 v0.1.5；Windows Release 跟打。

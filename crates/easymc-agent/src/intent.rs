@@ -38,6 +38,17 @@ pub enum Intent {
     ListInstances,
     /// Switch the active instance by name / version / id query.
     SelectInstance { query: String },
+    /// Rename a version's display name (active if query omitted).
+    RenameInstance {
+        /// Optional name/version/loader/id to pick which version; None = current.
+        query: Option<String>,
+        new_name: String,
+    },
+    /// Duplicate a version (mods/resourcepacks/shaderpacks/config/datapacks; not saves).
+    DuplicateInstance {
+        query: Option<String>,
+        new_name: Option<String>,
+    },
     /// Reveal latest.log or newest crash-report path for the current version.
     OpenLatestLog { instance_id: Option<String> },
     /// List saved accounts (no tokens).
@@ -46,7 +57,7 @@ pub enum Intent {
     SelectAccount { query: String },
     /// Open (or create) the screenshots folder for the current version.
     OpenScreenshots { instance_id: Option<String> },
-    /// Open (or create) a common game subfolder: mods / resourcepacks / shaderpacks / saves.
+    /// Open (or create) a common game subfolder: mods / resourcepacks / shaderpacks / saves / config / logs / crash-reports.
     OpenGameFolder {
         folder: GameFolderKind,
         instance_id: Option<String>,
@@ -439,6 +450,41 @@ pub fn route(input: &str) -> IntentResult {
             ],
             GameFolderKind::Saves,
         ),
+        (
+            &[
+                "打开配置文件夹",
+                "配置文件夹",
+                "打开 config",
+                "config 文件夹",
+                "config文件夹",
+                "open config folder",
+                "config folder",
+            ],
+            GameFolderKind::Config,
+        ),
+        (
+            &[
+                "打开日志文件夹",
+                "日志文件夹",
+                "打开 logs",
+                "logs 文件夹",
+                "logs文件夹",
+                "open logs folder",
+                "logs folder",
+            ],
+            GameFolderKind::Logs,
+        ),
+        (
+            &[
+                "打开崩溃文件夹",
+                "崩溃报告文件夹",
+                "打开 crash-reports",
+                "crash-reports",
+                "crash reports folder",
+                "open crash reports",
+            ],
+            GameFolderKind::CrashReports,
+        ),
     ];
     for (keys, kind) in folder_specs {
         for k in *keys {
@@ -575,7 +621,97 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
-    let log_file_keys = [
+        // rename version: 「重命名版本 新名字」「改名成 xxx」「把版本改名叫 xxx」
+    for prefix in [
+        "重命名版本 ",
+        "重命名为 ",
+        "改名成 ",
+        "改名叫 ",
+        "改名为 ",
+        "rename version ",
+        "rename to ",
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let new_name = rest.trim().to_string();
+            if !new_name.is_empty() && new_name.len() < 64 {
+                return IntentResult {
+                    intent: Intent::RenameInstance {
+                        query: None,
+                        new_name,
+                    },
+                    confidence: 0.9,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在改版本名…".into(),
+                };
+            }
+        }
+    }
+    if t.contains("改名叫") || t.contains("改名为") || t.contains("重命名成") {
+        // 「把生存包改名叫硬核包」 / 「把版本改名叫 xxx」
+        for sep in ["改名叫", "改名为", "重命名成"] {
+            if let Some((left, right)) = t.split_once(sep) {
+                let new_name = right.trim().to_string();
+                if new_name.is_empty() || new_name.len() >= 64 {
+                    continue;
+                }
+                let left = left
+                    .replace("把版本", " ")
+                    .replace("把", " ")
+                    .replace("版本", " ")
+                    .replace("将", " ");
+                let q = left.split_whitespace().collect::<Vec<_>>().join(" ");
+                let query = if q.is_empty() { None } else { Some(q) };
+                return IntentResult {
+                    intent: Intent::RenameInstance { query, new_name },
+                    confidence: 0.88,
+                    matched: sep.into(),
+                    reply_zh: "正在改版本名…".into(),
+                };
+            }
+        }
+    }
+
+    // duplicate version: 「复制版本」「复制当前版本」「复制版本 新名字」
+    for prefix in ["复制版本 ", "复制为 ", "duplicate version ", "copy version "] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let new_name = rest.trim().to_string();
+            if !new_name.is_empty() && new_name.len() < 64 {
+                return IntentResult {
+                    intent: Intent::DuplicateInstance {
+                        query: None,
+                        new_name: Some(new_name),
+                    },
+                    confidence: 0.9,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在复制版本…".into(),
+                };
+            }
+        }
+    }
+    let dup_keys = [
+        "复制版本",
+        "复制当前版本",
+        "拷贝版本",
+        "克隆版本",
+        "duplicate version",
+        "copy version",
+        "duplicate instance",
+    ];
+    for k in dup_keys {
+        if t == k || t.contains(k) {
+            return IntentResult {
+                intent: Intent::DuplicateInstance {
+                    query: None,
+                    new_name: None,
+                },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在复制版本…".into(),
+            };
+        }
+    }
+
+let log_file_keys = [
         "打开日志",
         "打开最新日志",
         "最新日志",
@@ -1022,11 +1158,13 @@ pub fn help_text() -> String {
 · 「禁用 sodium」/「启用 iris」— 启用或禁用模组（改名 .jar.disabled）
 · 「版本列表」— 看看已安装了哪些版本
 · 「切换版本 1.21.1」— 把当前版本切到匹配的那一个
+· 「重命名版本 我的生存包」— 改当前版本显示名
+· 「复制版本」— 复制当前版本（模组等一起拷，不含存档）
 · 「打开日志」— 定位当前版本的 latest.log / 崩溃报告
 · 「账户列表」— 看看已保存的正版 / 离线账号
 · 「切换账户 Steve」— 把当前账户切到匹配的那一个
 · 「打开截图」— 定位当前版本的截图文件夹
-· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」— 定位常见游戏文件夹
+· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」— 定位常见游戏文件夹
 · 「导入整合包 /path/to/pack.mrpack」— 把本地 .mrpack 装成新版本
 · 「制作整合包」— 从当前版本导出 Modrinth .mrpack 整合包
 · 「一键环境」— 按当前版本准备 Java，并汇报内存与下载源
@@ -1118,6 +1256,44 @@ mod tests {
                 ..
             }
         ));
+        assert!(matches!(
+            route("打开配置文件夹").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::Config,
+                ..
+            }
+        ));
+        assert!(matches!(
+            route("打开日志文件夹").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::Logs,
+                ..
+            }
+        ));
+        assert!(matches!(
+            route("打开崩溃文件夹").intent,
+            Intent::OpenGameFolder {
+                folder: GameFolderKind::CrashReports,
+                ..
+            }
+        ));
+        match route("重命名版本 生存包").intent {
+            Intent::RenameInstance { query, new_name } => {
+                assert!(query.is_none());
+                assert!(new_name.contains("生存"));
+            }
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(
+            route("复制版本").intent,
+            Intent::DuplicateInstance { .. }
+        ));
+        match route("复制版本 硬核包").intent {
+            Intent::DuplicateInstance { new_name, .. } => {
+                assert_eq!(new_name.as_deref(), Some("硬核包"));
+            }
+            other => panic!("{:?}", other),
+        }
         match route("导入整合包 /tmp/demo.mrpack").intent {
             Intent::ImportMrpack { path } => assert!(path.contains("mrpack")),
             other => panic!("{:?}", other),

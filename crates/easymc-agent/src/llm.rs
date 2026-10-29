@@ -315,8 +315,10 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「禁用/启用 <模组>」/ toggle_mod — 启用或禁用模组；\
 · 「版本列表」/ list_instances — 列出已装版本；\
 · 「切换版本 <名>」/ select_instance — 切换当前版本；\
+· 「重命名版本 <新名>」/ rename_instance — 改当前版本显示名；\
+· 「复制版本」/ duplicate_instance — 复制当前版本（模组等，不含存档）；\
 · 「打开日志」/ open_latest_log — 定位 latest.log 或崩溃报告；\
-· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/ open_game_folder — 定位常见游戏文件夹；\
+· 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
 不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
@@ -450,6 +452,35 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
         {
             "type": "function",
             "function": {
+                "name": "rename_instance",
+                "description": "修改版本的显示名称（默认当前版本；可带 query 指定）。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "new_name": { "type": "string", "description": "新的显示名" },
+                        "query": { "type": "string", "description": "可选：要改名的版本关键词" }
+                    },
+                    "required": ["new_name"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "duplicate_instance",
+                "description": "复制版本（模组/资源包/光影/配置/数据包；不含存档）。默认当前版本。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "new_name": { "type": "string", "description": "可选：副本显示名" },
+                        "query": { "type": "string", "description": "可选：要复制的版本关键词" }
+                    }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "open_latest_log",
                 "description": "定位当前版本的 latest.log 或最新崩溃报告文件路径，便于玩家打开或继续诊断。",
                 "parameters": { "type": "object", "properties": {} }
@@ -489,13 +520,13 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
             "type": "function",
             "function": {
                 "name": "open_game_folder",
-                "description": "定位（必要时创建）当前版本的 mods / resourcepacks / shaderpacks / saves 文件夹。",
+                "description": "定位（必要时创建）当前版本的 mods / resourcepacks / shaderpacks / saves / config / logs / crash-reports 文件夹。",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "kind": {
                             "type": "string",
-                            "description": "mods | resourcepacks | shaderpacks | saves"
+                            "description": "mods | resourcepacks | shaderpacks | saves | config | logs | crash-reports"
                         }
                     },
                     "required": ["kind"]
@@ -629,6 +660,30 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
                 format!("切换版本 {q}")
             }
         }
+        "rename_instance" | "rename_version" => {
+            let name = args
+                .get("new_name")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if name.is_empty() {
+                "重命名版本".into()
+            } else {
+                format!("重命名版本 {name}")
+            }
+        }
+        "duplicate_instance" | "duplicate_version" | "copy_instance" => {
+            let name = args
+                .get("new_name")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if name.is_empty() {
+                "复制版本".into()
+            } else {
+                format!("复制版本 {name}")
+            }
+        }
         "open_latest_log" | "open_log" => "打开日志".into(),
         "list_accounts" => "账户列表".into(),
         "select_account" | "switch_account" => {
@@ -645,7 +700,7 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
         }
         "open_screenshots" | "screenshots" => "打开截图".into(),
         "open_game_folder" | "open_mods" | "open_resourcepacks" | "open_shaderpacks"
-        | "open_saves" => {
+        | "open_saves" | "open_config" | "open_logs" | "open_crash-reports" | "open_crash_reports" => {
             let kind = args
                 .get("kind")
                 .and_then(|x| x.as_str())
@@ -659,10 +714,15 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
                 }
                 "shaderpacks" | "shaderpack" | "shader" | "光影" | "光影包" => "打开光影".into(),
                 "saves" | "save" | "worlds" | "存档" | "世界" => "打开存档".into(),
+                "config" | "配置" => "打开配置文件夹".into(),
+                "logs" | "log" | "日志" => "打开日志文件夹".into(),
+                "crash-reports" | "crash_reports" | "crash" | "崩溃报告" => "打开崩溃文件夹".into(),
                 _ if name == "open_mods" => "打开模组文件夹".into(),
                 _ if name == "open_resourcepacks" => "打开资源包".into(),
                 _ if name == "open_shaderpacks" => "打开光影".into(),
                 _ if name == "open_saves" => "打开存档".into(),
+                _ if name == "open_config" => "打开配置文件夹".into(),
+                _ if name == "open_logs" => "打开日志文件夹".into(),
                 _ => "打开模组文件夹".into(),
             }
         }

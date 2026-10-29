@@ -7,8 +7,9 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use easymc_core::{
-    load_accounts, load_instances, load_settings, save_accounts, save_settings, set_active_instance,
-    AccountKind, DownloadSource, Paths, Result,
+    duplicate_instance as core_duplicate_instance, load_accounts, load_instances, load_settings,
+    save_accounts, save_settings, set_active_instance, update_instance_fields, AccountKind,
+    DownloadSource, Instance, Paths, Result,
 };
 
 use crate::diagnose::DiagnoseReport;
@@ -1132,6 +1133,9 @@ pub enum GameFolderKind {
     ResourcePacks,
     ShaderPacks,
     Saves,
+    Config,
+    Logs,
+    CrashReports,
 }
 
 impl GameFolderKind {
@@ -1141,6 +1145,9 @@ impl GameFolderKind {
             Self::ResourcePacks => "resourcepacks",
             Self::ShaderPacks => "shaderpacks",
             Self::Saves => "saves",
+            Self::Config => "config",
+            Self::Logs => "logs",
+            Self::CrashReports => "crash-reports",
         }
     }
 
@@ -1150,6 +1157,9 @@ impl GameFolderKind {
             Self::ResourcePacks => "资源包",
             Self::ShaderPacks => "光影",
             Self::Saves => "存档",
+            Self::Config => "配置",
+            Self::Logs => "日志",
+            Self::CrashReports => "崩溃报告",
         }
     }
 
@@ -1163,6 +1173,9 @@ impl GameFolderKind {
             Self::ResourcePacks => "还没有资源包。把资源包 zip 丢进来，进游戏就能选。",
             Self::ShaderPacks => "还没有光影包。装好光影模组后，把光影包丢进这里。",
             Self::Saves => "还没有存档。进游戏新建或加入世界后会出现在这里。",
+            Self::Config => "还没有配置文件。装模组并进过游戏后，配置会生成在这里。",
+            Self::Logs => "还没有日志。启动过游戏后，这里会出现 latest.log。",
+            Self::CrashReports => "还没有崩溃报告。游戏闪退时会在这里留下报告。",
         }
     }
 
@@ -1177,6 +1190,11 @@ impl GameFolderKind {
                 Some(Self::ShaderPacks)
             }
             "saves" | "save" | "worlds" | "world" | "存档" | "世界" => Some(Self::Saves),
+            "config" | "configs" | "配置" | "配置文件夹" => Some(Self::Config),
+            "logs" | "log" | "日志" | "日志文件夹" => Some(Self::Logs),
+            "crash-reports" | "crash_reports" | "crashreports" | "crash" | "崩溃报告" | "崩溃文件夹" => {
+                Some(Self::CrashReports)
+            }
             _ => None,
         }
     }
@@ -1271,5 +1289,210 @@ pub fn open_game_folder(
             "path": folder.display().to_string(),
             "count": count,
         })),
+    }
+}
+
+
+/// Resolve one instance: active when `query` empty; otherwise name/version/loader/id match.
+fn resolve_one_instance(
+    store: &easymc_core::InstanceStore,
+    query: Option<&str>,
+    action: &str,
+) -> std::result::Result<Instance, ActionResult> {
+    if store.instances.is_empty() {
+        return Err(ActionResult {
+            ok: false,
+            action: action.into(),
+            message_zh: "还没有安装任何版本。去「下载」页装一个吧。".into(),
+            path: None,
+            value: Some(serde_json::json!({ "count": 0 })),
+        });
+    }
+    let q = query.map(|s| s.trim()).filter(|s| !s.is_empty());
+    if q.is_none() {
+        let id = store.active_id.clone().ok_or_else(|| ActionResult {
+            ok: false,
+            action: action.into(),
+            message_zh: "还没有选版本。请先在启动页选一个，或说「版本列表」。".into(),
+            path: None,
+            value: None,
+        })?;
+        return store
+            .instances
+            .iter()
+            .find(|i| i.id == id)
+            .cloned()
+            .ok_or_else(|| ActionResult {
+                ok: false,
+                action: action.into(),
+                message_zh: format!("找不到版本 {id}"),
+                path: None,
+                value: None,
+            });
+    }
+    let q = q.unwrap();
+    let ql = q.to_lowercase();
+    let matches: Vec<_> = store
+        .instances
+        .iter()
+        .filter(|inst| {
+            inst.id.to_lowercase().contains(&ql)
+                || inst.name.to_lowercase().contains(&ql)
+                || inst.version.0.to_lowercase().contains(&ql)
+                || inst.loader.as_str().to_lowercase().contains(&ql)
+        })
+        .collect();
+    if matches.is_empty() {
+        let names: Vec<_> = store.instances.iter().map(|i| i.name.as_str()).collect();
+        return Err(ActionResult {
+            ok: false,
+            action: action.into(),
+            message_zh: format!("没找到匹配「{q}」的版本。已安装：{}", names.join("、")),
+            path: None,
+            value: Some(serde_json::json!({ "query": q, "count": store.instances.len() })),
+        });
+    }
+    if matches.len() > 1 {
+        let lines: Vec<_> = matches
+            .iter()
+            .map(|i| format!("{} · {} · {}", i.name, i.version.0, i.loader.as_str()))
+            .collect();
+        return Err(ActionResult {
+            ok: false,
+            action: action.into(),
+            message_zh: format!("「{q}」匹配到多个版本，请说得更具体一点：\n{}", lines.join("\n")),
+            path: None,
+            value: Some(serde_json::json!({
+                "query": q,
+                "matches": matches.iter().map(|i| serde_json::json!({
+                    "id": i.id,
+                    "name": i.name,
+                    "version": i.version.0,
+                    "loader": i.loader.as_str(),
+                })).collect::<Vec<_>>(),
+            })),
+        });
+    }
+    Ok(matches[0].clone())
+}
+
+/// Rename the active (or matched) version's display name.
+pub fn rename_instance(paths: &Paths, query: Option<&str>, new_name: &str) -> ActionResult {
+    let new_name = new_name.trim();
+    if new_name.is_empty() || new_name.len() > 64 {
+        return ActionResult {
+            ok: false,
+            action: "rename_instance".into(),
+            message_zh: "请给一个合适的新名字，例如：重命名版本 我的生存包".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "rename_instance".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let target = match resolve_one_instance(&store, query, "rename_instance") {
+        Ok(i) => i,
+        Err(ar) => return ar,
+    };
+    if target.name == new_name {
+        return ActionResult {
+            ok: true,
+            action: "rename_instance".into(),
+            message_zh: format!("版本已经叫「{new_name}」，不用改。"),
+            path: Some(target.game_dir.clone()),
+            value: Some(serde_json::json!({
+                "instance_id": target.id,
+                "instance_name": target.name,
+                "changed": false,
+            })),
+        };
+    }
+    let old = target.name.clone();
+    match update_instance_fields(paths, &target.id, |inst| {
+        inst.name = new_name.to_string();
+    }) {
+        Ok(inst) => ActionResult {
+            ok: true,
+            action: "rename_instance".into(),
+            message_zh: format!("已把版本「{old}」改名为「{}」。", inst.name),
+            path: Some(inst.game_dir.clone()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "previous_name": old,
+                "changed": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "rename_instance".into(),
+            message_zh: format!("改名失败：{e}"),
+            path: None,
+            value: None,
+        },
+    }
+}
+
+/// Duplicate the active (or matched) version; copies mods/resourcepacks/shaderpacks/config/datapacks.
+pub fn duplicate_version(
+    paths: &Paths,
+    query: Option<&str>,
+    new_name: Option<&str>,
+) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "duplicate_instance".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let target = match resolve_one_instance(&store, query, "duplicate_instance") {
+        Ok(i) => i,
+        Err(ar) => return ar,
+    };
+    let name_opt = new_name.map(|s| s.trim()).filter(|s| !s.is_empty());
+    match core_duplicate_instance(paths, &target.id, name_opt) {
+        Ok(copy) => ActionResult {
+            ok: true,
+            action: "duplicate_instance".into(),
+            message_zh: format!(
+                "已复制「{}」→「{}」（{} · {}）。\n模组 / 资源包 / 光影 / 配置已尽量拷过去，存档没有复制。",
+                target.name,
+                copy.name,
+                copy.version.0,
+                copy.loader.as_str()
+            ),
+            path: Some(copy.game_dir.clone()),
+            value: Some(serde_json::json!({
+                "instance_id": copy.id,
+                "instance_name": copy.name,
+                "source_id": target.id,
+                "source_name": target.name,
+                "version": copy.version.0,
+                "loader": copy.loader.as_str(),
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "duplicate_instance".into(),
+            message_zh: format!("复制版本失败：{e}"),
+            path: None,
+            value: None,
+        },
     }
 }
