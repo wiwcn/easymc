@@ -1663,6 +1663,19 @@ async fn agent_ask(
         }
     }
     resp.tool = refresh_ask_tool(resp.action.as_ref(), resp.report.as_ref());
+    // Keep multi-step `tools` in sync with the host-refreshed primary card.
+    if let Some(ref t) = resp.tool {
+        if resp.tools.is_empty() {
+            resp.tools = vec![t.clone()];
+        } else if let Some(last) = resp.tools.last_mut() {
+            // Prefer replacing last card when same action family, else append.
+            if last.name == t.name || last.status == easymc_agent::ToolStatus::Running {
+                *last = t.clone();
+            } else {
+                resp.tools.push(t.clone());
+            }
+        }
+    }
     Ok(resp)
 }
 

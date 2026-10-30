@@ -37,8 +37,10 @@ type ChatTurn = {
   proposal?: ChangeProposalDto | null;
   /** applied | undone | pending */
   proposalStatus?: "pending" | "applied" | "undone";
-  /** Normalized tool card (one per assistant turn that ran a tool). */
+  /** Primary / last tool card (compat with single-tool turns). */
   tool?: ToolCallDto | null;
+  /** All tool cards from a multi-step agent loop. */
+  tools?: ToolCallDto[];
 };
 
 
@@ -91,6 +93,12 @@ const TOOL_TITLES: Record<string, string> = {
   create_modpack: "制作整合包",
   export_modpack: "制作整合包",
   diagnostics: "导出问题报告",
+  delete_instance: "删除版本",
+  delete_version: "删除版本",
+  remove_instance: "删除版本",
+  delete_mod: "删除模组",
+  remove_mod: "删除模组",
+  uninstall_mod: "删除模组",
   diagnose: "查看崩溃",
   analyze_crash_log: "查看崩溃",
   analyze_launch_log: "查看崩溃",
@@ -780,6 +788,7 @@ export class AgentPage extends LitElement {
           content: "好的，我来处理。",
           mode: "running",
           tool: runningHint,
+          tools: [runningHint],
         },
       ];
     }
@@ -797,7 +806,12 @@ export class AgentPage extends LitElement {
       let content = resp.reply_zh;
       let proposal: ChangeProposalDto | null = null;
       let proposalStatus: ChatTurn["proposalStatus"];
-      let tool = asTool(resp.tool) ?? (resp.action ? asTool({
+      const toolsFromResp: ToolCallDto[] = (resp.tools ?? [])
+        .map((x) => asTool(x))
+        .filter((x): x is ToolCallDto => !!x);
+      let tool = asTool(resp.tool)
+        ?? toolsFromResp[toolsFromResp.length - 1]
+        ?? (resp.action ? asTool({
         id: `from-action-${Date.now()}`,
         name: resp.action.action,
         title_zh: TOOL_TITLES[resp.action.action] || "工具",
@@ -809,6 +823,11 @@ export class AgentPage extends LitElement {
         ui_actions: [],
         tag_zh: null,
       }) : null);
+      let tools: ToolCallDto[] = toolsFromResp.length
+        ? toolsFromResp
+        : tool
+          ? [tool]
+          : [];
       if (resp.action) {
         if (resp.action.action === "propose_changes") {
           proposal = asProposal(resp.action.value) ?? asProposal(tool?.payload);
@@ -825,6 +844,11 @@ export class AgentPage extends LitElement {
                 { id: "undo_proposal", label_zh: "撤销" },
               ],
             };
+            if (tools.length) {
+              tools = [...tools.slice(0, -1), tool];
+            } else {
+              tools = [tool];
+            }
           }
         } else {
           content = this.enrichActionReply(content, resp.action);
@@ -835,6 +859,7 @@ export class AgentPage extends LitElement {
       if (tool?.result_zh && content.trim() === tool.result_zh.trim()) {
         content = tool.status === "error" ? "这次没做成。" : "好了。";
       }
+      if (tools.length === 0 && tool) tools = [tool];
       const assistantTurn: ChatTurn = {
         role: "assistant",
         content,
@@ -842,6 +867,7 @@ export class AgentPage extends LitElement {
         proposal,
         proposalStatus,
         tool,
+        tools,
       };
       if (runningHint) {
         // Replace the optimistic running turn.
@@ -1649,7 +1675,13 @@ ${extraContent}` : t.content,
                       <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
                       <div>
                         <div class="bubble">${t.content}</div>
-                        ${t.role === "assistant" ? (t.tool ? this.renderToolCard(t, idx) : this.renderProposal(t, idx)) : nothing}
+                        ${t.role === "assistant"
+                          ? (t.tools?.length
+                              ? html`<div class="tool-stack">${t.tools.map((tc) => this.renderToolCard({ ...t, tool: tc }, idx))}</div>`
+                              : t.tool
+                                ? this.renderToolCard(t, idx)
+                                : this.renderProposal(t, idx))
+                          : nothing}
                         ${t.mode
                           ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
                           : null}

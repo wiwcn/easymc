@@ -10,7 +10,9 @@ use crate::actions::{
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
-use crate::llm::{llm_status, system_prompt_zh, tool_call_to_utterance, LlmStatus, OpenAiCompatibleProvider};
+use crate::agent_loop::{run_agent_loop, AgentLoopConfig, DEFAULT_MAX_TURNS};
+use crate::llm::{llm_status, LlmStatus, OpenAiCompatibleProvider};
+use crate::skills::skill_augmented_system_prompt;
 use crate::propose::{
     build_tune_proposal, oom_suggested_mb, proposal_to_action, ChangeProposal,
 };
@@ -34,8 +36,11 @@ pub struct AskResponse {
     pub reply_zh: String,
     pub report: Option<DiagnoseReport>,
     pub action: Option<ActionResult>,
-    /// Normalized tool card for the UI (derived from action / diagnose).
+    /// Normalized tool card for the UI (derived from action / diagnose) — last / primary.
     pub tool: Option<crate::tool::ToolCall>,
+    /// All tool cards from a multi-step agent loop (Lit can render multiple).
+    #[serde(default)]
+    pub tools: Vec<crate::tool::ToolCall>,
     pub llm: LlmStatus,
 }
 
@@ -387,7 +392,26 @@ fn make_ask_response(
     action: Option<ActionResult>,
     llm: LlmStatus,
 ) -> AskResponse {
-    let tool = crate::tool::attach_tool_to_ask(action.as_ref(), report.as_ref());
+    make_ask_response_with_tools(mode, intent, reply_zh, report, action, Vec::new(), llm)
+}
+
+fn make_ask_response_with_tools(
+    mode: impl Into<String>,
+    intent: Option<IntentResult>,
+    reply_zh: String,
+    report: Option<DiagnoseReport>,
+    action: Option<ActionResult>,
+    tools: Vec<crate::tool::ToolCall>,
+    llm: LlmStatus,
+) -> AskResponse {
+    let tool = tools.last().cloned().or_else(|| {
+        crate::tool::attach_tool_to_ask(action.as_ref(), report.as_ref())
+    });
+    let tools = if tools.is_empty() {
+        tool.clone().into_iter().collect()
+    } else {
+        tools
+    };
     AskResponse {
         mode: mode.into(),
         intent,
@@ -395,6 +419,7 @@ fn make_ask_response(
         report,
         action,
         tool,
+        tools,
         llm,
     }
 }
@@ -495,7 +520,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
         ));
     }
 
-    // Help / Unknown → LLM chat if configured (with tool schemas).
+    // Help / Unknown → multi-step LLM agent loop if configured (tool schemas + refeed).
     if use_llm {
         if let Some(provider) = OpenAiCompatibleProvider::try_from_env() {
             let mut user = req.text.clone();
@@ -509,55 +534,37 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
             {
                 let report = run_diagnose(paths, req.instance_id.clone(), req.process_logs.clone());
                 user.push_str(&format!(
-                    "
-
-[本地诊断上下文] {}
-日志摘录：
-{}",
+                    "\n\n[本地诊断上下文] {}\n日志摘录：\n{}",
                     report.summary_zh,
                     truncate(&report.log_excerpt, 4000)
                 ));
             }
             let msgs = build_messages(&req.history, &user);
-            match provider.complete_raw(&msgs, true).await {
-                Ok(completion) => {
-                    if let Some(tc) = completion.tool_calls.first() {
-                        let utterance = tool_call_to_utterance(&tc.name, &tc.arguments);
-                        let routed = route(&utterance);
-                        let (reply, report, action) = execute_intent(
-                            paths,
-                            &routed.intent,
-                            req.process_logs.clone(),
-                            req.instance_id.clone(),
-                        )
-                        .await?;
-                        let mut reply_zh = reply;
-                        if !completion.content.trim().is_empty()
-                            && completion.content.trim() != "(空回复)"
-                        {
-                            reply_zh = format!(
-                                "{}
-
-{}",
-                                completion.content.trim(),
-                                reply_zh
-                            );
-                        }
-                        return Ok(make_ask_response(
-                            "llm+tool",
-                            Some(routed),
-                            reply_zh,
-                            report,
-                            action,
-                            status,
-                        ));
-                    }
-                    return Ok(make_ask_response(
-                        "llm",
+            match run_agent_loop(
+                &provider,
+                paths,
+                msgs,
+                req.process_logs.clone(),
+                req.instance_id.clone(),
+                AgentLoopConfig {
+                    max_turns: DEFAULT_MAX_TURNS,
+                },
+            )
+            .await
+            {
+                Ok(loop_result) => {
+                    let mode = if loop_result.tools.is_empty() {
+                        "llm"
+                    } else {
+                        "llm+agent"
+                    };
+                    return Ok(make_ask_response_with_tools(
+                        mode,
                         Some(intent),
-                        completion.content,
-                        None,
-                        None,
+                        loop_result.reply_zh,
+                        loop_result.report,
+                        loop_result.action,
+                        loop_result.tools,
                         status,
                     ));
                 }
@@ -566,8 +573,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                     return Ok(make_ask_response(
                         "rules_fallback",
                         Some(intent),
-                        format!("LLM 不可用（{e}）。
-{fallback}"),
+                        format!("LLM 不可用（{e}）。\n{fallback}"),
                         None,
                         None,
                         status,
@@ -592,7 +598,10 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
 fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {
     let mut msgs = vec![ChatMessage {
         role: "system".into(),
-        content: system_prompt_zh().into(),
+        content: skill_augmented_system_prompt(user),
+        tool_call_id: None,
+        name: None,
+        tool_calls: vec![],
     }];
     for h in history
         .iter()
@@ -602,14 +611,23 @@ fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {
         .into_iter()
         .rev()
     {
-        if h.role == "system" {
+        if h.role == "system" || h.role == "tool" {
             continue;
         }
-        msgs.push(h.clone());
+        msgs.push(ChatMessage {
+            role: h.role.clone(),
+            content: h.content.clone(),
+            tool_call_id: None,
+            name: None,
+            tool_calls: vec![],
+        });
     }
     msgs.push(ChatMessage {
         role: "user".into(),
         content: user.into(),
+        tool_call_id: None,
+        name: None,
+        tool_calls: vec![],
     });
     msgs
 }

@@ -271,7 +271,10 @@ export interface AgentAskResponse {
   reply_zh: string;
   report?: DiagnoseReportDto | null;
   action?: AgentActionDto | null;
+  /** Last / primary tool card (compat). */
   tool?: ToolCallDto | null;
+  /** All tool cards from a multi-step agent loop. */
+  tools?: ToolCallDto[];
   llm: LlmStatusDto;
 }
 

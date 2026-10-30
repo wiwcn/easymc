@@ -111,7 +111,7 @@ impl OpenAiCompatibleProvider {
 #[derive(Serialize)]
 struct ChatRequest<'a> {
     model: &'a str,
-    messages: &'a [ApiMessage<'a>],
+    messages: &'a [ApiMessage],
     temperature: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<&'a serde_json::Value>,
@@ -120,9 +120,30 @@ struct ChatRequest<'a> {
 }
 
 #[derive(Serialize)]
-struct ApiMessage<'a> {
-    role: &'a str,
-    content: &'a str,
+struct ApiMessage {
+    role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<ApiToolCallOut>>,
+}
+
+#[derive(Serialize)]
+struct ApiToolCallOut {
+    id: String,
+    #[serde(rename = "type")]
+    kind: String,
+    function: ApiToolFnOut,
+}
+
+#[derive(Serialize)]
+struct ApiToolFnOut {
+    name: String,
+    arguments: String,
 }
 
 #[derive(Deserialize)]
@@ -146,7 +167,6 @@ struct ChoiceMessage {
 #[derive(Debug, Clone, Deserialize)]
 struct ApiToolCall {
     #[serde(default)]
-    #[allow(dead_code)]
     id: String,
     #[serde(default)]
     #[serde(rename = "type")]
@@ -165,6 +185,8 @@ struct ApiToolFn {
 /// One tool the cloud model asked to run (host maps to local Intent).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmToolCall {
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     pub arguments: serde_json::Value,
 }
@@ -202,11 +224,42 @@ impl OpenAiCompatibleProvider {
         messages: &[ChatMessage],
         with_tools: bool,
     ) -> Result<LlmCompletion> {
-        let api_msgs: Vec<ApiMessage<'_>> = messages
+        let api_msgs: Vec<ApiMessage> = messages
             .iter()
-            .map(|m| ApiMessage {
-                role: m.role.as_str(),
-                content: m.content.as_str(),
+            .map(|m| {
+                let tool_calls = if m.tool_calls.is_empty() {
+                    None
+                } else {
+                    Some(
+                        m.tool_calls
+                            .iter()
+                            .map(|tc| ApiToolCallOut {
+                                id: if tc.id.is_empty() {
+                                    format!("call_{}", tc.name)
+                                } else {
+                                    tc.id.clone()
+                                },
+                                kind: "function".into(),
+                                function: ApiToolFnOut {
+                                    name: tc.name.clone(),
+                                    arguments: tc.arguments.to_string(),
+                                },
+                            })
+                            .collect(),
+                    )
+                };
+                let content = if m.content.is_empty() && tool_calls.is_some() {
+                    None
+                } else {
+                    Some(m.content.clone())
+                };
+                ApiMessage {
+                    role: m.role.clone(),
+                    content,
+                    tool_call_id: m.tool_call_id.clone(),
+                    name: m.name.clone(),
+                    tool_calls,
+                }
             })
             .collect();
         let tools = cloud_tool_definitions();
@@ -262,6 +315,7 @@ impl OpenAiCompatibleProvider {
                     let arguments: serde_json::Value = serde_json::from_str(&f.arguments)
                         .unwrap_or_else(|_| serde_json::json!({}));
                     tool_calls.push(LlmToolCall {
+                        id: tc.id,
                         name: f.name,
                         arguments,
                     });
@@ -323,7 +377,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
-不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。"
+不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。你可多步调用工具：先看（诊断/日志/模组列表）→ 再做（建议更改等）→ 再验证（再诊断）。删除版本/模组、启用禁用模组、直接改内存等危险操作不会自动执行，需玩家确认。"
 }
 
 /// OpenAI-compatible tool definitions the cloud model may call (host still executes).

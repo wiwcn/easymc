@@ -25,7 +25,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 |------|------|
 | 工作日约 10:00 | 例行开发：拉最新 → 对照参照/缺口清单推进 → Agent 工具/skill → 有实质改动则打 Windows 包 |
 | 每周至少一次 | GitHub 再搜 JE 启动器，更新「可借鉴」与缺口 |
-| 按需 | 定稿后更新 Release（当前线：v0.1.6） |
+| 按需 | 定稿后更新 Release（当前线：v0.1.7） |
 
 ## 每日清单（按优先级）
 
@@ -67,8 +67,9 @@ EasyMC 缺口对照（滚动）：实例导入多样性（Prism/Pandora）、Age
 
 ## 日更备忘（2026-10-30）
 
+- Agent：**pi-style AgentLoop**（max_turns 8，执行全部 tool_calls，role=tool 回灌；危险工具 propose/confirm）+ skill 1–3 注入；NOTICE 标注 pi / OpenAI Agents / dsh 模式。线升到 **v0.1.7**。
 - Agent：`delete_instance` / `delete_mod`（工具卡 + skill）；永久删除需说清目标，多命中模组会拒删。
-- 线升到 v0.1.6；Windows Release 跟打。
+- （历史）线升到 v0.1.6；Windows Release 跟打。
 
 ## 日更备忘（2026-10-29）
 

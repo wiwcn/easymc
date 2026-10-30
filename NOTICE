@@ -1,0 +1,30 @@
+EasyMC third-party attributions (MIT / freely reusable agent patterns)
+==============================================================================
+
+This file attributes design ideas and patterns adapted under MIT (or equivalent
+permissive) terms. EasyMC does **not** vendor the full source trees below; it
+reimplements a small subset in Rust for the local Minecraft launcher Agent.
+
+1) earendil-works/pi — Agent loop (MIT)
+   https://github.com/earendil-works/pi
+   Adapted concept: packages/agent/src/agent-loop.ts
+   - Multi-turn LLM ↔ tool execution loop
+   - Execute ALL tool_calls in a model turn, append role=tool results, call again
+   - Stop when the model returns no tools / final text, or max_turns is reached
+   See: crates/easymc-agent/src/agent_loop.rs
+
+2) OpenAI Agents SDK — max_turns / run loop concepts (MIT)
+   https://github.com/openai/openai-agents-python
+   Adapted concept: Runner max_turns style budget for an agent run
+   - DEFAULT_MAX_TURNS (6–8) caps model turns per user ask
+   - Explicit stop_reason: final_text | no_tools | max_turns | error
+   See: crates/easymc-agent/src/agent_loop.rs (AgentLoopConfig / AgentLoopResult)
+
+3) dsh-style skill selection + dangerous-tool guards (docs / pattern reuse)
+   Pattern: inject only 1–3 keyword-matched skills into the system prompt
+   (do not dump the whole skill library); gate destructive tools behind
+   propose/confirm rather than auto-executing in the cloud loop.
+   See: crates/easymc-agent/src/skills.rs, is_dangerous_tool in agent_loop.rs,
+        skills/*.md, docs/AGENT-LOOP.md
+
+EasyMC itself is MIT — see LICENSE.
