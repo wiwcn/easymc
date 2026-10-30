@@ -467,6 +467,7 @@ export interface RegistryMirrorCandidateDto {
   region_zh: string;
   prefer_china: boolean;
   probe_host: string;
+  probe_url?: string;
   sample_image: string;
 }
 

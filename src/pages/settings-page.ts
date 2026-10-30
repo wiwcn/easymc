@@ -77,6 +77,14 @@ export class SettingsPage extends LitElement {
     controlStyles,
     pageChromeStyles,
     css`
+    .probe-spin {
+      display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+      border: 2px solid color-mix(in oklch, currentColor 35%, transparent);
+      border-top-color: currentColor;
+      animation: easymc-probe-spin 0.7s linear infinite;
+      vertical-align: -1px; margin-right: 6px;
+    }
+    @keyframes easymc-probe-spin { to { transform: rotate(360deg); } }
       :host {
         display: block;
         /* Column width comes from the shell (.page > * in app-shell.ts). */
@@ -485,7 +493,9 @@ export class SettingsPage extends LitElement {
             class="btn ghost"
             ?disabled=${this.downloadProbeBusy}
             @click=${() => void this.probeDownloads()}
-          >${this.downloadProbeBusy ? "测速中…" : "测速并选用最快"}</button>
+          >${this.downloadProbeBusy
+            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+            : "测速并选用最快"}</button>
         </div>
         ${this.downloadProbes.length
           ? html`<ul class="muted" style="margin:0;padding-left:18px;line-height:1.6">
@@ -552,7 +562,9 @@ export class SettingsPage extends LitElement {
             class="btn ghost"
             ?disabled=${this.registryProbeBusy}
             @click=${() => void this.probeRegistries()}
-          >${this.registryProbeBusy ? "测速中…" : "测速并选用最快"}</button>
+          >${this.registryProbeBusy
+            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+            : "测速并选用最快"}</button>
         </div>
         ${this.registryProbes.length
           ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">

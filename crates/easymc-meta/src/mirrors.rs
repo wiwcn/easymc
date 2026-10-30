@@ -1,8 +1,9 @@
 //! Download mirror candidates + latency probe for player pick / auto-fastest.
 //!
 //! Candidates: Official (global) + BMCLAPI family (China-friendly). Probe uses a
-//! short HTTP GET against a tiny public meta URL — not ICMP — so results reflect
-//! real HTTPS reachability from the player's machine.
+//! short HTTPS GET against a public meta URL — not ICMP and not bare TCP — so
+//! results reflect real TLS+HTTP latency. (Bare TCP `:443` is useless under
+//! Clash/sing-box fake-ip: connect hits the local TUN in ~0ms.)
 
 use std::time::{Duration, Instant};
 
@@ -72,8 +73,9 @@ pub fn list_download_mirror_candidates() -> Vec<DownloadMirrorCandidate> {
 pub async fn probe_download_mirrors() -> Vec<DownloadMirrorProbe> {
     let candidates = list_download_mirror_candidates();
     let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(8))
+        .connect_timeout(Duration::from_secs(4))
+        .pool_max_idle_per_host(0)
         .redirect(reqwest::redirect::Policy::limited(3))
         .user_agent("EasyMC/0.1 (mirror-probe)")
         .build()
@@ -142,10 +144,10 @@ async fn probe_one(
     let start = Instant::now();
     match client.get(url).send().await {
         Ok(resp) => {
-            let ms = start.elapsed().as_millis().min(u128::from(u32::MAX)) as u32;
             let status = resp.status();
-            // Drain a small body so TTFB isn't the only signal; ignore read errors.
+            // Include body read in timing so CDN TTFB alone can't look "instant".
             let _ = resp.bytes().await;
+            let ms = elapsed_ms(start);
             if status.is_success() || status.is_redirection() {
                 (true, Some(ms), None)
             } else {
@@ -158,6 +160,11 @@ async fn probe_one(
         }
         Err(e) => (false, None, Some(short_reqwest_err(&e))),
     }
+}
+
+fn elapsed_ms(start: Instant) -> u32 {
+    let ms = start.elapsed().as_millis().min(u128::from(u32::MAX)) as u32;
+    ms.max(1)
 }
 
 fn short_reqwest_err(e: &reqwest::Error) -> String {

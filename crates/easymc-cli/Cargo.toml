@@ -17,6 +17,7 @@ easymc-launch-desktop = { workspace = true }
 easymc-mods = { workspace = true }
 easymc-agent = { workspace = true }
 easymc-share = { workspace = true }
+easymc-container = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }

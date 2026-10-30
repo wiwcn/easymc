@@ -85,7 +85,7 @@ impl MirrorProfile {
         }
     }
 
-    /// Host used for TCP `:443` latency probe.
+    /// Host used for HTTPS latency probe (and registries.conf mirror host).
     pub fn probe_host(self) -> &'static str {
         match self {
             Self::Daocloud => "docker.m.daocloud.io",
@@ -93,6 +93,12 @@ impl MirrorProfile {
             Self::Onems => "docker.1ms.run",
             Self::Official => "registry-1.docker.io",
         }
+    }
+
+    /// HTTPS URL for real latency probe (TLS + HTTP, not bare TCP).
+    /// Registry `/v2/` returns 200 or 401 — both count as reachable.
+    pub fn probe_url(self) -> String {
+        format!("https://{}/v2/", self.probe_host())
     }
 
     /// docker.io mirror hostname written into registries.conf / image refs.

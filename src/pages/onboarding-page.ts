@@ -156,7 +156,15 @@ export class OnboardingPage extends LitElement {
       font-size: 11px;
       font-weight: 600;
     }
-    .probe-btn { margin-top: 8px; }
+    .probe-btn { margin-top: 8px; display: inline-flex; align-items: center; gap: 8px; }
+    .probe-spin {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid color-mix(in oklch, currentColor 35%, transparent);
+      border-top-color: currentColor;
+      animation: easymc-probe-spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes easymc-probe-spin { to { transform: rotate(360deg); } }
     .options { display: grid; gap: 12px; }
     button.opt {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
@@ -674,7 +682,9 @@ export class OnboardingPage extends LitElement {
                           <span class="meta" style="display:inline;margin-left:6px">${m.region_zh}</span>
                           ${m.recommended ? html`<span class="badge">推荐·最快</span>` : nothing}
                         </span>
-                        <span class="lat">${this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
+                        <span class="lat">${this.registryProbeBusy && !m.ok && m.latency_ms == null && !m.error_zh
+                          ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                          : this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
                       </button>
                     `,
                   )}
@@ -685,7 +695,9 @@ export class OnboardingPage extends LitElement {
                   ?disabled=${this.registryProbeBusy || this.containerBusy}
                   @click=${() => void this.runRegistryProbe(true)}
                 >
-                  ${this.registryProbeBusy ? "测速中…" : "测速并选用最快"}
+                  ${this.registryProbeBusy
+                    ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                    : "测速并选用最快"}
                 </button>
               </div>
             </div>
@@ -758,7 +770,9 @@ export class OnboardingPage extends LitElement {
                         <span class="meta" style="display:inline;margin-left:6px">${m.region_zh}</span>
                         ${m.recommended ? html`<span class="badge">推荐·最快</span>` : nothing}
                       </span>
-                      <span class="lat">${this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
+                      <span class="lat">${this.downloadProbeBusy && !m.ok && m.latency_ms == null && !m.error_zh
+                        ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                        : this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
                     </button>
                   `,
                 )}
@@ -769,7 +783,9 @@ export class OnboardingPage extends LitElement {
                 ?disabled=${this.downloadProbeBusy || this.envBusy}
                 @click=${() => void this.runDownloadProbe(true)}
               >
-                ${this.downloadProbeBusy ? "测速中…" : "测速并选用最快"}
+                ${this.downloadProbeBusy
+                  ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                  : "测速并选用最快"}
               </button>
             </div>
           </div>

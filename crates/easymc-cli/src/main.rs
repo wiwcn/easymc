@@ -10,9 +10,10 @@ use easymc_launch_desktop::{
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt, install_version,
-    is_loader_installed, is_version_installed, list_loaders_with_source, InstallOptions,
-    LoaderKind, MetaProvider, PistonMetaProvider,
+    is_loader_installed, is_version_installed, list_loaders_with_source, probe_download_mirrors,
+    InstallOptions, LoaderKind, MetaProvider, PistonMetaProvider,
 };
+use easymc_container::probe_registry_mirrors;
 use easymc_agent::{apply_proposal, ask, llm_status, parse_proposal, run_diagnose, undo_proposal, write_diagnostic_bundle, AskRequest};
 use easymc_share::{export_instance, import_instance, ExportOptions, ImportOptions, ShareMode};
 use easymc_mods::{
@@ -49,6 +50,62 @@ async fn real_main() -> easymc_core::Result<()> {
         "paths" => {
             println!("{}", paths.root.display());
         }
+        "probe-mirrors" | "probe-mirror" => {
+            println!("# EasyMC mirror HTTPS latency probe (real TLS+HTTP, not TCP fake-ip)");
+            println!("## download");
+            let dl = probe_download_mirrors().await;
+            for r in &dl {
+                let lat = r
+                    .latency_ms
+                    .map(|ms| format!("{ms} ms"))
+                    .unwrap_or_else(|| "—".into());
+                let rec = if r.recommended { " ★" } else { "" };
+                let st = if r.ok {
+                    "ok".into()
+                } else {
+                    r.error_zh.clone().unwrap_or_else(|| "fail".into())
+                };
+                println!(
+                    "{}	{}	{}	{}{}",
+                    r.id, r.label_zh, lat, st, rec
+                );
+            }
+            println!("## registry");
+            let rg = probe_registry_mirrors().await;
+            for r in &rg {
+                let lat = r
+                    .latency_ms
+                    .map(|ms| format!("{ms} ms"))
+                    .unwrap_or_else(|| "—".into());
+                let rec = if r.recommended { " ★" } else { "" };
+                let st = if r.ok {
+                    "ok".into()
+                } else {
+                    r.error_zh.clone().unwrap_or_else(|| "fail".into())
+                };
+                println!(
+                    "{}	{}	{}	{}{}",
+                    r.id, r.label_zh, lat, st, rec
+                );
+            }
+            let best_dl = dl.iter().find(|r| r.recommended);
+            let best_rg = rg.iter().find(|r| r.recommended);
+            if let Some(b) = best_dl {
+                println!(
+                    "fastest_download	{}	{} ms",
+                    b.id,
+                    b.latency_ms.unwrap_or(0)
+                );
+            }
+            if let Some(b) = best_rg {
+                println!(
+                    "fastest_registry	{}	{} ms",
+                    b.id,
+                    b.latency_ms.unwrap_or(0)
+                );
+            }
+        }
+
         "java" => {
             for j in detect_java() {
                 println!(

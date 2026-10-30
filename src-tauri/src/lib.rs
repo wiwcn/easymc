@@ -2247,8 +2247,8 @@ fn registry_mirror_candidates_cmd() -> Vec<easymc_container::RegistryMirrorCandi
 }
 
 #[tauri::command]
-fn probe_registry_mirrors_cmd() -> Vec<easymc_container::RegistryMirrorProbe> {
-    probe_registry_mirrors()
+async fn probe_registry_mirrors_cmd() -> Vec<easymc_container::RegistryMirrorProbe> {
+    probe_registry_mirrors().await
 }
 
 #[tauri::command]

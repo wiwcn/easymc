@@ -869,9 +869,7 @@ export async function downloadMirrorCandidates() {
 }
 
 export async function probeDownloadMirrors() {
-  return (
-    (await invokeSafe<import("./types").DownloadMirrorProbeDto[]>("probe_download_mirrors_cmd")) ?? []
-  );
+  return invokeOrThrow<import("./types").DownloadMirrorProbeDto[]>("probe_download_mirrors_cmd");
 }
 
 export async function registryMirrorCandidates() {
@@ -881,9 +879,7 @@ export async function registryMirrorCandidates() {
 }
 
 export async function probeRegistryMirrors() {
-  return (
-    (await invokeSafe<import("./types").RegistryMirrorProbeDto[]>("probe_registry_mirrors_cmd")) ?? []
-  );
+  return invokeOrThrow<import("./types").RegistryMirrorProbeDto[]>("probe_registry_mirrors_cmd");
 }
 
 export async function containerRepair(opts?: {
