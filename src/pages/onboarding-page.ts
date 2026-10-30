@@ -4,6 +4,8 @@ import { customElement, state } from "lit/decorators.js";
 import {
   agentDataDir,
   completeOnboarding,
+  containerOneClickSetup,
+  containerProbe,
   createOfflineOrThrow,
   detectJava,
   detectMinecraftDirs,
@@ -17,13 +19,13 @@ import {
 } from "../api";
 import { showToast } from "../toast";
 import "../components/msa-login";
-import type { AppMode, MsaStatusDto, PreferredLogin } from "../types";
+import type { AppMode, ContainerRuntimeProbeDto, MsaStatusDto, PreferredLogin } from "../types";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const MEM_PRESETS = [2048, 4096, 8192] as const;
 
-/** First-run gate: mode → env → login → account → Home. */
+/** First-run gate: mode → container → env → login → account → Home. */
 @customElement("easymc-onboarding")
 export class OnboardingPage extends LitElement {
   @state() private step: Step = 1;
@@ -50,6 +52,13 @@ export class OnboardingPage extends LitElement {
   @state() private envDone = false;
   @state() private dirsReady = false;
   private unlistenJavaLog: (() => void) | null = null;
+
+  /** Step 2 — optional container mode (after Agent/mode ask) */
+  @state() private containerWanted: boolean | null = null;
+  @state() private containerChina = true;
+  @state() private containerProbe: ContainerRuntimeProbeDto | null = null;
+  @state() private containerBusy = false;
+  @state() private containerLog = "";
 
   static styles = [
     controlStyles,
@@ -236,9 +245,86 @@ export class OnboardingPage extends LitElement {
     }
   }
 
-  private async enterEnvStep() {
+  private async enterContainerStep() {
     this.step = 2;
+    this.containerLog = "";
+    try {
+      this.containerProbe = await containerProbe();
+      const s = await getSettings();
+      this.containerChina = s.container_china_mirrors !== false;
+      if (s.container_mode_enabled) this.containerWanted = true;
+    } catch (e) {
+      this.containerProbe = {
+        status: "not_installed",
+        message_zh: this.friendly(e),
+        platform: "other",
+      };
+    }
+  }
+
+  private async enterEnvStep() {
+    this.step = 3;
     await this.refreshEnv();
+  }
+
+  private async skipContainer() {
+    this.containerWanted = false;
+    try {
+      await updateSettings({
+        container_mode_enabled: false,
+        container_setup_done: true,
+      });
+    } catch {
+      /* preview */
+    }
+    await this.enterEnvStep();
+  }
+
+  private async runContainerSetup() {
+    if (this.containerBusy) return;
+    this.containerBusy = true;
+    this.containerLog = "";
+    try {
+      await updateSettings({
+        container_mode_enabled: true,
+        container_china_mirrors: this.containerChina,
+      });
+      const result = await containerOneClickSetup(this.containerChina);
+      this.containerProbe = result.probe;
+      const lines = [...(result.messages_zh || [])];
+      for (const p of result.pending || []) {
+        lines.push(`${p.title_zh}：${p.detail_zh}`);
+        if (p.command) lines.push(`  $ ${p.command}`);
+        if (p.url) lines.push(`  ${p.url}`);
+      }
+      this.containerLog = lines.filter(Boolean).join("\n");
+      const ready = (result.probe?.status || "") === "ready";
+      await updateSettings({
+        container_mode_enabled: true,
+        container_china_mirrors: this.containerChina,
+        container_setup_done: ready || (result.pending?.length ?? 0) > 0,
+      });
+      showToast(ready ? "容器环境已就绪" : "已记下配置，可稍后继续完成安装");
+    } catch (e) {
+      this.containerLog = this.friendly(e);
+      showToast(`容器配置：${this.friendly(e)}`);
+    } finally {
+      this.containerBusy = false;
+    }
+  }
+
+  private async acceptContainerAndContinue() {
+    this.containerWanted = true;
+    try {
+      await updateSettings({
+        container_mode_enabled: true,
+        container_china_mirrors: this.containerChina,
+        container_setup_done: true,
+      });
+    } catch {
+      /* preview */
+    }
+    await this.enterEnvStep();
   }
 
   private async refreshEnv() {
@@ -344,16 +430,18 @@ export class OnboardingPage extends LitElement {
     return html`
       <div class="wrap">
         <div class="brand">EasyMC</div>
-        <div class="steps" aria-label="第 ${this.step} 步，共 4 步">
-          ${[1, 2, 3, 4].map((i) => html`<i class=${i <= this.step ? "on" : ""}></i>`)}
+        <div class="steps" aria-label="第 ${this.step} 步，共 5 步">
+          ${[1, 2, 3, 4, 5].map((i) => html`<i class=${i <= this.step ? "on" : ""}></i>`)}
         </div>
         ${this.step === 1
           ? this.renderMode()
           : this.step === 2
-            ? this.renderEnv()
+            ? this.renderContainer()
             : this.step === 3
-              ? this.renderLogin()
-              : this.renderAccount()}
+              ? this.renderEnv()
+              : this.step === 4
+                ? this.renderLogin()
+                : this.renderAccount()}
       </div>
     `;
   }
@@ -374,7 +462,59 @@ export class OnboardingPage extends LitElement {
       </div>
       <div class="row">
         <span></span>
-        <button class="btn primary" ?disabled=${!this.mode} @click=${() => void this.enterEnvStep()}>下一步</button>
+        <button class="btn primary" ?disabled=${!this.mode} @click=${() => void this.enterContainerStep()}>下一步</button>
+      </div>
+    `;
+  }
+
+  private renderContainer() {
+    const probe = this.containerProbe;
+    const status = (probe?.status || "").toLowerCase();
+    const unsupported = status === "unsupported";
+    const ready = status === "ready";
+    return html`
+      <h1>要用容器隔离吗？</h1>
+      <p class="sub">可选。容器把每个版本的 mods / 存档分开，不影响本机其它程序。不想装也完全没问题——Agent 和标准模式都能直接开玩。</p>
+
+      ${unsupported
+        ? html`<div class="notice">${probe?.message_zh || "当前系统不走容器模式。"} 可直接跳过。</div>`
+        : html`
+            <div class="checklist">
+              <div class="check ${ready ? "ok" : ""}">
+                <span class="mark" aria-hidden="true">${ready ? "✓" : "·"}</span>
+                <div>
+                  <strong>Podman 环境</strong>
+                  <div class="meta">${probe?.message_zh || "检测中…"}</div>
+                </div>
+              </div>
+              <div class="check ok">
+                <span class="mark" aria-hidden="true">✓</span>
+                <div>
+                  <strong>国内镜像加速</strong>
+                  <div class="meta">拉取容器镜像时走国内加速（DaoCloud 公开前缀）。</div>
+                  <div class="chips" role="radiogroup" aria-label="国内镜像">
+                    <button type="button" class=${this.containerChina ? "on" : ""} role="radio" aria-checked=${this.containerChina} ?disabled=${this.containerBusy} @click=${() => (this.containerChina = true)}>开启</button>
+                    <button type="button" class=${!this.containerChina ? "on" : ""} role="radio" aria-checked=${!this.containerChina} ?disabled=${this.containerBusy} @click=${() => (this.containerChina = false)}>关闭</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="actions-stack">
+              <button class="btn primary" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
+                ${this.containerBusy ? "正在配置…" : ready ? "再次检查容器环境" : "一键配置容器"}
+              </button>
+              ${this.containerLog ? html`<div class="java-log" aria-live="polite">${this.containerLog}</div>` : nothing}
+            </div>
+          `}
+
+      <div class="row">
+        <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => (this.step = 1)}>上一步</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用</button>
+          <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>
+            ${unsupported || this.containerWanted === false ? "继续" : ready ? "下一步" : "稍后再说，先继续"}
+          </button>
+        </div>
       </div>
     `;
   }
@@ -440,10 +580,10 @@ export class OnboardingPage extends LitElement {
       </div>
 
       <div class="row">
-        <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => (this.step = 1)}>上一步</button>
+        <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => (this.step = 2)}>上一步</button>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => { this.step = 3; showToast("可稍后在「设置 → 启动」里配置 Java"); }}>先跳过</button>
-          <button class="btn primary" ?disabled=${this.envBusy || !this.javaReady} @click=${() => (this.step = 3)}>下一步</button>
+          <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => { this.step = 4; showToast("可稍后在「设置 → 启动」里配置 Java"); }}>先跳过</button>
+          <button class="btn primary" ?disabled=${this.envBusy || !this.javaReady} @click=${() => (this.step = 4)}>下一步</button>
         </div>
       </div>
     `;
@@ -469,13 +609,13 @@ export class OnboardingPage extends LitElement {
       </div>
       <div class="row">
         <button class="btn ghost" @click=${() => void this.enterEnvStep()}>上一步</button>
-        <button class="btn primary" ?disabled=${!this.login} @click=${() => (this.step = 4)}>下一步</button>
+        <button class="btn primary" ?disabled=${!this.login} @click=${() => (this.step = 5)}>下一步</button>
       </div>
     `;
   }
 
   private renderAccount() {
-    const back = html`<button class="btn ghost" ?disabled=${this.busy} @click=${() => (this.step = 3)}>上一步</button>`;
+    const back = html`<button class="btn ghost" ?disabled=${this.busy} @click=${() => (this.step = 4)}>上一步</button>`;
     if (this.login === "microsoft") {
       return html`
         <h1>正版登录</h1>

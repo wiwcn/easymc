@@ -85,6 +85,8 @@ impl DownloadSource {
     }
 }
 
+fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub msa_client_id: Option<String>,
@@ -106,6 +108,15 @@ pub struct Settings {
     /// Game file download source: official or BMCLAPI mirror.
     #[serde(default)]
     pub download_source: DownloadSource,
+    /// Player opted into container mode (after Agent onboarding ask).
+    #[serde(default)]
+    pub container_mode_enabled: bool,
+    /// Prefer China registry mirrors when pulling container images.
+    #[serde(default = "default_true")]
+    pub container_china_mirrors: bool,
+    /// One-click container setup finished (or skipped) during onboarding.
+    #[serde(default)]
+    pub container_setup_done: bool,
 }
 
 impl Default for Settings {
@@ -119,6 +130,9 @@ impl Default for Settings {
             onboarding_complete: false,
             preferred_login: None,
             download_source: DownloadSource::Official,
+            container_mode_enabled: false,
+            container_china_mirrors: true,
+            container_setup_done: false,
         }
     }
 }
@@ -427,6 +441,8 @@ pub fn duplicate_instance(paths: &Paths, id: &str, new_name: Option<&str>) -> Re
     copy.width = src.width;
     copy.height = src.height;
     copy.jvm_args = src.jvm_args.clone();
+    // Container identity is per-version — duplicate stays native until re-attached.
+    copy.container = None;
     copy.description = Some(format!("由「{}」复制", src.name));
     // Best-effort copy of mods / resourcepacks / shaderpacks / config (not saves — those are huge).
     for sub in ["mods", "resourcepacks", "shaderpacks", "config", "datapacks"] {

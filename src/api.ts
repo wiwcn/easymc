@@ -598,6 +598,9 @@ export async function getSettings(): Promise<SettingsDto> {
       mode: "standard",
       onboarding_complete: true, // browser preview skips gate
       download_source: "official",
+      container_mode_enabled: false,
+      container_china_mirrors: true,
+      container_setup_done: false,
     }
   );
 }
@@ -610,8 +613,76 @@ export async function updateSettings(patch: {
   msa_client_id?: string | null;
   clear_msa_client_id?: boolean;
   download_source?: string;
+  container_mode_enabled?: boolean;
+  container_china_mirrors?: boolean;
+  container_setup_done?: boolean;
 }): Promise<SettingsDto> {
   return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
+}
+
+export async function containerProbe(): Promise<import("./types").ContainerRuntimeProbeDto> {
+  return (
+    (await invokeSafe<import("./types").ContainerRuntimeProbeDto>("container_probe_cmd")) ?? {
+      status: "not_installed",
+      message_zh: "容器探测不可用（预览模式）",
+      platform: "other",
+      podman: null,
+    }
+  );
+}
+
+export async function containerSetupPlan(): Promise<import("./types").ContainerSetupPlanDto> {
+  return (
+    (await invokeSafe<import("./types").ContainerSetupPlanDto>("container_setup_plan_cmd")) ?? {
+      actions: [],
+      probe: await containerProbe(),
+      summary_zh: "容器一键配置（预览）",
+    }
+  );
+}
+
+export async function containerOneClickSetup(
+  preferChinaMirrors?: boolean | null,
+): Promise<import("./types").ContainerSetupResultDto> {
+  return invokeOrThrow<import("./types").ContainerSetupResultDto>("container_one_click_setup_cmd", {
+    preferChinaMirrors: preferChinaMirrors ?? null,
+  });
+}
+
+export async function containerWriteRegistries(): Promise<import("./types").ChinaRegistriesResultDto> {
+  return invokeOrThrow<import("./types").ChinaRegistriesResultDto>("container_write_registries_cmd");
+}
+
+export async function containerListVersions(): Promise<import("./types").ContainerVersionSummaryDto[]> {
+  return (await invokeSafe<import("./types").ContainerVersionSummaryDto[]>("container_list_versions_cmd")) ?? [];
+}
+
+export async function containerCreateVersion(
+  name: string,
+  version: string,
+  loader?: string | null,
+  loaderVersion?: string | null,
+): Promise<InstanceDto> {
+  return invokeOrThrow<InstanceDto>("container_create_version_cmd", {
+    name,
+    version,
+    loader: loader ?? null,
+    loaderVersion: loaderVersion ?? null,
+  });
+}
+
+export async function containerAttach(instanceId: string): Promise<InstanceDto> {
+  return invokeOrThrow<InstanceDto>("container_attach_cmd", { instanceId });
+}
+
+export async function containerDeleteVersion(
+  instanceId: string,
+  deleteFiles = true,
+): Promise<void> {
+  await invokeOrThrow<void>("container_delete_version_cmd", {
+    instanceId,
+    deleteFiles,
+  });
 }
 
 export async function completeOnboarding(

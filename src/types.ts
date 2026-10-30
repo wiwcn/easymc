@@ -19,6 +19,71 @@ export interface InstanceDto {
   width?: number | null;
   height?: number | null;
   jvm_args?: string | null;
+  /** Present when this version is container-backed (Podman). */
+  container?: ContainerMetaDto | null;
+}
+
+export interface ContainerVolumeDto {
+  host: string;
+  container: string;
+  mode: string;
+}
+
+export interface ContainerMetaDto {
+  runtime: string;
+  container_id?: string | null;
+  image?: string | null;
+  volumes?: ContainerVolumeDto[];
+  provisioned?: boolean;
+}
+
+export type ContainerProbeStatus = "not_installed" | "installed_not_ready" | "ready" | "unsupported";
+
+export interface ContainerRuntimeProbeDto {
+  status: ContainerProbeStatus | string;
+  podman?: { path: string; version: string; ready: boolean; detail_zh?: string | null } | null;
+  message_zh: string;
+  platform: string;
+}
+
+export interface ContainerSetupStepDto {
+  action: string;
+  title_zh: string;
+  detail_zh: string;
+  command?: string | null;
+  url?: string | null;
+}
+
+export interface ContainerSetupPlanDto {
+  actions: ContainerSetupStepDto[];
+  probe: ContainerRuntimeProbeDto;
+  summary_zh: string;
+}
+
+export interface ChinaRegistriesResultDto {
+  path: string;
+  wrote: boolean;
+  message_zh: string;
+}
+
+export interface ContainerSetupResultDto {
+  ok: boolean;
+  probe: ContainerRuntimeProbeDto;
+  registries?: ChinaRegistriesResultDto | null;
+  messages_zh: string[];
+  pending: ContainerSetupStepDto[];
+}
+
+export interface ContainerVersionSummaryDto {
+  instance_id: string;
+  name: string;
+  version: string;
+  loader: string;
+  runtime: string;
+  container_id?: string | null;
+  image?: string | null;
+  volumes: ContainerVolumeDto[];
+  provisioned: boolean;
 }
 
 export type ProjectTypeId = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
@@ -316,6 +381,9 @@ export interface SettingsDto {
   preferred_login?: PreferredLogin | string | null;
   /** Game file download source: official Mojang or BMCLAPI mirror. */
   download_source?: DownloadSourceId | string;
+  container_mode_enabled?: boolean;
+  container_china_mirrors?: boolean;
+  container_setup_done?: boolean;
 }
 
 export interface MsaStatusDto {

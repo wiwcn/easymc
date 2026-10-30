@@ -110,6 +110,9 @@ pub struct Instance {
     pub height: Option<u32>,
     #[serde(default)]
     pub jvm_args: Option<String>,
+    /// When set, this version runs via container mode (Podman). `None` = native.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<crate::ContainerMeta>,
 }
 
 impl Instance {
@@ -133,6 +136,7 @@ impl Instance {
             width: None,
             height: None,
             jvm_args: None,
+            container: None,
         }
     }
 }

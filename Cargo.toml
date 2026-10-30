@@ -8,6 +8,7 @@ members = [
     "crates/easymc-share",
     "crates/easymc-launch-desktop",
     "crates/easymc-cli",
+    "crates/easymc-container",
     "src-tauri",
 ]
 
@@ -25,6 +26,7 @@ easymc-mods = { path = "crates/easymc-mods" }
 easymc-agent = { path = "crates/easymc-agent" }
 easymc-share = { path = "crates/easymc-share" }
 easymc-launch-desktop = { path = "crates/easymc-launch-desktop" }
+easymc-container = { path = "crates/easymc-container" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

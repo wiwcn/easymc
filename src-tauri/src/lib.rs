@@ -26,6 +26,11 @@ use easymc_agent::{
     write_diagnostic_bundle, refresh_ask_tool, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
     LlmConfigView, LlmStatus,
 };
+use easymc_container::{
+    apply_one_click_setup, attach_container_to_instance, create_container_version,
+    delete_container_version, install_guidance, list_container_versions,
+    probe_container_runtime, write_china_registries_config,
+};
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
     list_installed_mods, list_local, list_mod_versions, local_dir, remove_mod, search_and_install_best,
@@ -275,6 +280,9 @@ struct UpdateSettingsPatch {
     msa_client_id: Option<String>,
     clear_msa_client_id: Option<bool>,
     download_source: Option<String>,
+    container_mode_enabled: Option<bool>,
+    container_china_mirrors: Option<bool>,
+    container_setup_done: Option<bool>,
 }
 
 #[tauri::command]
@@ -306,6 +314,15 @@ fn update_settings_cmd(
     if let Some(src) = patch.download_source.as_deref() {
         settings.download_source = DownloadSource::parse(src)
             .ok_or_else(|| format!("未知下载源: {src}（official / bmclapi）"))?;
+    }
+    if let Some(v) = patch.container_mode_enabled {
+        settings.container_mode_enabled = v;
+    }
+    if let Some(v) = patch.container_china_mirrors {
+        settings.container_china_mirrors = v;
+    }
+    if let Some(v) = patch.container_setup_done {
+        settings.container_setup_done = v;
     }
     save_settings(paths, &settings).map_err(|e| e.to_string())?;
     Ok(settings)
@@ -1981,6 +1998,105 @@ pub fn run() {
         sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
     }
 
+
+// —— Container mode (Podman) — Slice A/B ——
+
+#[tauri::command]
+fn container_probe_cmd() -> easymc_container::RuntimeProbe {
+    probe_container_runtime()
+}
+
+#[tauri::command]
+fn container_setup_plan_cmd() -> easymc_container::SetupPlan {
+    install_guidance()
+}
+
+#[tauri::command]
+fn container_one_click_setup_cmd(
+    state: State<'_, AppState>,
+    prefer_china_mirrors: Option<bool>,
+) -> Result<easymc_container::SetupResult, String> {
+    let paths = state_paths(&state);
+    let prefer = prefer_china_mirrors.unwrap_or_else(|| {
+        load_settings(paths)
+            .map(|s| s.container_china_mirrors)
+            .unwrap_or(true)
+    });
+    let result = apply_one_click_setup(prefer);
+    if let Ok(mut settings) = load_settings(paths) {
+        // Mark setup attempted; Ready ⇒ done.
+        settings.container_setup_done = matches!(
+            result.probe.status,
+            easymc_container::ProbeStatus::Ready
+        ) || settings.container_setup_done;
+        let _ = save_settings(paths, &settings);
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+fn container_write_registries_cmd() -> Result<easymc_container::ChinaRegistriesResult, String> {
+    write_china_registries_config()
+}
+
+#[tauri::command]
+fn container_list_versions_cmd(
+    state: State<'_, AppState>,
+) -> Result<Vec<easymc_container::ContainerVersionSummary>, String> {
+    list_container_versions(state_paths(&state)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn container_create_version_cmd(
+    state: State<'_, AppState>,
+    name: String,
+    version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
+) -> Result<Instance, String> {
+    let paths = state_paths(&state);
+    ensure_defaults(paths).map_err(|e| e.to_string())?;
+    let prefer = load_settings(paths)
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    let loader = loader
+        .as_deref()
+        .and_then(ModLoader::parse_loose)
+        .unwrap_or(ModLoader::Vanilla);
+    create_container_version(
+        paths,
+        name,
+        McVersion(version),
+        loader,
+        loader_version.filter(|s| !s.trim().is_empty()),
+        prefer,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn container_attach_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<Instance, String> {
+    let paths = state_paths(&state);
+    let prefer = load_settings(paths)
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    attach_container_to_instance(paths, &instance_id, prefer).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn container_delete_version_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+    delete_files: Option<bool>,
+) -> Result<(), String> {
+    delete_container_version(state_paths(&state), &instance_id, delete_files.unwrap_or(true))
+        .map_err(|e| e.to_string())
+}
+
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
@@ -2047,6 +2163,14 @@ pub fn run() {
             search_content_cmd,
             install_content_cmd,
             install_modpack_cmd,
+            container_probe_cmd,
+            container_setup_plan_cmd,
+            container_one_click_setup_cmd,
+            container_write_registries_cmd,
+            container_list_versions_cmd,
+            container_create_version_cmd,
+            container_attach_cmd,
+            container_delete_version_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

@@ -2,6 +2,16 @@
 
 时区：Asia/Shanghai。推送只用本机 `~/.config/easymc/gh_token`。不主动打扰 William（除非被挡住）。
 
+
+<!-- CONTAINER-MODE-A-B -->
+## 容器模式切片 A+B（进行中 / 合入）
+
+- **Crate** `easymc-container`：Podman 探测、一键配置（无 curl|sh）、中国 registries drop-in、版本 create/attach/list/delete。
+- **Core**：`ContainerMeta` + `Settings.container_*`；`Instance.container`；duplicate 清空容器身份。
+- **UI**：引导在 Agent/模式后询问容器 + 一键配置；首页「容器」徽章。
+- **文档**：`docs/CONTAINER-MODE.md`。
+- **约束**：不碰 `agent_loop`；推送前 rebase；原生路径不变。
+
 ## 参照启动器（功能/IA，不是视觉抄袭）
 
 核心对齐：

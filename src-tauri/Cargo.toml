@@ -24,6 +24,7 @@ easymc-mods = { workspace = true }
 easymc-agent = { workspace = true }
 easymc-share = { workspace = true }
 easymc-launch-desktop = { workspace = true }
+easymc-container = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tauri = { version = "2", features = [] }

@@ -841,6 +841,9 @@ export class HomePage extends LitElement {
             <div class="chips">
               <span class="chip outline">${ver}</span>
               <span class="chip solid">${loader}</span>
+              ${f.container
+                ? html`<span class="chip outline" title="容器隔离版本">容器</span>`
+                : nothing}
               ${ready
                 ? html`<span class="chip outline">已就绪</span>`
                 : html`<span class="chip outline">未安装</span>`}
@@ -1005,6 +1008,7 @@ export class HomePage extends LitElement {
           <span class="meta">${label}</span>
           <div class="vcard-foot">
             <span class="ready ${ready ? "" : "not"}"><i></i>${ready ? "已就绪" : "未安装"}</span>
+            ${i.container ? html`<span class="vchip" title="容器隔离版本">容器</span>` : nothing}
           </div>
         </span>
       </button>

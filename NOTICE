@@ -28,3 +28,16 @@ reimplements a small subset in Rust for the local Minecraft launcher Agent.
         skills/*.md, docs/AGENT-LOOP.md
 
 EasyMC itself is MIT — see LICENSE.
+
+4) DaoCloud public-image-mirror — registry prefix map (public service)
+   https://github.com/DaoCloud/public-image-mirror
+   EasyMC does **not** vendor this repository. It documents the same public
+   mirror host prefixes (e.g. docker.m.daocloud.io) in a generated
+   containers-registries.conf(5) drop-in for China-friendly Podman pulls.
+   See: crates/easymc-container/src/registries.rs, docs/CONTAINER-MODE.md
+
+5) containers/image — registries.conf schema (Apache-2.0)
+   https://github.com/containers/image
+   EasyMC emits its own TOML drop-in matching the documented schema shape;
+   it does not copy Apache-licensed source files from that project.
+
