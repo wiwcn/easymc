@@ -4,13 +4,21 @@
 
 
 <!-- CONTAINER-MODE-A-B -->
-## 容器模式切片 A+B（进行中 / 合入）
+
+## 已完成 · 容器 C/D（v0.1.8 · 2026-10-30）
+
+- **C**：Temurin JRE 镜像（DaoCloud）拉取、卷挂载、`podman run` 启动路径、预热；Linux 优先，Win = Machine+WSLg 设计（GUI 实机可能仍阻塞）。
+- **D**：Agent 工作区 = 容器可写层；Apply/Discard 快照语义；`container_saves_require_propose` 默认开；AgentLoop 仅危险工具名单扩展。
+- 文档：`docs/CONTAINER-MODE.md`；设置页 + 版本管理「容器可写层」。
+
+## 容器模式切片 A–D（已合入 v0.1.8）
 
 - **Crate** `easymc-container`：Podman 探测、一键配置（无 curl|sh）、中国 registries drop-in、版本 create/attach/list/delete。
 - **Core**：`ContainerMeta` + `Settings.container_*`；`Instance.container`；duplicate 清空容器身份。
 - **UI**：引导在 Agent/模式后询问容器 + 一键配置；首页「容器」徽章。
 - **文档**：`docs/CONTAINER-MODE.md`。
-- **约束**：不碰 `agent_loop`；推送前 rebase；原生路径不变。
+- **C/D**：镜像拉取、容器启动、预热；Agent 工作区=可写层；Apply/Discard；存档默认 propose。
+- **约束**：AgentLoop 仅危险工具名单扩展；推送前 rebase；原生路径不变。
 
 ## 参照启动器（功能/IA，不是视觉抄袭）
 
@@ -35,7 +43,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 |------|------|
 | 工作日约 10:00 | 例行开发：拉最新 → 对照参照/缺口清单推进 → Agent 工具/skill → 有实质改动则打 Windows 包 |
 | 每周至少一次 | GitHub 再搜 JE 启动器，更新「可借鉴」与缺口 |
-| 按需 | 定稿后更新 Release（当前线：v0.1.7） |
+| 按需 | 定稿后更新 Release（当前线：v0.1.8） |
 
 ## 每日清单（按优先级）
 

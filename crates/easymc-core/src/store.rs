@@ -117,6 +117,9 @@ pub struct Settings {
     /// One-click container setup finished (or skipped) during onboarding.
     #[serde(default)]
     pub container_setup_done: bool,
+    /// Container mode: mutating `saves/` requires Agent propose/confirm (default true).
+    #[serde(default = "default_true")]
+    pub container_saves_require_propose: bool,
 }
 
 impl Default for Settings {
@@ -133,6 +136,7 @@ impl Default for Settings {
             container_mode_enabled: false,
             container_china_mirrors: true,
             container_setup_done: false,
+            container_saves_require_propose: true,
         }
     }
 }

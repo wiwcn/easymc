@@ -98,6 +98,21 @@ pub async fn prepare_and_launch(
         .as_ref()
         .map(|j| j.major_version)
         .unwrap_or(21);
+    std::fs::create_dir_all(&instance.game_dir)?;
+
+    // Slice C: container-backed → JRE comes from the runtime image (no host Java required).
+    if instance.container.is_some() {
+        on_log(format!("容器模式将使用镜像内 Java（目标主版本 {required}）"));
+        let stub = JavaInstall {
+            path: PathBuf::from("java"),
+            major: required,
+            version_string: format!("{required}+ (container)"),
+            source: "container".into(),
+        };
+        let args = build_jvm_and_game_args(paths, &info, instance, account, &stub, req)?;
+        return launch_via_container(paths, instance, &args, settings, procs, on_log).await;
+    }
+
     let preferred = instance
         .java_path
         .as_ref()
@@ -114,7 +129,6 @@ pub async fn prepare_and_launch(
     on_log(format!("使用 Java {}: {}", java.major, java.path.display()));
 
     let args = build_jvm_and_game_args(paths, &info, instance, account, &java, req)?;
-    std::fs::create_dir_all(&instance.game_dir)?;
 
     procs
         .spawn(
@@ -124,6 +138,51 @@ pub async fn prepare_and_launch(
             Path::new(&instance.game_dir),
             HashMap::new(),
             on_log,
+        )
+        .await
+}
+
+async fn launch_via_container(
+    paths: &Paths,
+    instance: &Instance,
+    java_args_host: &[String],
+    settings: &Settings,
+    procs: Arc<ProcessManager>,
+    on_log: impl Fn(String) + Send + Sync + 'static,
+) -> Result<LaunchStatus> {
+    let prefer = settings.container_china_mirrors;
+    let on_log = std::sync::Arc::new(on_log);
+    (on_log)("容器模式：预热 Podman / 拉取运行时镜像…".into());
+    let mut plan = easymc_container::plan_container_launch(
+        paths,
+        instance,
+        java_args_host,
+        prefer,
+        true,
+    )
+    .map_err(EasyMcError::msg)?;
+    // Prefer broad Podman compatibility: strip --replace; best-effort rm stale name.
+    plan = easymc_container::plan_without_replace(&plan);
+    for w in &plan.warnings_zh {
+        (on_log)(w.clone());
+    }
+    (on_log)(format!(
+        "容器启动：{} → {}",
+        plan.container_name, plan.image
+    ));
+    let _ = std::process::Command::new(&plan.podman)
+        .args(["rm", "-f", &plan.container_name])
+        .output();
+    let (bin, argv) = easymc_container::plan_to_spawn(&plan);
+    let on_log2 = Arc::clone(&on_log);
+    procs
+        .spawn(
+            instance.id.clone(),
+            bin,
+            argv,
+            Path::new(&instance.game_dir),
+            HashMap::new(),
+            move |s| on_log2(s),
         )
         .await
 }

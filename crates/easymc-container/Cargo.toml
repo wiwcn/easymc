@@ -3,7 +3,7 @@ name = "easymc-container"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Podman rootless detect/setup + China registries + container version metadata (EasyMC)"
+description = "Podman rootless detect/setup + China registries + container version metadata + launch + agent bind (EasyMC)"
 
 [dependencies]
 easymc-core = { workspace = true }

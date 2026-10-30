@@ -23,10 +23,16 @@ import {
   setModDisabled,
   updateInstance,
   writeLaunchScript,
+  containerAttach,
+  containerProvision,
+  containerLayerState,
+  containerLayerApply,
+  containerLayerDiscard,
+  containerAgentWorkspace,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
-import type { InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
+import type { ContainerLayerStateDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { syncIndicator } from "../lib/indicator";
@@ -44,6 +50,8 @@ export class InstancePage extends LitElement {
   @state() private loading = true;
   @state() private busy = false;
   @state() private mods: string[] = [];
+  @state() private layerState: ContainerLayerStateDto | null = null;
+  @state() private workspaceHint = "";
   @state() private locals: LocalEntryDto[] = [];
   @state() private menuFor: string | null = null;
   @state() private nameDraft = "";
@@ -232,12 +240,14 @@ export class InstancePage extends LitElement {
     this.heightDraft = d.height ? String(d.height) : "";
     this.jvmDraft = d.jvm_args ?? "";
     this.catDraft = d.category ?? "";
+    await this.refreshLayer(d.id);
     await this.refreshTab();
   }
 
   private async refreshTab() {
     const d = this.detail;
     if (!d) return;
+    if (this.tab === "settings") await this.refreshLayer(d.id);
     if (this.tab === "mods") this.mods = await listInstalledMods(d.id);
     if (this.tab === "worlds") this.locals = await listLocalContent(d.id, "saves");
     if (this.tab === "resourcepacks") this.locals = await listLocalContent(d.id, "resourcepacks");
@@ -259,6 +269,17 @@ export class InstancePage extends LitElement {
     );
     if (tab) {
       sessionStorage.setItem("easymc-download-tab", tab);
+    }
+  }
+
+  private async refreshLayer(id: string) {
+    try {
+      this.layerState = await containerLayerState(id);
+      const ws = await containerAgentWorkspace(id);
+      this.workspaceHint = ws.message_zh;
+    } catch {
+      this.layerState = null;
+      this.workspaceHint = "";
     }
   }
 
@@ -423,6 +444,41 @@ export class InstancePage extends LitElement {
           </div>
           <div class="field"><label>额外 JVM 参数（高级）</label><input placeholder="-XX:+UseG1GC …" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
           <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
+          ${d.container
+            ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器可写层</h2>
+                <p class="muted" style="margin:0 0 10px">Agent 工作区绑定到本版本游戏目录。应用 = 提交基线；丢弃 = 从基线重建（不含存档）。</p>
+                <p class="muted" style="margin:0 0 10px">${this.layerState?.message_zh || this.workspaceHint || "加载层状态…"}</p>
+                <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                    const r = await containerProvision(d.id);
+                    showToast(r.message_zh);
+                    await this.refreshLayer(d.id);
+                    await this.load();
+                  })}>准备运行时 / 卷</button>
+                  <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                    const r = await containerLayerApply(d.id);
+                    showToast(r.message_zh);
+                    this.layerState = r.state;
+                  })}>应用更改</button>
+                  <button class="danger ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                    if (!confirm("丢弃未应用的模组/配置等更改？（存档不会动）")) return;
+                    const r = await containerLayerDiscard(d.id);
+                    showToast(r.message_zh);
+                    this.layerState = r.state;
+                  })}>丢弃更改</button>
+                </div>
+              </div>`
+            : html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器模式</h2>
+                <p class="muted" style="margin:0 0 10px">把这个版本改为容器隔离（可选）。需要本机已配置 Podman。</p>
+                <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                  await containerAttach(d.id);
+                  showToast("已挂上容器元数据");
+                  await this.load();
+                  await this.refreshLayer(d.id);
+                })}>启用容器隔离</button>
+              </div>`}
         </div>`;
       case "installers":
         return html`<div class="panel">

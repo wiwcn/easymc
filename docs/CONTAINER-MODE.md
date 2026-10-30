@@ -1,6 +1,6 @@
 # EasyMC 容器模式（Podman）
 
-切片 A + B（2026-10-30 批准决策）。**原生路径永远可用**：`Instance.container = None` 表示非容器版本，行为与改前一致。
+切片 A–D（2026-10-30；C/D 合入 v0.1.8）。**原生路径永远可用**：`Instance.container = None` 表示非容器版本，行为与改前一致。
 
 ## 决策摘要
 
@@ -64,11 +64,11 @@ provisioned      // 是否已成功 podman create
 - 公共：`docker.io/library/eclipse-temurin:21-jre`
 - 国内：`docker.m.daocloud.io/library/eclipse-temurin:21-jre`
 
-完整游戏 + Mesa / GPU 直通镜像属后续切片；A/B 只保证探测、配置、元数据与创建/删除。
+C 已接上运行时镜像拉取 + 容器内启动；完整 Mesa/GPU 镜像与 Win GUI 实机验收仍可迭代。
 
 ## 与 AgentLoop 的边界
 
-- AgentLoop 已合入 main（v0.1.7）；容器工作 **不修改** `crates/easymc-agent/src/agent_loop.rs`，除非必须动共享文件并小心合并。
+- AgentLoop 已合入 main（v0.1.7）；C/D 对 `agent_loop.rs` 仅扩展危险工具名单（apply/discard layer、saves），不改循环结构。
 - 推送前 `git pull --rebase`，勿覆盖 AgentLoop 提交。
 
 ## 玩家文案要点
@@ -76,3 +76,45 @@ provisioned      // 是否已成功 podman create
 - 容器 = **内容隔离**（mods/存档按版本分开），不是「更安全的沙箱」承诺。
 - Windows：需要 Podman Machine（WSL2）+ WSLg 才能走 GUI 接受路径。
 - 不装容器也能完整使用 Agent 与标准模式。
+
+## 切片 C — 启动路径（v0.1.8）
+
+| API / 行为 | 作用 |
+| --- | --- |
+| `ensure_runtime_image` / `try_pull_runtime_image` | 拉取 Temurin JRE 镜像（DaoCloud / 官方回退） |
+| `preheat_container_runtime` | 冷启动：Windows `machine start` + 可选拉镜像 |
+| `default_volumes` + `remap_launch_args` | 宿主路径 → `/data/*`；classpath 在容器内统一 `:` |
+| `plan_container_launch` / `plan_to_spawn` | 生成 `podman run --rm … image java …` |
+| `prepare_and_launch` 分支 | `Instance.container` 有值时走容器启动（不依赖宿主 Java） |
+
+挂载约定：
+
+- `/data/.minecraft` ← 实例游戏目录（rw）
+- `/data/libraries` / `assets` / `versions` / `natives` ← EasyMC 共享数据（ro）
+
+游戏 jar / 库 / 资源仍由现有 `install_version`（BMCLAPI 感知）装到宿主卷；容器只消费这些卷。
+
+**Linux**：优先验证 X11/Wayland + `/dev/dri`。  
+**Windows GUI**：设计为 Podman Machine + WSL2 + WSLg；在未确认 WSLg 的机器上可能仍阻塞，属已知限制。
+
+Tauri：`container_provision_cmd`、`container_preheat_cmd`、`container_pull_image_cmd`。
+
+## 切片 D — Agent 绑定（v0.1.8）
+
+| API / 行为 | 作用 |
+| --- | --- |
+| `resolve_agent_workspace` | 容器版本 → Agent 根目录 = 游戏可写层（`.minecraft`） |
+| `apply_game_layer` | **应用** = 将 mods/config/resourcepacks/shaderpacks/datapacks 快照为基线 |
+| `discard_game_layer` | **丢弃** = 从基线重建上述目录（**永不**动 `saves/`） |
+| `Settings.container_saves_require_propose` | 默认 `true`：存档修改需提出建议 |
+
+`LAYER_DIRS` 不含 `saves/`。AgentLoop（`agent_loop.rs`）仅扩展危险工具名单（`apply_game_layer` / `discard_game_layer` / `modify_saves`），不改循环结构。
+
+Tauri：`container_layer_*`、`container_agent_workspace_cmd`。  
+UI：设置页「容器模式」；版本管理设置里「容器可写层」应用/丢弃。
+
+## 玩家文案（C/D）
+
+- 「预热容器运行时」— 隐藏冷启动等待。
+- 「应用更改 / 丢弃更改」— 像提交 / 回滚模组与配置，存档单独保护。
+- 「存档修改需确认」— 默认开；可在设置关闭。

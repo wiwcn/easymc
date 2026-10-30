@@ -8,6 +8,7 @@ description = "Java detection, runtime install, and desktop Minecraft launch"
 [dependencies]
 easymc-core = { workspace = true }
 easymc-meta = { workspace = true }
+easymc-container = { workspace = true }
 dirs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

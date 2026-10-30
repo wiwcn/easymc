@@ -16,6 +16,8 @@ import {
   msaStatus,
   setCurseforgeKey,
   updateSettings,
+  containerPreheat,
+  containerProbe,
   type JavaInstallDto,
   type MinecraftDirDto,
 } from "../api";
@@ -408,6 +410,84 @@ export class SettingsPage extends LitElement {
             <option value="official">官方</option>
             <option value="bmclapi">BMCLAPI 加速</option>
           </select>
+        </div>
+      </div>
+      <div class="card">
+        <h2>容器模式</h2>
+        <p>
+          用 Podman 把游戏环境隔离开：模组与配置按版本独立；运行时 Java 来自 Temurin 镜像（国内可走 DaoCloud）。Windows 图形界面接受路径为 Podman Machine（WSL2）+ WSLg。
+        </p>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${!!this.settings?.container_mode_enabled}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_mode_enabled: on });
+                showToast(on ? "已启用容器模式偏好" : "已关闭容器模式偏好");
+              }}
+            />
+            启用容器模式偏好
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_china_mirrors !== false}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_china_mirrors: on });
+                showToast(on ? "容器镜像走国内源" : "容器镜像走官方源");
+              }}
+            />
+            容器镜像使用国内源（DaoCloud）
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_saves_require_propose !== false}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_saves_require_propose: on });
+                showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
+              }}
+            />
+            容器版本修改存档需确认（推荐）
+          </label>
+        </div>
+        <div class="row">
+          <button
+            class="ghost"
+            type="button"
+            @click=${async () => {
+              try {
+                const p = await containerProbe();
+                showToast(p.message_zh);
+              } catch (e) {
+                showToast(String(e));
+              }
+            }}
+          >
+            探测 Podman
+          </button>
+          <button
+            class="primary"
+            type="button"
+            @click=${async () => {
+              try {
+                const r = await containerPreheat(true);
+                showToast(r.messages_zh.join("；") || (r.ok ? "预热完成" : "预热未完成"));
+              } catch (e) {
+                showToast(String(e));
+              }
+            }}
+          >
+            预热容器运行时
+          </button>
         </div>
       </div>
       <details class="card">

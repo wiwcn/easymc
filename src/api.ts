@@ -601,6 +601,7 @@ export async function getSettings(): Promise<SettingsDto> {
       container_mode_enabled: false,
       container_china_mirrors: true,
       container_setup_done: false,
+      container_saves_require_propose: true,
     }
   );
 }
@@ -616,6 +617,7 @@ export async function updateSettings(patch: {
   container_mode_enabled?: boolean;
   container_china_mirrors?: boolean;
   container_setup_done?: boolean;
+  container_saves_require_propose?: boolean;
 }): Promise<SettingsDto> {
   return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
 }
@@ -810,4 +812,32 @@ export async function installModpack(
     versionId: opts?.versionId || null,
     name: opts?.name || null,
   });
+}
+
+export async function containerProvision(instanceId: string) {
+  return invokeOrThrow<import("./types").ContainerProvisionDto>("container_provision_cmd", { instanceId });
+}
+
+export async function containerPreheat(pullImage = true) {
+  return invokeOrThrow<import("./types").ContainerPreheatDto>("container_preheat_cmd", { pullImage });
+}
+
+export async function containerPullImage() {
+  return invokeOrThrow<import("./types").ContainerImagePullDto>("container_pull_image_cmd");
+}
+
+export async function containerLayerState(instanceId: string) {
+  return invokeOrThrow<import("./types").ContainerLayerStateDto>("container_layer_state_cmd", { instanceId });
+}
+
+export async function containerLayerApply(instanceId: string) {
+  return invokeOrThrow<import("./types").ContainerLayerOpDto>("container_layer_apply_cmd", { instanceId });
+}
+
+export async function containerLayerDiscard(instanceId: string) {
+  return invokeOrThrow<import("./types").ContainerLayerOpDto>("container_layer_discard_cmd", { instanceId });
+}
+
+export async function containerAgentWorkspace(instanceId: string) {
+  return invokeOrThrow<import("./types").AgentWorkspaceDto>("container_agent_workspace_cmd", { instanceId });
 }

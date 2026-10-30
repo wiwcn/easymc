@@ -45,6 +45,10 @@ pub fn is_dangerous_tool(name: &str) -> bool {
             | "bump_memory"
             | "apply_changes"
             | "apply_proposal"
+            | "apply_game_layer"
+            | "discard_game_layer"
+            | "modify_saves"
+            | "write_saves"
     )
 }
 
@@ -377,6 +381,8 @@ mod tests {
         assert!(is_dangerous_tool("delete_instance"));
         assert!(is_dangerous_tool("toggle_mod"));
         assert!(is_dangerous_tool("bump_memory"));
+        assert!(is_dangerous_tool("apply_game_layer"));
+        assert!(is_dangerous_tool("discard_game_layer"));
         assert!(!is_dangerous_tool("analyze_crash_log"));
         assert!(!is_dangerous_tool("list_instances"));
     }

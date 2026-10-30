@@ -384,6 +384,8 @@ export interface SettingsDto {
   container_mode_enabled?: boolean;
   container_china_mirrors?: boolean;
   container_setup_done?: boolean;
+  /** Container mode: mutating saves/ needs Agent propose (default true). */
+  container_saves_require_propose?: boolean;
 }
 
 export interface MsaStatusDto {
@@ -399,4 +401,51 @@ export interface DeviceCodeDto {
   verification_uri: string;
   expires_in: number;
   interval: number;
+}
+
+export interface ContainerImagePullDto {
+  image: string;
+  pulled: boolean;
+  already_present: boolean;
+  message_zh: string;
+}
+
+export interface ContainerPreheatDto {
+  ok: boolean;
+  machine_started: boolean;
+  image?: ContainerImagePullDto | null;
+  probe_status: string;
+  messages_zh: string[];
+}
+
+export interface ContainerProvisionDto {
+  instance: InstanceDto;
+  image_pulled: boolean;
+  message_zh: string;
+}
+
+export interface ContainerLayerStateDto {
+  instance_id: string;
+  baseline_at?: string | null;
+  applied_at?: string | null;
+  dirty: boolean;
+  rev: number;
+  message_zh: string;
+}
+
+export interface ContainerLayerOpDto {
+  ok: boolean;
+  state: ContainerLayerStateDto;
+  message_zh: string;
+}
+
+export interface AgentWorkspaceDto {
+  instance_id: string;
+  kind: "native" | "container" | string;
+  root: string;
+  container_id?: string | null;
+  image?: string | null;
+  saves_require_propose: boolean;
+  layer?: ContainerLayerStateDto | null;
+  message_zh: string;
 }

@@ -27,9 +27,11 @@ use easymc_agent::{
     LlmConfigView, LlmStatus,
 };
 use easymc_container::{
-    apply_one_click_setup, attach_container_to_instance, create_container_version,
-    delete_container_version, install_guidance, list_container_versions,
-    probe_container_runtime, write_china_registries_config,
+    apply_game_layer, apply_one_click_setup, attach_container_to_instance,
+    create_container_version, delete_container_version, discard_game_layer,
+    ensure_runtime_image, install_guidance, layer_state_for, list_container_versions,
+    preheat_container_runtime, probe_container_runtime, provision_container_version,
+    resolve_agent_workspace, write_china_registries_config,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -65,7 +67,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "name": "EasyMC",
         "version": env!("CARGO_PKG_VERSION"),
         "edition": "Java",
-        "milestone": "M1.7",
+        "milestone": "M1.8",
         "data_dir": state.paths.root,
         "msa_configured": msa.is_configured(),
         "msa_temporary_client": msa.using_temporary_client_id,
@@ -283,6 +285,7 @@ struct UpdateSettingsPatch {
     container_mode_enabled: Option<bool>,
     container_china_mirrors: Option<bool>,
     container_setup_done: Option<bool>,
+    container_saves_require_propose: Option<bool>,
 }
 
 #[tauri::command]
@@ -323,6 +326,9 @@ fn update_settings_cmd(
     }
     if let Some(v) = patch.container_setup_done {
         settings.container_setup_done = v;
+    }
+    if let Some(v) = patch.container_saves_require_propose {
+        settings.container_saves_require_propose = v;
     }
     save_settings(paths, &settings).map_err(|e| e.to_string())?;
     Ok(settings)
@@ -1999,7 +2005,7 @@ pub fn run() {
     }
 
 
-// —— Container mode (Podman) — Slice A/B ——
+// —— Container mode (Podman) — Slice A/B/C/D ——
 
 #[tauri::command]
 fn container_probe_cmd() -> easymc_container::RuntimeProbe {
@@ -2097,6 +2103,72 @@ fn container_delete_version_cmd(
 }
 
 
+
+#[tauri::command]
+fn container_provision_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<easymc_container::ProvisionResult, String> {
+    let paths = state_paths(&state);
+    let prefer = load_settings(paths)
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    provision_container_version(paths, &instance_id, prefer).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn container_preheat_cmd(
+    state: State<'_, AppState>,
+    pull_image: Option<bool>,
+) -> easymc_container::PreheatResult {
+    let prefer = load_settings(state_paths(&state))
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    preheat_container_runtime(prefer, pull_image.unwrap_or(true))
+}
+
+#[tauri::command]
+fn container_pull_image_cmd(
+    state: State<'_, AppState>,
+) -> Result<easymc_container::ImagePullResult, String> {
+    let prefer = load_settings(state_paths(&state))
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    ensure_runtime_image(prefer)
+}
+
+#[tauri::command]
+fn container_layer_state_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<easymc_container::LayerState, String> {
+    layer_state_for(state_paths(&state), &instance_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn container_layer_apply_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<easymc_container::LayerOpResult, String> {
+    apply_game_layer(state_paths(&state), &instance_id)
+}
+
+#[tauri::command]
+fn container_layer_discard_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<easymc_container::LayerOpResult, String> {
+    discard_game_layer(state_paths(&state), &instance_id)
+}
+
+#[tauri::command]
+fn container_agent_workspace_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<easymc_container::AgentWorkspace, String> {
+    resolve_agent_workspace(state_paths(&state), &instance_id).map_err(|e| e.to_string())
+}
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
@@ -2171,6 +2243,13 @@ fn container_delete_version_cmd(
             container_create_version_cmd,
             container_attach_cmd,
             container_delete_version_cmd,
+            container_provision_cmd,
+            container_preheat_cmd,
+            container_pull_image_cmd,
+            container_layer_state_cmd,
+            container_layer_apply_cmd,
+            container_layer_discard_cmd,
+            container_agent_workspace_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

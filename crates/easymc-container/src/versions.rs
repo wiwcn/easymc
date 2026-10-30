@@ -1,7 +1,5 @@
-//! Create / delete / list container-backed versions (Slice B).
+//! Create / delete / list / provision container-backed versions (Slices B + C).
 //! Native instances stay untouched; container meta is optional on [`Instance`].
-
-use std::process::Command;
 
 use easymc_core::{
     create_named_instance_with, load_instances, remove_instance, update_instance_fields,
@@ -11,9 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::detect::{detect_podman, probe_container_runtime, ProbeStatus};
 use easymc_core::{ContainerMeta, ContainerVolume, CONTAINER_RUNTIME_PODMAN};
-use crate::registries::{
-    prefer_china_image_ref, DEFAULT_BASE_IMAGE, DEFAULT_BASE_IMAGE_MIRROR,
-};
+use crate::image::ensure_runtime_image;
+use crate::layer::ensure_baseline;
+use crate::mounts::default_volumes;
+use crate::podman_util::{container_name_for, podman_cmd};
+use crate::registries::{prefer_china_image_ref, DEFAULT_BASE_IMAGE, DEFAULT_BASE_IMAGE_MIRROR};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContainerVersionSummary {
@@ -28,36 +28,11 @@ pub struct ContainerVersionSummary {
     pub provisioned: bool,
 }
 
-fn container_name_for(instance_id: &str) -> String {
-    // Podman name: [a-zA-Z0-9][a-zA-Z0-9_.-]*
-    let slug: String = instance_id
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .collect();
-    format!("easymc-{slug}")
-}
-
-fn podman_cmd(bin: &str, args: &[&str]) -> Result<String, String> {
-    let mut cmd = Command::new(bin);
-    cmd.args(args);
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    let out = cmd.output().map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr);
-        return Err(err.trim().to_string());
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvisionResult {
+    pub instance: Instance,
+    pub image_pulled: bool,
+    pub message_zh: String,
 }
 
 /// List instances that carry container metadata.
@@ -83,6 +58,51 @@ pub fn list_container_versions(paths: &Paths) -> CoreResult<Vec<ContainerVersion
         .collect())
 }
 
+fn create_podman_container(
+    bin: &str,
+    cname: &str,
+    image: &str,
+    volumes: &[ContainerVolume],
+) -> Result<String, String> {
+    let _ = podman_cmd(bin, &["rm", "-f", cname]);
+    let mut args: Vec<String> = vec![
+        "create".into(),
+        "--name".into(),
+        cname.to_string(),
+        "--replace".into(),
+        "-w".into(),
+        "/data/.minecraft".into(),
+    ];
+    for v in volumes {
+        args.push("-v".into());
+        args.push(format!("{}:{}:{}", v.host, v.container, v.mode));
+    }
+    args.push(image.to_string());
+    args.push("sleep".into());
+    args.push("infinity".into());
+    match podman_cmd(bin, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>()) {
+        Ok(id) => Ok(id),
+        Err(_) => {
+            // Retry without --replace for older podman.
+            let mut args2: Vec<String> = vec![
+                "create".into(),
+                "--name".into(),
+                cname.to_string(),
+                "-w".into(),
+                "/data/.minecraft".into(),
+            ];
+            for v in volumes {
+                args2.push("-v".into());
+                args2.push(format!("{}:{}:{}", v.host, v.container, v.mode));
+            }
+            args2.push(image.to_string());
+            args2.push("sleep".into());
+            args2.push("infinity".into());
+            podman_cmd(bin, &args2.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+        }
+    }
+}
+
 /// Attach container metadata (+ best-effort `podman create`) to an existing instance.
 pub fn attach_container_to_instance(
     paths: &Paths,
@@ -95,85 +115,68 @@ pub fn attach_container_to_instance(
         prefer_china_image_ref(DEFAULT_BASE_IMAGE, false)
     };
 
-    let game_dir = {
+    let inst_snap = {
         let store = load_instances(paths)?;
-        let inst = store
+        store
             .instances
             .iter()
             .find(|i| i.id == instance_id)
-            .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {instance_id}")))?;
-        inst.game_dir.clone()
+            .cloned()
+            .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {instance_id}")))?
     };
 
     let cname = container_name_for(instance_id);
-    let volumes = vec![
-        ContainerVolume::rw(&game_dir, "/data/.minecraft"),
-        ContainerVolume::ro(
-            paths.libraries_dir().to_string_lossy().as_ref(),
-            "/data/libraries",
-        ),
-        ContainerVolume::ro(
-            paths.assets_dir().to_string_lossy().as_ref(),
-            "/data/assets",
-        ),
-    ];
+    let volumes = default_volumes(paths, &inst_snap);
 
     let mut meta = ContainerMeta::new_podman(image.clone());
     meta.volumes = volumes.clone();
     meta.container_id = Some(cname.clone());
 
-    // Best-effort provision when Podman is ready; metadata is still saved if create fails
-    // so the home badge and list work, and setup can retry later.
     let probe = probe_container_runtime();
     if matches!(probe.status, ProbeStatus::Ready) {
         if let Some(pod) = detect_podman() {
-            let _ = podman_cmd(&pod.path, &["rm", "-f", &cname]);
-            let mut args: Vec<String> = vec![
-                "create".into(),
-                "--name".into(),
-                cname.clone(),
-                "--replace".into(),
-            ];
-            for v in &volumes {
-                args.push("-v".into());
-                args.push(format!("{}:{}:{}", v.host, v.container, v.mode));
-            }
-            args.push(image);
-            // `--replace` may be unsupported on older podman — retry without it.
-            match podman_cmd(
-                &pod.path,
-                &args.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-            ) {
+            // Best-effort pull so create has the image.
+            let _ = ensure_runtime_image(prefer_china_mirror);
+            match create_podman_container(&pod.path, &cname, &image, &volumes) {
                 Ok(id) => {
                     meta.provisioned = true;
-                    if !id.is_empty() {
-                        meta.container_id = Some(id);
+                    if !id.is_empty() && id.len() >= 12 {
+                        // keep stable name in meta; id optional
+                        meta.container_id = Some(cname.clone());
                     }
                 }
-                Err(_) => {
-                    // Retry without --replace
-                    let mut args2: Vec<String> = vec!["create".into(), "--name".into(), cname.clone()];
-                    for v in &volumes {
-                        args2.push("-v".into());
-                        args2.push(format!("{}:{}:{}", v.host, v.container, v.mode));
-                    }
-                    args2.push(meta.image.clone().unwrap_or_else(|| DEFAULT_BASE_IMAGE.into()));
-                    if let Ok(id) = podman_cmd(
-                        &pod.path,
-                        &args2.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                    ) {
-                        meta.provisioned = true;
-                        if !id.is_empty() {
-                            meta.container_id = Some(id);
-                        }
-                    }
+                Err(e) => {
+                    tracing::warn!("podman create failed: {e}");
                 }
             }
         }
     }
 
-    update_instance_fields(paths, instance_id, |inst| {
+    let inst = update_instance_fields(paths, instance_id, |inst| {
         inst.container = Some(meta.clone());
+    })?;
+    let _ = ensure_baseline(paths, &inst);
+    Ok(inst)
+}
+
+/// Pull runtime image + recreate container with full volume set (game files live on host mounts).
+///
+/// MC jars/libraries/assets are installed into EasyMC data dirs (BMCLAPI-aware via
+/// existing `install_version`); those dirs **are** the container volumes.
+pub fn provision_container_version(
+    paths: &Paths,
+    instance_id: &str,
+    prefer_china_mirror: bool,
+) -> CoreResult<ProvisionResult> {
+    let pull = ensure_runtime_image(prefer_china_mirror).map_err(easymc_core::EasyMcError::msg)?;
+    let inst = attach_container_to_instance(paths, instance_id, prefer_china_mirror)?;
+    Ok(ProvisionResult {
+        instance: inst,
+        image_pulled: pull.pulled,
+        message_zh: format!(
+            "{}；版本文件在宿主卷中，容器内直接可见。",
+            pull.message_zh
+        ),
     })
 }
 
@@ -222,7 +225,6 @@ pub fn delete_container_version(
             }
         }
     }
-    // Clear meta first so a partial failure doesn't leave a ghost badge expectation
     let _ = update_instance_fields(paths, instance_id, |i| {
         i.container = None;
     });
