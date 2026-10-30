@@ -1,6 +1,6 @@
 {
   "name": "easymc",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "type": "module",
   "description": "EasyMC — open-source Minecraft Java Edition launcher (Tauri 2 + Lit)",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-shell": "^2",
     "lit": "^3.2.1",
     "motion": "^14.6.0"

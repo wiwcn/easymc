@@ -32,3 +32,4 @@ tauri-plugin-shell = "2"
 tokio = { workspace = true }
 chrono = { workspace = true }
 open = "5"
+tauri-plugin-dialog = "2"

@@ -37,6 +37,7 @@ import { listenInstallProgress } from "../api";
 import type { ContainerLayerStateDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
+import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import "../components/install-progress";
 import "../components/empty-state";
@@ -606,6 +607,18 @@ export class InstancePage extends LitElement {
   private async openCreate() {
     this.showCreate = true;
     this.versions = await listVersions(false);
+  }
+
+  private async onImportEnv() {
+    await this.act(async () => {
+      const path = await pickEnvPackFile();
+      if (!path) return;
+      const r = await containerImportEnv(path);
+      showToast(r.message_zh);
+      await this.load();
+      await this.openDetail(r.instance.id);
+      this.tab = "export";
+    });
   }
 
   private async onImport() {

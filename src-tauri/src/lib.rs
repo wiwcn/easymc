@@ -2279,6 +2279,7 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             paths,
             procs: Arc::new(ProcessManager::new()),
