@@ -84,6 +84,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
         "rename_instance" | "rename_version" => ("重命名版本", Some("版本")),
         "duplicate_instance" | "duplicate_version" | "copy_instance" => ("复制版本", Some("版本")),
+        "delete_instance" | "delete_version" | "remove_instance" => ("删除版本", Some("版本")),
+        "delete_mod" | "remove_mod" | "uninstall_mod" => ("删除模组", Some("模组")),
         "open_latest_log" | "open_log" => ("打开日志", Some("文件")),
         "list_accounts" => ("账户列表", Some("账户")),
         "select_account" | "switch_account" => ("切换账户", Some("账户")),
@@ -276,6 +278,28 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 out.push(arg("loader", "加载器", l));
             }
         }
+        "delete_instance" | "delete_version" | "remove_instance" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(ver) = v.get("version").and_then(|x| x.as_str()) {
+                out.push(arg("mc", "MC", ver));
+            }
+            if let Some(l) = v.get("loader").and_then(|x| x.as_str()) {
+                out.push(arg("loader", "加载器", l));
+            }
+        }
+        "delete_mod" | "remove_mod" | "uninstall_mod" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(f) = v.get("filename").and_then(|x| x.as_str()) {
+                out.push(arg("file", "文件", f));
+            }
+            if let Some(q) = v.get("query").and_then(|x| x.as_str()) {
+                out.push(arg("query", "关键词", q));
+            }
+        }
         "open_latest_log" | "open_log" => {
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "版本", n));
@@ -437,6 +461,13 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         "duplicate_instance" if ok => {
             acts.push(ui("open_home", "去启动页"));
             acts.push(ui("reveal_path", "打开新版本文件夹"));
+        }
+        "delete_instance" if ok => {
+            acts.push(ui("open_home", "去启动页"));
+        }
+        "delete_mod" if ok => {
+            acts.push(ui("run_check_mods", "再看模组列表"));
+            acts.push(ui("open_mods", "打开模组文件夹"));
         }
         "open_latest_log" if ok => {
             acts.push(ui("reveal_path", "打开日志位置"));

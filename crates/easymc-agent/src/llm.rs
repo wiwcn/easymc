@@ -317,6 +317,8 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「切换版本 <名>」/ select_instance — 切换当前版本；\
 · 「重命名版本 <新名>」/ rename_instance — 改当前版本显示名；\
 · 「复制版本」/ duplicate_instance — 复制当前版本（模组等，不含存档）；\
+· 「删除版本 <名>」/ delete_instance — 永久删除版本及其游戏文件夹；\
+· 「删除模组 <关键词>」/ delete_mod — 从当前版本永久删除模组文件；\
 · 「打开日志」/ open_latest_log — 定位 latest.log 或崩溃报告；\
 · 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
@@ -475,6 +477,34 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
                         "new_name": { "type": "string", "description": "可选：副本显示名" },
                         "query": { "type": "string", "description": "可选：要复制的版本关键词" }
                     }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_instance",
+                "description": "永久删除版本及其游戏文件夹（不可恢复）。须指定 query（版本名关键词，或「当前」）。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "版本关键词，或「当前」表示当前版本" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_mod",
+                "description": "从当前版本永久删除模组 jar（不可恢复；想先留着请用 toggle_mod 禁用）。关键词匹配文件名。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "模组文件名关键词，如 sodium" }
+                    },
+                    "required": ["query"]
                 }
             }
         },
@@ -682,6 +712,30 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
                 "复制版本".into()
             } else {
                 format!("复制版本 {name}")
+            }
+        }
+        "delete_instance" | "delete_version" | "remove_instance" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "删除版本".into()
+            } else {
+                format!("删除版本 {q}")
+            }
+        }
+        "delete_mod" | "remove_mod" | "uninstall_mod" => {
+            let q = args
+                .get("query")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim();
+            if q.is_empty() {
+                "删除模组".into()
+            } else {
+                format!("删除模组 {q}")
             }
         }
         "open_latest_log" | "open_log" => "打开日志".into(),

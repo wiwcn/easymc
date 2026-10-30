@@ -49,6 +49,13 @@ pub enum Intent {
         query: Option<String>,
         new_name: Option<String>,
     },
+    /// Permanently delete a version (and its game folder). Query required (or 当前).
+    DeleteInstance { query: String },
+    /// Permanently delete a mod jar by filename keyword.
+    DeleteMod {
+        query: String,
+        instance_id: Option<String>,
+    },
     /// Reveal latest.log or newest crash-report path for the current version.
     OpenLatestLog { instance_id: Option<String> },
     /// List saved accounts (no tokens).
@@ -711,6 +718,148 @@ pub fn route(input: &str) -> IntentResult {
         }
     }
 
+
+    // delete mod (before delete version so 「删除模组」wins)
+    for prefix in [
+        "删除模组 ",
+        "删掉模组 ",
+        "移除模组 ",
+        "卸载模组 ",
+        "delete mod ",
+        "remove mod ",
+        "uninstall mod ",
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty() && q.len() < 80 {
+                return IntentResult {
+                    intent: Intent::DeleteMod {
+                        query: q,
+                        instance_id: None,
+                    },
+                    confidence: 0.92,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在删除模组…".into(),
+                };
+            }
+        }
+    }
+    let del_mod_keys = ["删除模组", "删掉模组", "移除模组", "卸载模组", "delete mod", "remove mod"];
+    for k in del_mod_keys {
+        if t == k || (t.starts_with(k) && t.len() == k.len()) {
+            return IntentResult {
+                intent: Intent::DeleteMod {
+                    query: String::new(),
+                    instance_id: None,
+                },
+                confidence: 0.85,
+                matched: k.into(),
+                reply_zh: "请告诉我要删哪个模组，例如：删除模组 sodium".into(),
+            };
+        }
+        if t.contains(k) {
+            let idx = t.find(k).unwrap_or(0) + k.len();
+            let q = t[idx..].trim().trim_start_matches(['：', ':', ' ']).to_string();
+            return IntentResult {
+                intent: Intent::DeleteMod {
+                    query: q,
+                    instance_id: None,
+                },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh: "正在删除模组…".into(),
+            };
+        }
+    }
+    // bare 「删除 sodium」 / 「删掉 iris」（避免误伤「删除版本」）
+    for prefix in ["删除 ", "删掉 ", "移除 ", "卸载 "] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty()
+                && !q.contains("版本")
+                && !q.contains("账户")
+                && !q.contains("账号")
+                && !q.contains("instance")
+                && !q.contains("version")
+                && !q.contains("内存")
+                && !q.contains("java")
+                && q.len() < 64
+            {
+                return IntentResult {
+                    intent: Intent::DeleteMod {
+                        query: q,
+                        instance_id: None,
+                    },
+                    confidence: 0.8,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在删除模组…".into(),
+                };
+            }
+        }
+    }
+
+    // delete version
+    for prefix in [
+        "删除版本 ",
+        "删掉版本 ",
+        "移除版本 ",
+        "卸载版本 ",
+        "delete version ",
+        "remove version ",
+        "delete instance ",
+        "remove instance ",
+    ] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            let q = rest.trim().to_string();
+            if !q.is_empty() && q.len() < 80 {
+                return IntentResult {
+                    intent: Intent::DeleteInstance { query: q },
+                    confidence: 0.92,
+                    matched: prefix.trim().into(),
+                    reply_zh: "正在删除版本…".into(),
+                };
+            }
+        }
+    }
+    let del_inst_keys = [
+        "删除当前版本",
+        "删掉当前版本",
+        "删除这个版本",
+        "删掉这个版本",
+        "delete current version",
+        "remove current version",
+    ];
+    for k in del_inst_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::DeleteInstance {
+                    query: "当前".into(),
+                },
+                confidence: 0.92,
+                matched: k.into(),
+                reply_zh: "正在删除当前版本…".into(),
+            };
+        }
+    }
+    let del_inst_bare = ["删除版本", "删掉版本", "移除版本", "卸载版本", "delete version", "remove instance"];
+    for k in del_inst_bare {
+        if t == k || t.starts_with(&format!("{k} ")) || t.contains(k) {
+            let idx = t.find(k).unwrap_or(0) + k.len();
+            let q = t[idx..].trim().trim_start_matches(['：', ':', ' ']).to_string();
+            let reply_zh = if q.is_empty() {
+                "请告诉我要删哪个版本，例如：删除版本 1.21.1".into()
+            } else {
+                "正在删除版本…".into()
+            };
+            return IntentResult {
+                intent: Intent::DeleteInstance { query: q },
+                confidence: 0.9,
+                matched: k.into(),
+                reply_zh,
+            };
+        }
+    }
+
 let log_file_keys = [
         "打开日志",
         "打开最新日志",
@@ -1160,6 +1309,8 @@ pub fn help_text() -> String {
 · 「切换版本 1.21.1」— 把当前版本切到匹配的那一个
 · 「重命名版本 我的生存包」— 改当前版本显示名
 · 「复制版本」— 复制当前版本（模组等一起拷，不含存档）
+· 「删除版本 测试包」— 删掉版本和它的游戏文件夹（找不回来）
+· 「删除模组 sodium」— 从当前版本永久删掉模组文件
 · 「打开日志」— 定位当前版本的 latest.log / 崩溃报告
 · 「账户列表」— 看看已保存的正版 / 离线账号
 · 「切换账户 Steve」— 把当前账户切到匹配的那一个
@@ -1292,6 +1443,18 @@ mod tests {
             Intent::DuplicateInstance { new_name, .. } => {
                 assert_eq!(new_name.as_deref(), Some("硬核包"));
             }
+            other => panic!("{:?}", other),
+        }
+        match route("删除版本 测试包").intent {
+            Intent::DeleteInstance { query } => assert!(query.contains("测试")),
+            other => panic!("{:?}", other),
+        }
+        assert!(matches!(
+            route("删除当前版本").intent,
+            Intent::DeleteInstance { .. }
+        ));
+        match route("删除模组 sodium").intent {
+            Intent::DeleteMod { query, .. } => assert!(query.contains("sodium")),
             other => panic!("{:?}", other),
         }
         match route("导入整合包 /tmp/demo.mrpack").intent {

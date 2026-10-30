@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use easymc_core::{
     duplicate_instance as core_duplicate_instance, load_accounts, load_instances, load_settings,
-    save_accounts, save_settings, set_active_instance, update_instance_fields, AccountKind,
-    DownloadSource, Instance, Paths, Result,
+    remove_instance as core_remove_instance, save_accounts, save_settings, set_active_instance,
+    update_instance_fields, AccountKind, DownloadSource, Instance, Paths, Result,
 };
 
 use crate::diagnose::DiagnoseReport;
@@ -1496,3 +1496,212 @@ pub fn duplicate_version(
         },
     }
 }
+
+/// Permanently delete a matched version (and its game folder). Query required (or 当前).
+pub fn delete_instance(paths: &Paths, query: &str) -> ActionResult {
+    let q = query.trim();
+    if q.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "delete_instance".into(),
+            message_zh: "删除版本会清掉游戏文件夹，请说清楚要删哪个，例如：删除版本 1.21.1 测试包".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "delete_instance".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let q_l = q.to_lowercase();
+    let is_current = matches!(
+        q_l.as_str(),
+        "当前" | "当前版本" | "current" | "active" | "这个" | "这个版本"
+    );
+    let target = if is_current {
+        match resolve_one_instance(&store, None, "delete_instance") {
+            Ok(i) => i,
+            Err(ar) => return ar,
+        }
+    } else {
+        match resolve_one_instance(&store, Some(q), "delete_instance") {
+            Ok(i) => i,
+            Err(ar) => return ar,
+        }
+    };
+    let name = target.name.clone();
+    let id = target.id.clone();
+    let game_dir = target.game_dir.clone();
+    let version = target.version.0.clone();
+    let loader = target.loader.as_str().to_string();
+    match core_remove_instance(paths, &id, true) {
+        Ok(()) => ActionResult {
+            ok: true,
+            action: "delete_instance".into(),
+            message_zh: format!(
+                "已删除版本「{name}」（{version} · {loader}）。游戏文件夹也清掉了，找不回来。"
+            ),
+            path: Some(game_dir),
+            value: Some(serde_json::json!({
+                "instance_id": id,
+                "instance_name": name,
+                "version": version,
+                "loader": loader,
+                "deleted_files": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "delete_instance".into(),
+            message_zh: format!("删除版本失败：{e}"),
+            path: Some(game_dir),
+            value: None,
+        },
+    }
+}
+
+/// Permanently delete a mod jar (or .jar.disabled) by filename keyword.
+pub fn delete_mod(paths: &Paths, instance_id: Option<&str>, query: &str) -> ActionResult {
+    let q = query.trim();
+    if q.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: "请告诉我要删哪个模组，例如「删除模组 sodium」。删了就找不回来，想先留着可以说「禁用」。".into(),
+            path: None,
+            value: None,
+        };
+    }
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "delete_mod".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: "还没有选版本。请先在启动页或助手顶部选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let mods_dir = PathBuf::from(&inst.game_dir).join("mods");
+    if !mods_dir.is_dir() {
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: format!("版本「{}」还没有 mods 文件夹。", inst.name),
+            path: Some(mods_dir.display().to_string()),
+            value: None,
+        };
+    }
+    let q_l = q.to_ascii_lowercase();
+    let mut hits: Vec<PathBuf> = Vec::new();
+    if let Ok(rd) = fs::read_dir(&mods_dir) {
+        for ent in rd.flatten() {
+            let name = ent.file_name().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            if !(lower.ends_with(".jar") || lower.ends_with(".jar.disabled")) {
+                continue;
+            }
+            if lower.contains(&q_l) {
+                hits.push(ent.path());
+            }
+        }
+    }
+    hits.sort();
+    if hits.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: format!(
+                "在「{}」的模组里没找到包含「{q}」的文件。可以说「已装模组」先看列表。",
+                inst.name
+            ),
+            path: Some(mods_dir.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "query": q,
+            })),
+        };
+    }
+    if hits.len() > 1 {
+        let names: Vec<String> = hits
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        let preview = names.iter().take(8).cloned().collect::<Vec<_>>().join("\n");
+        return ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: format!(
+                "找到多个匹配「{q}」的模组，请说得更具体一点（删了就找不回来）：\n{preview}"
+            ),
+            path: Some(mods_dir.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "query": q,
+                "matches": names,
+            })),
+        };
+    }
+    let src = &hits[0];
+    let name = src.file_name().unwrap().to_string_lossy().to_string();
+    match fs::remove_file(src) {
+        Ok(()) => ActionResult {
+            ok: true,
+            action: "delete_mod".into(),
+            message_zh: format!(
+                "已从版本「{}」删掉模组「{name}」。想再装可以说「装 …」。",
+                inst.name
+            ),
+            path: Some(mods_dir.display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "filename": name,
+                "query": q,
+                "deleted": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "delete_mod".into(),
+            message_zh: format!("删除模组失败：{e}"),
+            path: Some(src.display().to_string()),
+            value: None,
+        },
+    }
+}
+

@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "GitHub Release tag (empty = artifact only)"
         required: false
-        default: "v0.1.5"
+        default: "v0.1.6"
 
 permissions:
   contents: write
@@ -88,7 +88,7 @@ jobs:
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easymc-windows-0.1.5
+          name: easymc-windows-0.1.6
           path: dist-windows/*
           if-no-files-found: error
           retention-days: 30
