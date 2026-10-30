@@ -12,9 +12,10 @@ use easymc_launch_desktop::{
     LaunchRequest, LaunchStatus, MinecraftDir, ProcessManager,
 };
 use easymc_meta::{
-    install_fabric, install_forge, install_neoforge, install_quilt, install_version,
-    is_loader_installed, is_version_installed, list_loaders_with_source, InstallOptions,
-    LoaderKind, MetaProvider, PistonMetaProvider,
+    install_fabric, install_forge, install_neoforge, install_quilt,
+    install_version, is_loader_installed, is_version_installed, list_download_mirror_candidates,
+    list_loaders_with_source, probe_download_mirrors, InstallOptions, LoaderKind, MetaProvider,
+    PistonMetaProvider,
 };
 use easymc_share::{
     export_instance, import_instance, ExportOptions, ExportResult, ImportOptions, ImportResult,
@@ -30,11 +31,12 @@ use easymc_container::{
     apply_game_layer, apply_one_click_setup, attach_container_to_instance,
     create_container_version, delete_container_version, discard_game_layer,
     ensure_runtime_image, export_env_pack, import_env_pack, install_guidance, layer_state_for,
-    list_container_versions, list_mirror_profiles, preheat_container_runtime,
-    preheat_container_runtime_ex, preheat_status, probe_container_runtime,
-    provision_container_version, read_env_manifest_from_path, repair_container_runtime,
-    resolve_agent_workspace, write_china_registries_config, EnvExportOptions, EnvImportOptions,
-    EnvPackMode,
+    list_container_versions, list_mirror_profiles, list_registry_mirror_candidates,
+    preheat_container_runtime, preheat_container_runtime_ex, preheat_status,
+    probe_container_runtime, probe_registry_mirrors, provision_container_version,
+    read_env_manifest_from_path, repair_container_runtime_with_profile,
+    resolve_agent_workspace, write_china_registries_config, write_registries_config_for_profile,
+    EnvExportOptions, EnvImportOptions, EnvPackMode, MirrorProfile,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -340,14 +342,26 @@ fn update_settings_cmd(
         settings.container_auto_preheat = v;
     }
     if let Some(profile) = patch.container_mirror_profile.as_deref() {
-        match easymc_container::MirrorProfile::parse(profile) {
-            Some(p) => settings.container_china_mirrors = p.prefer_china(),
+        match MirrorProfile::parse(profile) {
+            Some(p) => {
+                settings.container_mirror_profile = p.as_str().into();
+                settings.container_china_mirrors = p.prefer_china();
+                // Best-effort: rewrite registries drop-in to match the pick.
+                let _ = write_registries_config_for_profile(p);
+            }
             None => {
                 return Err(format!(
-                    "未知镜像源: {profile}（daocloud / official）"
+                    "未知镜像源: {profile}（daocloud / dockerproxy / onems / official）"
                 ))
             }
         }
+    } else if patch.container_china_mirrors.is_some() {
+        // Keep profile id aligned when only the bool is patched.
+        settings.container_mirror_profile = MirrorProfile::from_prefer_china(
+            settings.container_china_mirrors,
+        )
+        .as_str()
+        .into();
     }
     save_settings(paths, &settings).map_err(|e| e.to_string())?;
     Ok(settings)
@@ -2216,6 +2230,27 @@ fn container_mirror_profiles_cmd() -> Vec<easymc_container::MirrorProfileInfo> {
     list_mirror_profiles()
 }
 
+
+#[tauri::command]
+fn download_mirror_candidates_cmd() -> Vec<easymc_meta::DownloadMirrorCandidate> {
+    list_download_mirror_candidates()
+}
+
+#[tauri::command]
+async fn probe_download_mirrors_cmd() -> Vec<easymc_meta::DownloadMirrorProbe> {
+    probe_download_mirrors().await
+}
+
+#[tauri::command]
+fn registry_mirror_candidates_cmd() -> Vec<easymc_container::RegistryMirrorCandidate> {
+    list_registry_mirror_candidates()
+}
+
+#[tauri::command]
+fn probe_registry_mirrors_cmd() -> Vec<easymc_container::RegistryMirrorProbe> {
+    probe_registry_mirrors()
+}
+
 #[tauri::command]
 fn container_repair_cmd(
     state: State<'_, AppState>,
@@ -2223,12 +2258,17 @@ fn container_repair_cmd(
     reprovision: Option<bool>,
 ) -> easymc_container::RepairResult {
     let paths = state_paths(&state);
-    let prefer = prefer_china_mirrors.unwrap_or_else(|| {
-        load_settings(paths)
-            .map(|s| s.container_china_mirrors)
-            .unwrap_or(true)
-    });
-    repair_container_runtime(paths, prefer, reprovision.unwrap_or(true))
+    let settings = load_settings(paths).ok();
+    let profile = settings
+        .as_ref()
+        .and_then(|s| MirrorProfile::parse(&s.container_mirror_profile))
+        .or_else(|| {
+            prefer_china_mirrors
+                .or_else(|| settings.as_ref().map(|s| s.container_china_mirrors))
+                .map(MirrorProfile::from_prefer_china)
+        })
+        .unwrap_or(MirrorProfile::Daocloud);
+    repair_container_runtime_with_profile(paths, profile, reprovision.unwrap_or(true))
 }
 
 #[tauri::command]
@@ -2362,6 +2402,10 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             container_preheat_status_cmd,
             container_preheat_ex_cmd,
             container_mirror_profiles_cmd,
+            download_mirror_candidates_cmd,
+            probe_download_mirrors_cmd,
+            registry_mirror_candidates_cmd,
+            probe_registry_mirrors_cmd,
             container_repair_cmd,
             container_export_env_cmd,
             container_import_env_cmd,

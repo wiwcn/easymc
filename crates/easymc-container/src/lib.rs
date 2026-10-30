@@ -16,6 +16,7 @@ mod meta;
 mod mounts;
 mod podman_util;
 mod preheat;
+mod mirror_probe;
 mod registries;
 mod repair;
 mod setup;
@@ -50,12 +51,18 @@ pub use preheat::{
     PreheatStatus,
 };
 pub use registries::{
-    china_friendly_registries_toml, prefer_china_image_ref, registries_conf_path,
-    write_china_registries_config, ChinaRegistriesResult, DEFAULT_BASE_IMAGE,
+    china_friendly_registries_toml, prefer_china_image_ref, prefer_image_ref_for_profile,
+    registries_conf_path, registries_toml_for_profile, write_china_registries_config,
+    write_registries_config_for_profile, ChinaRegistriesResult, DEFAULT_BASE_IMAGE,
     DEFAULT_BASE_IMAGE_MIRROR,
 };
+pub use mirror_probe::{
+    list_registry_mirror_candidates, probe_registry_mirrors, RegistryMirrorCandidate,
+    RegistryMirrorProbe,
+};
 pub use repair::{
-    list_mirror_profiles, repair_container_runtime, MirrorProfile, MirrorProfileInfo, RepairResult,
+    list_mirror_profiles, repair_container_runtime, repair_container_runtime_with_profile,
+    MirrorProfile, MirrorProfileInfo, RepairResult,
 };
 pub use setup::{
     apply_one_click_setup, install_guidance, SetupAction, SetupPlan, SetupProgress, SetupResult,

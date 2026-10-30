@@ -7,10 +7,15 @@ mod download;
 mod fabric;
 mod forge;
 mod source;
+mod mirrors;
 
 pub use install::*;
 pub use download::{download_file, download_with_source, get_with_source, FetchResult};
 pub use source::{rewrite_url, BMCLAPI_BASE};
+pub use mirrors::{
+    download_source_for_mirror_id, list_download_mirror_candidates, probe_download_mirrors,
+    DownloadMirrorCandidate, DownloadMirrorProbe,
+};
 pub use types::*;
 pub use rules::{rules_allow, current_os_name, is_native_library};
 pub use fabric::*;

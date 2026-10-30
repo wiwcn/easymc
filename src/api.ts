@@ -862,6 +862,30 @@ export async function containerMirrorProfiles() {
   );
 }
 
+export async function downloadMirrorCandidates() {
+  return (
+    (await invokeSafe<import("./types").DownloadMirrorCandidateDto[]>("download_mirror_candidates_cmd")) ?? []
+  );
+}
+
+export async function probeDownloadMirrors() {
+  return (
+    (await invokeSafe<import("./types").DownloadMirrorProbeDto[]>("probe_download_mirrors_cmd")) ?? []
+  );
+}
+
+export async function registryMirrorCandidates() {
+  return (
+    (await invokeSafe<import("./types").RegistryMirrorCandidateDto[]>("registry_mirror_candidates_cmd")) ?? []
+  );
+}
+
+export async function probeRegistryMirrors() {
+  return (
+    (await invokeSafe<import("./types").RegistryMirrorProbeDto[]>("probe_registry_mirrors_cmd")) ?? []
+  );
+}
+
 export async function containerRepair(opts?: {
   preferChinaMirrors?: boolean | null;
   reprovision?: boolean;

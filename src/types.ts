@@ -383,6 +383,8 @@ export interface SettingsDto {
   download_source?: DownloadSourceId | string;
   container_mode_enabled?: boolean;
   container_china_mirrors?: boolean;
+  /** daocloud | dockerproxy | onems | official */
+  container_mirror_profile?: string;
   container_setup_done?: boolean;
   /** Container mode: mutating saves/ needs Agent propose (default true). */
   container_saves_require_propose?: boolean;
@@ -435,6 +437,48 @@ export interface ContainerMirrorProfileDto {
   id: string;
   label_zh: string;
   prefer_china: boolean;
+  sample_image: string;
+  probe_host?: string;
+}
+
+export interface DownloadMirrorCandidateDto {
+  id: string;
+  label_zh: string;
+  region_zh: string;
+  download_source: string;
+  probe_url: string;
+  host_hint: string;
+}
+
+export interface DownloadMirrorProbeDto {
+  id: string;
+  label_zh: string;
+  region_zh: string;
+  download_source: string;
+  ok: boolean;
+  latency_ms?: number | null;
+  error_zh?: string | null;
+  recommended: boolean;
+}
+
+export interface RegistryMirrorCandidateDto {
+  id: string;
+  label_zh: string;
+  region_zh: string;
+  prefer_china: boolean;
+  probe_host: string;
+  sample_image: string;
+}
+
+export interface RegistryMirrorProbeDto {
+  id: string;
+  label_zh: string;
+  region_zh: string;
+  prefer_china: boolean;
+  ok: boolean;
+  latency_ms?: number | null;
+  error_zh?: string | null;
+  recommended: boolean;
   sample_image: string;
 }
 

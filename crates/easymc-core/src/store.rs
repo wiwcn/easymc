@@ -87,6 +87,8 @@ impl DownloadSource {
 
 fn default_true() -> bool { true }
 
+fn default_mirror_profile() -> String { "daocloud".into() }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub msa_client_id: Option<String>,
@@ -114,6 +116,10 @@ pub struct Settings {
     /// Prefer China registry mirrors when pulling container images.
     #[serde(default = "default_true")]
     pub container_china_mirrors: bool,
+    /// Selected container registry mirror id: daocloud | dockerproxy | onems | official.
+    /// Kept in sync with `container_china_mirrors` (official → false; else → true).
+    #[serde(default = "default_mirror_profile")]
+    pub container_mirror_profile: String,
     /// One-click container setup finished (or skipped) during onboarding.
     #[serde(default)]
     pub container_setup_done: bool,
@@ -138,6 +144,7 @@ impl Default for Settings {
             download_source: DownloadSource::Official,
             container_mode_enabled: false,
             container_china_mirrors: true,
+            container_mirror_profile: default_mirror_profile(),
             container_setup_done: false,
             container_saves_require_propose: true,
             container_auto_preheat: true,

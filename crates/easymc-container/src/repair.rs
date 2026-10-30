@@ -1,4 +1,4 @@
-//! One-click container repair + mirror profile helpers (Slice E).
+//! One-click container repair + mirror profile helpers (Slice E + mirror probe).
 //!
 //! Safe local steps only: rewrite registries, start Machine, re-probe, re-pull
 //! runtime image, best-effort re-provision marked container versions.
@@ -11,8 +11,8 @@ use crate::detect::{probe_container_runtime, ProbeStatus, RuntimeProbe};
 use crate::image::{runtime_image_ready, ImagePullResult};
 use crate::preheat::{preheat_container_runtime, PreheatResult};
 use crate::registries::{
-    write_china_registries_config, ChinaRegistriesResult, DEFAULT_BASE_IMAGE,
-    DEFAULT_BASE_IMAGE_MIRROR,
+    prefer_image_ref_for_profile, write_registries_config_for_profile, ChinaRegistriesResult,
+    DEFAULT_BASE_IMAGE, DEFAULT_BASE_IMAGE_MIRROR,
 };
 use crate::versions::provision_container_version;
 
@@ -22,14 +22,27 @@ use crate::versions::provision_container_version;
 pub enum MirrorProfile {
     /// DaoCloud public prefixes (default for CN networks).
     Daocloud,
+    /// Community CN proxy prefix `dockerproxy.net`.
+    Dockerproxy,
+    /// Community CN proxy prefix `docker.1ms.run`.
+    Onems,
     /// Official docker.io / upstream tags.
     Official,
 }
 
 impl MirrorProfile {
+    pub const ALL: [MirrorProfile; 4] = [
+        MirrorProfile::Daocloud,
+        MirrorProfile::Dockerproxy,
+        MirrorProfile::Onems,
+        MirrorProfile::Official,
+    ];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Daocloud => "daocloud",
+            Self::Dockerproxy => "dockerproxy",
+            Self::Onems => "onems",
             Self::Official => "official",
         }
     }
@@ -37,17 +50,21 @@ impl MirrorProfile {
     pub fn label_zh(self) -> &'static str {
         match self {
             Self::Daocloud => "国内源（DaoCloud）",
+            Self::Dockerproxy => "国内源（DockerProxy）",
+            Self::Onems => "国内源（1ms）",
             Self::Official => "官方源",
         }
     }
 
     pub fn prefer_china(self) -> bool {
-        matches!(self, Self::Daocloud)
+        !matches!(self, Self::Official)
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "daocloud" | "china" | "cn" | "国内" => Some(Self::Daocloud),
+            "dockerproxy" | "dockerproxy.net" | "proxy" => Some(Self::Dockerproxy),
+            "onems" | "1ms" | "docker.1ms.run" => Some(Self::Onems),
             "official" | "docker" | "upstream" | "官方" => Some(Self::Official),
             _ => None,
         }
@@ -63,8 +80,28 @@ impl MirrorProfile {
 
     pub fn default_image(self) -> &'static str {
         match self {
-            Self::Daocloud => DEFAULT_BASE_IMAGE_MIRROR,
             Self::Official => DEFAULT_BASE_IMAGE,
+            _ => DEFAULT_BASE_IMAGE_MIRROR,
+        }
+    }
+
+    /// Host used for TCP `:443` latency probe.
+    pub fn probe_host(self) -> &'static str {
+        match self {
+            Self::Daocloud => "docker.m.daocloud.io",
+            Self::Dockerproxy => "dockerproxy.net",
+            Self::Onems => "docker.1ms.run",
+            Self::Official => "registry-1.docker.io",
+        }
+    }
+
+    /// docker.io mirror hostname written into registries.conf / image refs.
+    pub fn docker_io_mirror_host(self) -> Option<&'static str> {
+        match self {
+            Self::Daocloud => Some("docker.m.daocloud.io"),
+            Self::Dockerproxy => Some("dockerproxy.net"),
+            Self::Onems => Some("docker.1ms.run"),
+            Self::Official => None,
         }
     }
 }
@@ -75,17 +112,19 @@ pub struct MirrorProfileInfo {
     pub label_zh: String,
     pub prefer_china: bool,
     pub sample_image: String,
+    pub probe_host: String,
 }
 
-/// List mirror profiles for settings UI.
+/// List mirror profiles for settings / onboarding UI.
 pub fn list_mirror_profiles() -> Vec<MirrorProfileInfo> {
-    [MirrorProfile::Daocloud, MirrorProfile::Official]
+    MirrorProfile::ALL
         .into_iter()
         .map(|p| MirrorProfileInfo {
             id: p.as_str().into(),
             label_zh: p.label_zh().into(),
             prefer_china: p.prefer_china(),
-            sample_image: p.default_image().into(),
+            sample_image: prefer_image_ref_for_profile(DEFAULT_BASE_IMAGE, p),
+            probe_host: p.probe_host().into(),
         })
         .collect()
 }
@@ -109,16 +148,30 @@ pub fn repair_container_runtime(
     prefer_china: bool,
     reprovision: bool,
 ) -> RepairResult {
+    repair_container_runtime_with_profile(
+        paths,
+        MirrorProfile::from_prefer_china(prefer_china),
+        reprovision,
+    )
+}
+
+/// Repair using an explicit mirror profile (DaoCloud / DockerProxy / 1ms / Official).
+pub fn repair_container_runtime_with_profile(
+    paths: &Paths,
+    profile: MirrorProfile,
+    reprovision: bool,
+) -> RepairResult {
+    let prefer_china = profile.prefer_china();
     let mut messages = Vec::new();
     let mut registries = None;
 
     if prefer_china {
-        match write_china_registries_config() {
+        match write_registries_config_for_profile(profile) {
             Ok(r) => {
                 messages.push(r.message_zh.clone());
                 registries = Some(r);
             }
-            Err(e) => messages.push(format!("镜像加速配置失败：{e}"),),
+            Err(e) => messages.push(format!("镜像加速配置失败：{e}")),
         }
     } else {
         messages.push("已选择官方源；跳过写入国内 registries 配置".into());

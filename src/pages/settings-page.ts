@@ -21,6 +21,8 @@ import {
   containerProbe,
   containerRepair,
   containerWriteRegistries,
+  probeDownloadMirrors,
+  probeRegistryMirrors,
   type JavaInstallDto,
   type MinecraftDirDto,
 } from "../api";
@@ -28,9 +30,11 @@ import type {
   AppMode,
   ContainerPreheatStatusDto,
   CurseForgeStatusDto,
+  DownloadMirrorProbeDto,
   LlmConfigViewDto,
   LlmStatusDto,
   MsaStatusDto,
+  RegistryMirrorProbeDto,
   SettingsDto,
 } from "../types";
 import { showToast } from "../toast";
@@ -61,6 +65,10 @@ export class SettingsPage extends LitElement {
   @state() private javaBusy = false;
   @state() private preheatStatus: ContainerPreheatStatusDto | null = null;
   @state() private containerBusy = false;
+  @state() private downloadProbes: DownloadMirrorProbeDto[] = [];
+  @state() private downloadProbeBusy = false;
+  @state() private registryProbes: RegistryMirrorProbeDto[] = [];
+  @state() private registryProbeBusy = false;
   @state() private javaStatus = "";
   @state() private javaLog = "";
   private unlistenJavaLog: (() => void) | null = null;
@@ -281,6 +289,47 @@ export class SettingsPage extends LitElement {
     }
   }
 
+  private async probeDownloads() {
+    if (this.downloadProbeBusy) return;
+    this.downloadProbeBusy = true;
+    try {
+      const list = await probeDownloadMirrors();
+      this.downloadProbes = list;
+      const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
+      if (best) {
+        this.settings = await updateSettings({ download_source: best.download_source });
+        showToast(`已选用最快下载源：${best.label_zh}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
+      } else {
+        showToast("测速完成，但没有可用的下载源");
+      }
+    } catch (e) {
+      showToast(`下载源测速失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.downloadProbeBusy = false;
+    }
+  }
+
+  private async probeRegistries() {
+    if (this.registryProbeBusy) return;
+    this.registryProbeBusy = true;
+    try {
+      const list = await probeRegistryMirrors();
+      this.registryProbes = list;
+      const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
+      if (best) {
+        this.settings = await updateSettings({ container_mirror_profile: best.id });
+        showToast(`已选用最快容器源：${best.label_zh}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
+        await this.refreshPreheatStatus();
+      } else {
+        showToast("测速完成，但没有可用的容器镜像源");
+      }
+    } catch (e) {
+      showToast(`容器源测速失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.registryProbeBusy = false;
+    }
+  }
+
   private async saveMem(n: number) {
     if (!n || n < MEM_MIN) {
       showToast(`请至少 ${MEM_MIN} MB`);
@@ -418,8 +467,8 @@ export class SettingsPage extends LitElement {
       </div>
       <div class="card">
         <h2>下载源</h2>
-        <p>游戏文件与版本列表的下载地址。网络较慢时可改用 BMCLAPI 加速；失败时会自动回退官方源。</p>
-        <div class="row">
+        <p>游戏文件与版本列表的下载地址。可测速后选用最快源（国内多为 BMCLAPI）；失败时会自动回退官方源。</p>
+        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
           <select
             aria-label="下载源"
             .value=${this.settings?.download_source === "bmclapi" ? "bmclapi" : "official"}
@@ -429,10 +478,26 @@ export class SettingsPage extends LitElement {
               showToast(v === "bmclapi" ? "已切换为 BMCLAPI 加速" : "已切换为官方源");
             }}
           >
-            <option value="official">官方</option>
+            <option value="official">官方源</option>
             <option value="bmclapi">BMCLAPI 加速</option>
           </select>
+          <button
+            class="btn ghost"
+            ?disabled=${this.downloadProbeBusy}
+            @click=${() => void this.probeDownloads()}
+          >${this.downloadProbeBusy ? "测速中…" : "测速并选用最快"}</button>
         </div>
+        ${this.downloadProbes.length
+          ? html`<ul class="muted" style="margin:0;padding-left:18px;line-height:1.6">
+              ${this.downloadProbes.map(
+                (r) => html`<li>
+                  ${r.label_zh}（${r.region_zh}）—
+                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
+                  ${r.recommended ? " · 推荐" : ""}
+                </li>`,
+              )}
+            </ul>`
+          : nothing}
       </div>
       <div class="card">
         <h2>容器模式</h2>
@@ -463,18 +528,43 @@ export class SettingsPage extends LitElement {
           <select
             id="ctr-mirror"
             aria-label="容器镜像源"
-            .value=${this.settings?.container_china_mirrors === false ? "official" : "daocloud"}
+            .value=${this.settings?.container_mirror_profile
+              || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
             @change=${async (e: Event) => {
               const v = (e.target as HTMLSelectElement).value;
               this.settings = await updateSettings({ container_mirror_profile: v });
-              showToast(v === "daocloud" ? "已切换为国内源（DaoCloud）" : "已切换为官方源");
+              const labels: Record<string, string> = {
+                daocloud: "国内源（DaoCloud）",
+                dockerproxy: "国内源（DockerProxy）",
+                onems: "国内源（1ms）",
+                official: "官方源",
+              };
+              showToast(`已切换为${labels[v] || v}`);
               await this.refreshPreheatStatus();
             }}
           >
             <option value="daocloud">国内源（DaoCloud）</option>
+            <option value="dockerproxy">国内源（DockerProxy）</option>
+            <option value="onems">国内源（1ms）</option>
             <option value="official">官方源</option>
           </select>
+          <button
+            class="btn ghost"
+            ?disabled=${this.registryProbeBusy}
+            @click=${() => void this.probeRegistries()}
+          >${this.registryProbeBusy ? "测速中…" : "测速并选用最快"}</button>
         </div>
+        ${this.registryProbes.length
+          ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
+              ${this.registryProbes.map(
+                (r) => html`<li>
+                  ${r.label_zh}（${r.region_zh}）—
+                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
+                  ${r.recommended ? " · 推荐" : ""}
+                </li>`,
+              )}
+            </ul>`
+          : nothing}
         <div class="row" style="margin-bottom:10px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
             <input
