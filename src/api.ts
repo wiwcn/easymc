@@ -602,6 +602,7 @@ export async function getSettings(): Promise<SettingsDto> {
       container_china_mirrors: true,
       container_setup_done: false,
       container_saves_require_propose: true,
+      container_auto_preheat: true,
     }
   );
 }
@@ -618,6 +619,8 @@ export async function updateSettings(patch: {
   container_china_mirrors?: boolean;
   container_setup_done?: boolean;
   container_saves_require_propose?: boolean;
+  container_auto_preheat?: boolean;
+  container_mirror_profile?: string;
 }): Promise<SettingsDto> {
   return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
 }
@@ -840,4 +843,57 @@ export async function containerLayerDiscard(instanceId: string) {
 
 export async function containerAgentWorkspace(instanceId: string) {
   return invokeOrThrow<import("./types").AgentWorkspaceDto>("container_agent_workspace_cmd", { instanceId });
+}
+
+export async function containerPreheatStatus() {
+  return invokeOrThrow<import("./types").ContainerPreheatStatusDto>("container_preheat_status_cmd");
+}
+
+export async function containerPreheatEx(opts?: { pullImage?: boolean; forcePull?: boolean }) {
+  return invokeOrThrow<import("./types").ContainerPreheatDto>("container_preheat_ex_cmd", {
+    pullImage: opts?.pullImage ?? true,
+    forcePull: opts?.forcePull ?? false,
+  });
+}
+
+export async function containerMirrorProfiles() {
+  return (
+    (await invokeSafe<import("./types").ContainerMirrorProfileDto[]>("container_mirror_profiles_cmd")) ?? []
+  );
+}
+
+export async function containerRepair(opts?: {
+  preferChinaMirrors?: boolean | null;
+  reprovision?: boolean;
+}) {
+  return invokeOrThrow<import("./types").ContainerRepairDto>("container_repair_cmd", {
+    preferChinaMirrors: opts?.preferChinaMirrors ?? null,
+    reprovision: opts?.reprovision ?? true,
+  });
+}
+
+export async function containerExportEnv(
+  instanceId: string,
+  opts?: { pack?: boolean; notes?: string | null },
+) {
+  return invokeOrThrow<import("./types").EnvExportResultDto>("container_export_env_cmd", {
+    instanceId,
+    pack: opts?.pack ?? false,
+    notes: opts?.notes ?? null,
+  });
+}
+
+export async function containerImportEnv(
+  path: string,
+  opts?: { targetInstanceId?: string | null; preferChinaMirrors?: boolean | null },
+) {
+  return invokeOrThrow<import("./types").EnvImportResultDto>("container_import_env_cmd", {
+    path,
+    targetInstanceId: opts?.targetInstanceId ?? null,
+    preferChinaMirrors: opts?.preferChinaMirrors ?? null,
+  });
+}
+
+export async function containerReadEnvManifest(path: string) {
+  return invokeOrThrow<import("./types").EnvManifestDto>("container_read_env_manifest_cmd", { path });
 }

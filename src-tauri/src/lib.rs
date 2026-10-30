@@ -29,9 +29,12 @@ use easymc_agent::{
 use easymc_container::{
     apply_game_layer, apply_one_click_setup, attach_container_to_instance,
     create_container_version, delete_container_version, discard_game_layer,
-    ensure_runtime_image, install_guidance, layer_state_for, list_container_versions,
-    preheat_container_runtime, probe_container_runtime, provision_container_version,
-    resolve_agent_workspace, write_china_registries_config,
+    ensure_runtime_image, export_env_pack, import_env_pack, install_guidance, layer_state_for,
+    list_container_versions, list_mirror_profiles, preheat_container_runtime,
+    preheat_container_runtime_ex, preheat_status, probe_container_runtime,
+    provision_container_version, read_env_manifest_from_path, repair_container_runtime,
+    resolve_agent_workspace, write_china_registries_config, EnvExportOptions, EnvImportOptions,
+    EnvPackMode,
 };
 use easymc_mods::{
     api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
@@ -286,6 +289,9 @@ struct UpdateSettingsPatch {
     container_china_mirrors: Option<bool>,
     container_setup_done: Option<bool>,
     container_saves_require_propose: Option<bool>,
+    container_auto_preheat: Option<bool>,
+    /// Mirror profile id: daocloud | official (maps to container_china_mirrors).
+    container_mirror_profile: Option<String>,
 }
 
 #[tauri::command]
@@ -329,6 +335,19 @@ fn update_settings_cmd(
     }
     if let Some(v) = patch.container_saves_require_propose {
         settings.container_saves_require_propose = v;
+    }
+    if let Some(v) = patch.container_auto_preheat {
+        settings.container_auto_preheat = v;
+    }
+    if let Some(profile) = patch.container_mirror_profile.as_deref() {
+        match easymc_container::MirrorProfile::parse(profile) {
+            Some(p) => settings.container_china_mirrors = p.prefer_china(),
+            None => {
+                return Err(format!(
+                    "未知镜像源: {profile}（daocloud / official）"
+                ))
+            }
+        }
     }
     save_settings(paths, &settings).map_err(|e| e.to_string())?;
     Ok(settings)
@@ -2005,7 +2024,7 @@ pub fn run() {
     }
 
 
-// —— Container mode (Podman) — Slice A/B/C/D ——
+// —— Container mode (Podman) — Slice A–E ——
 
 #[tauri::command]
 fn container_probe_cmd() -> easymc_container::RuntimeProbe {
@@ -2169,6 +2188,95 @@ fn container_agent_workspace_cmd(
     resolve_agent_workspace(state_paths(&state), &instance_id).map_err(|e| e.to_string())
 }
 
+
+#[tauri::command]
+fn container_preheat_status_cmd(
+    state: State<'_, AppState>,
+) -> easymc_container::PreheatStatus {
+    let prefer = load_settings(state_paths(&state))
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    preheat_status(prefer)
+}
+
+#[tauri::command]
+fn container_preheat_ex_cmd(
+    state: State<'_, AppState>,
+    pull_image: Option<bool>,
+    force_pull: Option<bool>,
+) -> easymc_container::PreheatResult {
+    let prefer = load_settings(state_paths(&state))
+        .map(|s| s.container_china_mirrors)
+        .unwrap_or(true);
+    preheat_container_runtime_ex(prefer, pull_image.unwrap_or(true), force_pull.unwrap_or(false))
+}
+
+#[tauri::command]
+fn container_mirror_profiles_cmd() -> Vec<easymc_container::MirrorProfileInfo> {
+    list_mirror_profiles()
+}
+
+#[tauri::command]
+fn container_repair_cmd(
+    state: State<'_, AppState>,
+    prefer_china_mirrors: Option<bool>,
+    reprovision: Option<bool>,
+) -> easymc_container::RepairResult {
+    let paths = state_paths(&state);
+    let prefer = prefer_china_mirrors.unwrap_or_else(|| {
+        load_settings(paths)
+            .map(|s| s.container_china_mirrors)
+            .unwrap_or(true)
+    });
+    repair_container_runtime(paths, prefer, reprovision.unwrap_or(true))
+}
+
+#[tauri::command]
+fn container_export_env_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+    pack: Option<bool>,
+    notes: Option<String>,
+) -> Result<easymc_container::EnvExportResult, String> {
+    let mode = if pack.unwrap_or(false) {
+        EnvPackMode::Pack
+    } else {
+        EnvPackMode::Metadata
+    };
+    export_env_pack(
+        state_paths(&state),
+        &instance_id,
+        EnvExportOptions {
+            mode,
+            notes,
+            output: None,
+        },
+    )
+}
+
+#[tauri::command]
+fn container_import_env_cmd(
+    state: State<'_, AppState>,
+    path: String,
+    target_instance_id: Option<String>,
+    prefer_china_mirrors: Option<bool>,
+) -> Result<easymc_container::EnvImportResult, String> {
+    import_env_pack(
+        state_paths(&state),
+        std::path::Path::new(&path),
+        EnvImportOptions {
+            target_instance_id,
+            prefer_china_mirrors,
+        },
+    )
+}
+
+#[tauri::command]
+fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::EnvManifest, String> {
+    read_env_manifest_from_path(std::path::Path::new(&path))
+}
+
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
@@ -2250,6 +2358,13 @@ fn container_agent_workspace_cmd(
             container_layer_apply_cmd,
             container_layer_discard_cmd,
             container_agent_workspace_cmd,
+            container_preheat_status_cmd,
+            container_preheat_ex_cmd,
+            container_mirror_profiles_cmd,
+            container_repair_cmd,
+            container_export_env_cmd,
+            container_import_env_cmd,
+            container_read_env_manifest_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

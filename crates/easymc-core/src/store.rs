@@ -120,6 +120,9 @@ pub struct Settings {
     /// Container mode: mutating `saves/` requires Agent propose/confirm (default true).
     #[serde(default = "default_true")]
     pub container_saves_require_propose: bool,
+    /// Auto-preheat container runtime when container mode is enabled (Slice E).
+    #[serde(default = "default_true")]
+    pub container_auto_preheat: bool,
 }
 
 impl Default for Settings {
@@ -137,6 +140,7 @@ impl Default for Settings {
             container_china_mirrors: true,
             container_setup_done: false,
             container_saves_require_propose: true,
+            container_auto_preheat: true,
         }
     }
 }

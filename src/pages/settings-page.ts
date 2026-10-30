@@ -17,11 +17,22 @@ import {
   setCurseforgeKey,
   updateSettings,
   containerPreheat,
+  containerPreheatStatus,
   containerProbe,
+  containerRepair,
+  containerWriteRegistries,
   type JavaInstallDto,
   type MinecraftDirDto,
 } from "../api";
-import type { AppMode, CurseForgeStatusDto, LlmConfigViewDto, LlmStatusDto, MsaStatusDto, SettingsDto } from "../types";
+import type {
+  AppMode,
+  ContainerPreheatStatusDto,
+  CurseForgeStatusDto,
+  LlmConfigViewDto,
+  LlmStatusDto,
+  MsaStatusDto,
+  SettingsDto,
+} from "../types";
 import { showToast } from "../toast";
 import { syncIndicator } from "../lib/indicator";
 
@@ -48,6 +59,8 @@ export class SettingsPage extends LitElement {
   @state() private javaList: JavaInstallDto[] = [];
   @state() private mcDirs: MinecraftDirDto[] = [];
   @state() private javaBusy = false;
+  @state() private preheatStatus: ContainerPreheatStatusDto | null = null;
+  @state() private containerBusy = false;
   @state() private javaStatus = "";
   @state() private javaLog = "";
   private unlistenJavaLog: (() => void) | null = null;
@@ -211,6 +224,7 @@ export class SettingsPage extends LitElement {
     this.llmKey = "";
     this.javaList = javas;
     this.mcDirs = mcDirs;
+    void this.refreshPreheatStatus();
     if (!this.javaBusy) {
       const best = javas.find((j) => j.major >= 21) ?? javas[0];
       this.javaStatus = best
@@ -257,6 +271,14 @@ export class SettingsPage extends LitElement {
 
   private get mode(): AppMode {
     return this.settings?.mode === "agent" ? "agent" : "standard";
+  }
+
+  private async refreshPreheatStatus() {
+    try {
+      this.preheatStatus = await containerPreheatStatus();
+    } catch {
+      this.preheatStatus = null;
+    }
   }
 
   private async saveMem(n: number) {
@@ -415,7 +437,12 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>容器模式</h2>
         <p>
-          用 Podman 把游戏环境隔离开：模组与配置按版本独立；运行时 Java 来自 Temurin 镜像（国内可走 DaoCloud）。Windows 图形界面接受路径为 Podman Machine（WSL2）+ WSLg。
+          用 Podman 把模组与配置按版本隔离开；运行时 Java 来自 Temurin 镜像。这是<strong>内容隔离</strong>，不是额外安全承诺。Windows 开玩需 Podman Machine（WSL2）+ WSLg。不装也能继续用助手与标准模式。
+        </p>
+        <p class="muted" style="margin:0 0 12px">
+          ${this.preheatStatus
+            ? (this.preheatStatus.warm ? "状态：已预热 · " : "状态：偏冷 · ") + this.preheatStatus.message_zh
+            : "状态：尚未检测"}
         </p>
         <div class="row" style="margin-bottom:10px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -431,19 +458,22 @@ export class SettingsPage extends LitElement {
             启用容器模式偏好
           </label>
         </div>
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${this.settings?.container_china_mirrors !== false}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_china_mirrors: on });
-                showToast(on ? "容器镜像走国内源" : "容器镜像走官方源");
-              }}
-            />
-            容器镜像使用国内源（DaoCloud）
-          </label>
+        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
+          <label for="ctr-mirror">容器镜像源</label>
+          <select
+            id="ctr-mirror"
+            aria-label="容器镜像源"
+            .value=${this.settings?.container_china_mirrors === false ? "official" : "daocloud"}
+            @change=${async (e: Event) => {
+              const v = (e.target as HTMLSelectElement).value;
+              this.settings = await updateSettings({ container_mirror_profile: v });
+              showToast(v === "daocloud" ? "已切换为国内源（DaoCloud）" : "已切换为官方源");
+              await this.refreshPreheatStatus();
+            }}
+          >
+            <option value="daocloud">国内源（DaoCloud）</option>
+            <option value="official">官方源</option>
+          </select>
         </div>
         <div class="row" style="margin-bottom:10px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -459,14 +489,30 @@ export class SettingsPage extends LitElement {
             容器版本修改存档需确认（推荐）
           </label>
         </div>
-        <div class="row">
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_auto_preheat !== false}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_auto_preheat: on });
+                showToast(on ? "将在合适时机自动预热" : "已关闭自动预热");
+              }}
+            />
+            自动预热容器运行时（缩短冷启动）
+          </label>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
           <button
             class="ghost"
             type="button"
+            ?disabled=${this.containerBusy}
             @click=${async () => {
               try {
                 const p = await containerProbe();
                 showToast(p.message_zh);
+                await this.refreshPreheatStatus();
               } catch (e) {
                 showToast(String(e));
               }
@@ -475,18 +521,57 @@ export class SettingsPage extends LitElement {
             探测 Podman
           </button>
           <button
-            class="primary"
+            class="tonal"
             type="button"
+            ?disabled=${this.containerBusy}
             @click=${async () => {
+              this.containerBusy = true;
               try {
                 const r = await containerPreheat(true);
                 showToast(r.messages_zh.join("；") || (r.ok ? "预热完成" : "预热未完成"));
+                await this.refreshPreheatStatus();
+              } catch (e) {
+                showToast(String(e));
+              } finally {
+                this.containerBusy = false;
+              }
+            }}
+          >
+            预热容器运行时
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${async () => {
+              try {
+                const r = await containerWriteRegistries();
+                showToast(r.message_zh);
               } catch (e) {
                 showToast(String(e));
               }
             }}
           >
-            预热容器运行时
+            写入镜像加速配置
+          </button>
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${async () => {
+              this.containerBusy = true;
+              try {
+                const r = await containerRepair({ reprovision: true });
+                showToast(r.messages_zh.slice(-2).join("；") || (r.ok ? "修复完成" : "修复未完成"));
+                await this.refreshPreheatStatus();
+              } catch (e) {
+                showToast(String(e));
+              } finally {
+                this.containerBusy = false;
+              }
+            }}
+          >
+            一键修复容器环境
           </button>
         </div>
       </div>

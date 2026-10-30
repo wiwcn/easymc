@@ -386,6 +386,8 @@ export interface SettingsDto {
   container_setup_done?: boolean;
   /** Container mode: mutating saves/ needs Agent propose (default true). */
   container_saves_require_propose?: boolean;
+  /** Auto-preheat when container mode enabled (Slice E). */
+  container_auto_preheat?: boolean;
 }
 
 export interface MsaStatusDto {
@@ -416,6 +418,60 @@ export interface ContainerPreheatDto {
   image?: ContainerImagePullDto | null;
   probe_status: string;
   messages_zh: string[];
+  warmed_at?: number | null;
+}
+
+export interface ContainerPreheatStatusDto {
+  probe_status: string;
+  machine_ready: boolean;
+  image_ready: boolean;
+  warm: boolean;
+  last_preheat_at?: number | null;
+  seconds_since_preheat?: number | null;
+  message_zh: string;
+}
+
+export interface ContainerMirrorProfileDto {
+  id: string;
+  label_zh: string;
+  prefer_china: boolean;
+  sample_image: string;
+}
+
+export interface ContainerRepairDto {
+  ok: boolean;
+  probe: ContainerRuntimeProbeDto;
+  registries?: ChinaRegistriesResultDto | null;
+  preheat?: ContainerPreheatDto | null;
+  image?: ContainerImagePullDto | null;
+  reprovisioned: number;
+  messages_zh: string[];
+}
+
+export interface EnvManifestDto {
+  format: string;
+  format_version: number;
+  mode: "metadata" | "pack" | string;
+  exported_at: string;
+  notes?: string | null;
+  instance: { name: string; version: string; loader: string; loader_version?: string | null };
+  container: { runtime: string; image?: string | null; prefer_china_mirrors: boolean };
+  layer?: { dirs: string[]; include_saves: boolean; mod_filenames: string[] };
+  settings_hint?: { container_china_mirrors: boolean; container_saves_require_propose: boolean } | null;
+}
+
+export interface EnvExportResultDto {
+  path: string;
+  mode: "metadata" | "pack" | string;
+  bytes: number;
+  message_zh: string;
+}
+
+export interface EnvImportResultDto {
+  instance: InstanceDto;
+  mode: "metadata" | "pack" | string;
+  layer_files: number;
+  message_zh: string;
 }
 
 export interface ContainerProvisionDto {

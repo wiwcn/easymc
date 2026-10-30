@@ -1,6 +1,6 @@
 # EasyMC 容器模式（Podman）
 
-切片 A–D（2026-10-30；C/D 合入 v0.1.8）。**原生路径永远可用**：`Instance.container = None` 表示非容器版本，行为与改前一致。
+切片 A–E（2026-10-30；C/D 合入 v0.1.8，E 合入 v0.1.9）。**原生路径永远可用**：`Instance.container = None` 表示非容器版本，行为与改前一致。
 
 ## 决策摘要
 
@@ -118,3 +118,26 @@ UI：设置页「容器模式」；版本管理设置里「容器可写层」应
 - 「预热容器运行时」— 隐藏冷启动等待。
 - 「应用更改 / 丢弃更改」— 像提交 / 回滚模组与配置，存档单独保护。
 - 「存档修改需确认」— 默认开；可在设置关闭。
+
+## 切片 E — 环境包 / 预热 / 镜像 / 修复（v0.1.9）
+
+| API / 行为 | 作用 |
+| --- | --- |
+| `.easymc-env` 元数据 + `.easymc-env.zip` 完整包 | 导出容器版本的镜像偏好与模组/配置层（**不含存档**） |
+| `export_env_pack` / `import_env_pack` | 导入创建新的容器版本（`Instance.container` 有值） |
+| `preheat_status` / `preheat_container_runtime_ex` | 冷启动状态戳；可选强制拉镜像；Linux 轻量 socket 探测 |
+| `Settings.container_auto_preheat` | 默认开：合适时机自动预热 |
+| `MirrorProfile`（DaoCloud / 官方） | 设置页一键切换镜像源，写入 registries |
+| `repair_container_runtime` | 一键修复：探测 → 写 registries → 预热/拉镜像 → 可选重新 provision |
+
+Tauri：`container_export_env_cmd`、`container_import_env_cmd`、`container_preheat_status_cmd`、`container_preheat_ex_cmd`、`container_mirror_profiles_cmd`、`container_repair_cmd`。
+
+UI：设置页「容器镜像源 / 自动预热 / 预热 / 写 registries / 一键修复」；版本「发给好友」与「容器可写层」导出/导入环境包。
+
+## 玩家文案（E）
+
+- 「导出环境 / 导入环境包」— 把模组与配置层分享给好友，存档不会被带走。
+- 「容器镜像源」— 国内默认 DaoCloud；网络正常可切官方。
+- 「自动预热」— 后台先把运行时准备好，减少第一次启动等待。
+- 「一键修复容器环境」— 出问题先点这个：探测、镜像源、预热一次跑完。
+

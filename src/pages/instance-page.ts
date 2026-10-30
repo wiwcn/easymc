@@ -29,6 +29,8 @@ import {
   containerLayerApply,
   containerLayerDiscard,
   containerAgentWorkspace,
+  containerExportEnv,
+  containerImportEnv,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
@@ -467,6 +469,14 @@ export class InstancePage extends LitElement {
                     showToast(r.message_zh);
                     this.layerState = r.state;
                   })}>丢弃更改</button>
+                  <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                    const r = await containerExportEnv(d.id, { pack: false });
+                    showToast(r.message_zh);
+                  })}>导出环境（.easymc-env）</button>
+                  <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+                    const r = await containerExportEnv(d.id, { pack: true });
+                    showToast(r.message_zh);
+                  })}>导出完整环境包</button>
                 </div>
               </div>`
             : html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
@@ -530,6 +540,18 @@ export class InstancePage extends LitElement {
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
             <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
           </div>
+          <h2 style="margin-top:20px">容器环境</h2>
+          <p class="muted">把容器版本的镜像偏好与模组/配置层导出为 <code>.easymc-env</code>（不含存档）。好友导入后会得到一个新的容器版本。</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="tonal" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
+              showToast((await containerExportEnv(d.id, { pack: false })).message_zh);
+            })}>导出环境元数据</button>
+            <button class="ghost" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
+              showToast((await containerExportEnv(d.id, { pack: true })).message_zh);
+            })}>导出完整环境包</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入环境包…</button>
+          </div>
+          ${!d.container ? html`<p class="muted" style="margin-top:8px">当前不是容器版本；可先在「设置」里启用容器隔离，或直接导入环境包创建新版本。</p>` : nothing}
         </div>`;
     }
   }
