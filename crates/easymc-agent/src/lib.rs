@@ -33,7 +33,8 @@ pub use propose::{
     suggested_client_jvm, undo_proposal, ApplyPayload, ChangeProposal, ProposeItem, UndoSnapshot,
 };
 pub use agent_loop::{
-    is_dangerous_tool, run_agent_loop, AgentLoopConfig, AgentLoopResult, DEFAULT_MAX_TURNS,
+    is_dangerous_tool, run_agent_loop, AgentCompleter, AgentLoopConfig, AgentLoopResult,
+    DEFAULT_MAX_TURNS,
 };
 pub use service::{
     ask, execute_intent, memory_suggestion, run_diagnose, run_diagnose_with_path, tune_proposal, AskRequest, AskResponse,

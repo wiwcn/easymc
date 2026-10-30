@@ -18,9 +18,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::diagnose::DiagnoseReport;
 use crate::intent::route;
-use crate::llm::{
-    tool_call_to_utterance, LlmCompletion, LlmToolCall, OpenAiCompatibleProvider,
-};
+use async_trait::async_trait;
+
+use crate::llm::{tool_call_to_utterance, LlmCompletion, LlmToolCall, OpenAiCompatibleProvider};
 use crate::propose::{build_tune_proposal, proposal_to_action};
 use crate::service::execute_intent;
 use crate::tool::{tool_call_from_action, tool_call_from_diagnose, ToolCall, ToolStatus};
@@ -28,6 +28,29 @@ use crate::{ActionResult, ChatMessage};
 
 /// Default max model turns (each complete_raw counts as one).
 pub const DEFAULT_MAX_TURNS: u32 = 8;
+
+/// Abstraction over chat completions so the agent loop can be unit-tested
+/// without a live OpenAI-compatible endpoint.
+#[async_trait]
+pub trait AgentCompleter: Send + Sync {
+    async fn complete_raw(
+        &self,
+        messages: &[ChatMessage],
+        with_tools: bool,
+    ) -> Result<LlmCompletion>;
+}
+
+#[async_trait]
+impl AgentCompleter for OpenAiCompatibleProvider {
+    async fn complete_raw(
+        &self,
+        messages: &[ChatMessage],
+        with_tools: bool,
+    ) -> Result<LlmCompletion> {
+        OpenAiCompatibleProvider::complete_raw(self, messages, with_tools).await
+    }
+}
+
 
 /// Tools that must not auto-execute in the LLM loop (propose / confirm first).
 pub fn is_dangerous_tool(name: &str) -> bool {
@@ -265,7 +288,7 @@ async fn run_one_tool(
 
 /// Run the multi-step agent loop (pi-style inner tool loop + max_turns).
 pub async fn run_agent_loop(
-    provider: &OpenAiCompatibleProvider,
+    provider: &impl AgentCompleter,
     paths: &Paths,
     mut messages: Vec<ChatMessage>,
     process_logs: Option<Vec<String>>,
@@ -375,6 +398,86 @@ pub async fn run_agent_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+
+    use serde_json::json;
+
+    struct ScriptedCompleter {
+        /// Queue of completions returned for each `complete_raw` call (with or without tools).
+        queue: Mutex<VecDeque<LlmCompletion>>,
+        /// Snapshot of messages passed into each call (proves tool-result refeed).
+        seen: Mutex<Vec<(bool, Vec<ChatMessage>)>>,
+    }
+
+    impl ScriptedCompleter {
+        fn new(responses: Vec<LlmCompletion>) -> Self {
+            Self {
+                queue: Mutex::new(responses.into()),
+                seen: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl AgentCompleter for ScriptedCompleter {
+        async fn complete_raw(
+            &self,
+            messages: &[ChatMessage],
+            with_tools: bool,
+        ) -> Result<LlmCompletion> {
+            self.seen
+                .lock()
+                .unwrap()
+                .push((with_tools, messages.to_vec()));
+            self.queue.lock().unwrap().pop_front().ok_or_else(|| {
+                easymc_core::EasyMcError::msg("ScriptedCompleter: no more scripted completions")
+            })
+        }
+    }
+
+    fn tc(id: &str, name: &str, args: serde_json::Value) -> LlmToolCall {
+        LlmToolCall {
+            id: id.into(),
+            name: name.into(),
+            arguments: args,
+        }
+    }
+
+    fn temp_paths() -> (tempfile_guard::TempRoot, Paths) {
+        let root = tempfile_guard::TempRoot::new();
+        let paths = Paths::from_root(root.path());
+        paths.ensure().expect("ensure paths");
+        (root, paths)
+    }
+
+    /// Minimal temp-dir guard without adding a crate dep.
+    mod tempfile_guard {
+        use std::path::{Path, PathBuf};
+        pub struct TempRoot(PathBuf);
+        impl TempRoot {
+            pub fn new() -> Self {
+                let p = std::env::temp_dir().join(format!(
+                    "easymc-agent-loop-{}-{}",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                ));
+                std::fs::create_dir_all(&p).unwrap();
+                Self(p)
+            }
+            pub fn path(&self) -> &Path {
+                &self.0
+            }
+        }
+        impl Drop for TempRoot {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+    }
 
     #[test]
     fn dangerous_set() {
@@ -385,5 +488,171 @@ mod tests {
         assert!(is_dangerous_tool("discard_game_layer"));
         assert!(!is_dangerous_tool("analyze_crash_log"));
         assert!(!is_dangerous_tool("list_instances"));
+    }
+
+    #[tokio::test]
+    async fn agent_loop_multi_turn_refeeds_tool_results_and_gates_dangerous() {
+        let (_tmp, paths) = temp_paths();
+        // Plant a fake instance folder that must NOT be deleted by the gated tool.
+        let inst_dir = paths.instances_dir().join("keep-me").join(".minecraft");
+        std::fs::create_dir_all(&inst_dir).unwrap();
+        std::fs::write(inst_dir.join("marker.txt"), b"safe").unwrap();
+
+        let script = ScriptedCompleter::new(vec![
+            // Turn 1: safe list + dangerous delete in one batch
+            LlmCompletion {
+                content: "先看版本再删".into(),
+                tool_calls: vec![
+                    tc("c1", "list_instances", json!({})),
+                    tc(
+                        "c2",
+                        "delete_instance",
+                        json!({ "query": "keep-me", "name": "keep-me" }),
+                    ),
+                ],
+            },
+            // Turn 2: model saw tool results; finishes with prose
+            LlmCompletion {
+                content: "版本列好了；删除需你确认，我不会自动删。".into(),
+                tool_calls: vec![],
+            },
+        ]);
+
+        let result = run_agent_loop(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "看看版本然后删掉 keep-me".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig { max_turns: 8 },
+        )
+        .await
+        .expect("loop ok");
+
+        assert_eq!(result.stop_reason, "final_text");
+        assert_eq!(result.turns_used, 2);
+        assert!(
+            result.tools.len() >= 2,
+            "expected list + gated delete cards, got {}",
+            result.tools.len()
+        );
+        let delete_card = result
+            .tools
+            .iter()
+            .find(|t| t.name == "delete_instance")
+            .expect("delete card");
+        assert_eq!(
+            delete_card.status,
+            ToolStatus::Pending,
+            "dangerous tool must be pending, not executed"
+        );
+        assert!(
+            delete_card
+                .result_zh
+                .as_deref()
+                .unwrap_or("")
+                .contains("需确认"),
+            "gate message missing"
+        );
+        // Side effect must not have happened.
+        assert!(
+            inst_dir.join("marker.txt").is_file(),
+            "gated delete_instance must not remove instance files"
+        );
+
+        let seen = script.seen.lock().unwrap();
+        assert_eq!(seen.len(), 2, "two model turns");
+        assert!(seen[0].0, "turn1 with_tools");
+        assert!(seen[1].0, "turn2 with_tools");
+        // Prove tool results were refeed into the next completion.
+        let turn2_msgs = &seen[1].1;
+        let tool_msgs: Vec<_> = turn2_msgs.iter().filter(|m| m.role == "tool").collect();
+        assert_eq!(
+            tool_msgs.len(),
+            2,
+            "both tool results must be refeed as role=tool; msgs={:?}",
+            turn2_msgs
+                .iter()
+                .map(|m| (&m.role, m.tool_call_id.as_deref(), m.name.as_deref()))
+                .collect::<Vec<_>>()
+        );
+        assert!(tool_msgs.iter().any(|m| m.tool_call_id.as_deref() == Some("c1")));
+        assert!(tool_msgs.iter().any(|m| m.tool_call_id.as_deref() == Some("c2")));
+        assert!(
+            tool_msgs
+                .iter()
+                .any(|m| m.name.as_deref() == Some("delete_instance")
+                    && m.content.contains("需确认")),
+            "dangerous gate text must be what the model sees on refeed"
+        );
+        // Assistant message with tool_calls must precede the tool results.
+        let assistant_with_tools = turn2_msgs
+            .iter()
+            .find(|m| m.role == "assistant" && !m.tool_calls.is_empty())
+            .expect("assistant+tool_calls in history");
+        assert_eq!(assistant_with_tools.tool_calls.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn agent_loop_stops_at_max_turns() {
+        let (_tmp, paths) = temp_paths();
+        let script = ScriptedCompleter::new(vec![
+            LlmCompletion {
+                content: "t1".into(),
+                tool_calls: vec![tc("a", "list_instances", json!({}))],
+            },
+            LlmCompletion {
+                content: "t2".into(),
+                tool_calls: vec![tc("b", "list_instances", json!({}))],
+            },
+            // Would be turn 3 if max_turns ignored — must not be consumed for tools path.
+            // (max_turns finalizer may call once more with tools=false if content empty;
+            // we keep non-empty content so this stays unused.)
+            LlmCompletion {
+                content: "should-not-run".into(),
+                tool_calls: vec![],
+            },
+        ]);
+
+        let result = run_agent_loop(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "一直列版本".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig { max_turns: 2 },
+        )
+        .await
+        .expect("loop ok");
+
+        assert_eq!(result.stop_reason, "max_turns");
+        assert_eq!(result.turns_used, 2);
+        assert_eq!(result.tools.len(), 2);
+        let seen = script.seen.lock().unwrap();
+        assert_eq!(
+            seen.len(),
+            2,
+            "only max_turns completions; got {}",
+            seen.len()
+        );
+        // Second turn's messages must include first turn's tool result (refeed under budget).
+        let tool_on_t2 = seen[1]
+            .1
+            .iter()
+            .filter(|m| m.role == "tool")
+            .count();
+        assert_eq!(tool_on_t2, 1);
     }
 }
