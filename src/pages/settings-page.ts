@@ -1250,7 +1250,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>关于</h2>
         <p>
-          EasyMC ${this.settings ? "0.1.19" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
+          EasyMC ${this.settings ? "0.1.20" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
         </p>
       </div>
     `;
