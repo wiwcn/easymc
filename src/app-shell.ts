@@ -73,7 +73,7 @@ export class EasyMcApp extends LitElement {
       letter-spacing: -0.025em;
       color: var(--md-sys-color-on-surface);
     }
-    /* A11Y-1: topbar menu removed until side-nav collapse ships */
+    /* A11Y-1: side-nav collapses to icon rail ≤1024; topbar stays brand + account */
     .account {
       display: flex;
       align-items: center;
@@ -148,6 +148,17 @@ export class EasyMcApp extends LitElement {
         animation: none;
       }
     }
+
+    /* LD-2: when shell is rail-compact, tighten chrome so content breathes. */
+    @container easymc-shell (max-width: 1024px) {
+      header.top {
+        padding-block: var(--easymc-space-1);
+      }
+      .content {
+        padding-bottom: var(--easymc-space-5);
+      }
+    }
+
   `;
 
   connectedCallback() {

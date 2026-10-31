@@ -144,10 +144,18 @@ export class StorePage extends LitElement {
     .list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
-      gap: var(--easymc-space-3);
+      gap: var(--easymc-grid-gap);
       flex: 1 1 auto;
       min-height: 220px;
       align-content: start;
+    }
+    @container easymc-page (max-width: 720px) {
+      .list {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+        );
+      }
     }
     .results-slot {
       flex: 1 1 auto;

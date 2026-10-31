@@ -122,23 +122,31 @@ export class LibraryPage extends LitElement {
       min-height: 200px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
-      gap: 14px;
+      gap: var(--easymc-grid-gap);
+    }
+    @container easymc-page (max-width: 720px) {
+      .grid {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-tile-narrow), 100%), 1fr)
+        );
+      }
     }
     .card {
-      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+      padding: var(--easymc-space-3) var(--easymc-space-3);
       border-radius: var(--easymc-card-radius);
-      background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1);
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: none;
       display: flex;
       flex-direction: column;
       gap: var(--easymc-space-2);
-      border: 2px solid transparent;
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       min-width: 0;
       height: 100%;
       box-sizing: border-box;
     }
     .card.active {
-      border-color: var(--md-sys-color-primary);
+      border: 2px solid var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
     }
     .card h3 {
@@ -412,7 +420,15 @@ export class LibraryPage extends LitElement {
     .mod-rows {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
-      gap: var(--easymc-space-3);
+      gap: var(--easymc-grid-gap);
+    }
+    @container easymc-page (max-width: 720px) {
+      .mod-rows {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+        );
+      }
     }
     .mod-row {
       display: flex;

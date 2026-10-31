@@ -268,6 +268,14 @@ export class InstancePage extends LitElement {
       margin-top: 4px;
       align-items: stretch;
     }
+    @container easymc-page (max-width: 720px) {
+      .resource-grid {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+        );
+      }
+    }
     .res-card {
       container-type: inline-size;
       display: flex;

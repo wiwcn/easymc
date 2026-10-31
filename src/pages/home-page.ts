@@ -493,15 +493,22 @@ export class HomePage extends LitElement {
       margin-right: -4px;
       scrollbar-gutter: stable;
     }
-    /* Fluid instance grid: tracks add/remove themselves with the column width,
-       so no breakpoint is needed and wide windows get more cards per row. */
+    /* Fluid instance grid: tokenized minmax reflows 1024→1280→wide. */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
-      gap: var(--easymc-space-3);
+      gap: var(--easymc-grid-gap);
     }
-    /* Only the hero art needs an explicit narrow rule: everything else in the
-       featured card is already fluid. */
+    @container easymc-page (max-width: 720px) {
+      .grid,
+      .skel-grid {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-tile-narrow), 100%), 1fr)
+        );
+      }
+    }
+    /* Hero art shrinks only on very narrow page columns. */
     @container easymc-page (max-width: 560px) {
       .art { width: 128px; height: 144px; }
       .featured-top { min-height: 0; }
@@ -667,7 +674,7 @@ export class HomePage extends LitElement {
     .skel-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
-      gap: var(--easymc-space-3);
+      gap: var(--easymc-grid-gap);
     }
     .vcard-skel { height: 88px; border-radius: var(--md-sys-shape-corner-large); }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }

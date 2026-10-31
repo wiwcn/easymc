@@ -520,4 +520,32 @@ export const cardSurfaceStyles = css`
     gap: var(--easymc-grid-gap);
     align-items: stretch;
   }
+
+  /* Narrow page column: drop track mins so 1024-wide shells still get 2–3 cols
+     without horizontal overflow or single stretched cards. */
+  @container easymc-page (max-width: 720px) {
+    .em-grid-dense {
+      grid-template-columns: repeat(
+        auto-fill,
+        minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+      );
+    }
+    .em-grid-tile {
+      grid-template-columns: repeat(
+        auto-fill,
+        minmax(min(var(--easymc-grid-min-tile-narrow), 100%), 1fr)
+      );
+    }
+  }
+
+  /* Lighter paper — vanilla version tiles / library instance cards (Operate). */
+  .em-paper-lite {
+    padding: var(--easymc-space-3) var(--easymc-space-3);
+    border-radius: var(--easymc-card-radius);
+    background: var(--md-sys-color-surface-container-low);
+    border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+    box-shadow: none;
+    box-sizing: border-box;
+    min-width: 0;
+  }
 `;

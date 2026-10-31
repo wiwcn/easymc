@@ -59,6 +59,10 @@ export class SideNav extends LitElement {
       border-right: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
       flex-shrink: 0;
       gap: var(--easymc-space-2);
+      box-sizing: border-box;
+      transition:
+        width var(--easymc-dur-med) var(--easymc-ease-out),
+        padding var(--easymc-dur-med) var(--easymc-ease-out);
     }
     nav {
       position: relative;
@@ -253,6 +257,9 @@ export class SideNav extends LitElement {
       flex-shrink: 0;
     }
     @media (prefers-reduced-motion: reduce) {
+      :host {
+        transition: none;
+      }
       button.item:active,
       button.acct-card:active {
         transform: none;
@@ -263,34 +270,51 @@ export class SideNav extends LitElement {
     }
 
     /* ——— LD-2: rail mode ————————————————————————————————————————
-       Below MD3 "expanded" (840) the shell is too narrow to give 212px to
-       chrome, so the nav collapses to an icon rail and the labels move into
-       tooltips / aria-labels. Queried against the shell container, so it
-       tracks the real window box as it is dragged. */
-    @container easymc-shell (max-width: 839px) {
+       Shell ≤1024（默认窗 1100 / min 960）：侧栏收为图标轨道，标签靠
+       title / aria-label。≥1100 恢复全宽标注。查询挂在 shell 容器上。 */
+    @container easymc-shell (max-width: 1024px) {
       :host {
         width: var(--easymc-nav-rail-width);
-        padding: 14px 10px;
+        padding: 12px 8px 12px;
         align-items: center;
+        gap: var(--easymc-space-1);
+      }
+      nav {
+        width: 100%;
+        align-items: stretch;
       }
       button.item {
         justify-content: center;
         gap: 0;
-        padding: 12px;
+        padding: 11px 0;
+        width: 100%;
       }
       button.item .label,
       .pill {
+        /* Labels live in title + aria-label while rail is compact. */
         display: none;
       }
       button.acct-card {
         justify-content: center;
         padding: 6px;
+        width: auto;
+        min-width: 0;
+        box-shadow: none;
+        background: transparent;
+      }
+      button.acct-card:hover {
+        background: var(--md-sys-color-surface-container);
+        box-shadow: none;
+      }
+      button.acct-card easymc-skin-avatar {
+        --easymc-skin-avatar-size: 36px;
       }
       .acct-body,
       .acct-chev {
         display: none;
       }
     }
+
   `;
 
   render() {

@@ -191,6 +191,15 @@ export class DownloadPage extends LitElement {
       gap: var(--easymc-grid-gap);
       align-items: stretch;
     }
+    @container easymc-page (max-width: 720px) {
+      .market-grid,
+      .market-skel {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+        );
+      }
+    }
     .card {
       container-type: inline-size;
       display: flex; flex-direction: column; gap: var(--easymc-space-3);
@@ -267,7 +276,7 @@ export class DownloadPage extends LitElement {
       margin-bottom: var(--easymc-space-3);
     }
     .card-skel { height: 148px; border-radius: var(--md-sys-shape-corner-large); }
-    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: var(--easymc-space-3); }
+    .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr)); gap: var(--easymc-grid-gap); }
     .ver-skel { height: 72px; border-radius: var(--md-sys-shape-corner-large); }
 
     /* Page-level version pick (leaves the card grid) */
@@ -383,26 +392,36 @@ export class DownloadPage extends LitElement {
     }
     .ver-grid, .loader-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
-      gap: var(--easymc-space-3);
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
+      gap: var(--easymc-grid-gap);
+    }
+    @container easymc-page (max-width: 720px) {
+      .ver-grid, .loader-grid, .vanilla-skel {
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(min(var(--easymc-grid-min-dense-narrow), 100%), 1fr)
+        );
+      }
     }
     button.ver-card, button.loader-card {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
       display: flex; gap: var(--easymc-space-3); align-items: flex-start;
-      padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large);
-      min-height: 84px;
-      background: var(--md-sys-color-surface-container-lowest);
-      border: none;
-      box-shadow: var(--md-sys-elevation-1);
-      /* CF-1: elevation idle; selected state uses fill + outline */
+      padding: var(--easymc-space-3) var(--easymc-space-3); border-radius: var(--easymc-card-radius);
+      min-height: 72px;
+      /* Lighter Operate surface: outline XOR elev (CF-1) — idle uses outline */
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      box-shadow: none;
       transition: box-shadow var(--easymc-dur-press) var(--easymc-ease-out),
         background var(--easymc-dur-press) var(--easymc-ease-out),
+        border-color var(--easymc-dur-press) var(--easymc-ease-out),
         outline-color var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.ver-card:hover, button.loader-card:hover {
       background: var(--md-sys-color-surface-container);
-      box-shadow: var(--md-sys-elevation-2);
+      border-color: color-mix(in oklch, var(--md-sys-color-outline-variant) 80%, transparent);
+      box-shadow: none;
     }
     button.ver-card:active, button.loader-card:active { transform: scale(0.985); }
     button.ver-card:focus-visible, button.loader-card:focus-visible {
@@ -432,8 +451,9 @@ export class DownloadPage extends LitElement {
     /* Selected card: the pick needs to be legible at a glance, so the fill (not
        just the border) changes. */
     button.ver-card.on, button.loader-card.on {
-      /* CF-1 XOR: selected uses fill + outline, drop elevation */
+      /* CF-1 XOR: selected uses fill + outline, drop border */
       background: var(--md-sys-color-primary-container);
+      border-color: transparent;
       outline: 2px solid var(--md-sys-color-primary);
       outline-offset: 0;
       box-shadow: none;

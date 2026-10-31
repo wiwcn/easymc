@@ -120,24 +120,30 @@
   --md-sys-state-dragged-opacity: 0.16;
 
   /* ——— Adaptive layout (LD-2) ————————————————————————————————
-     桌面窗口可自由缩放：断点不再挂在视口上，而是挂在 app shell 容器
-     （easymc-app 的 :host，见 app-shell.ts）上，由 @container 驱动。
-     断点值沿用 MD3 window size class：compact <600 / medium 600–839 /
+     桌面窗口可自由缩放：断点挂在 app shell（easymc-app :host）上，
+     由 @container easymc-shell / easymc-page 驱动，不绑视口。
+     EasyMC 产品断点（与默认窗 1100 / minWidth 960 对齐）：
+       · rail      ≤1024  — 侧栏收为图标轨道（见 side-nav）
+       · restore   ≥1100  — 全宽标注侧栏（默认窗）
+       · wide      ≥1280  — 栅格多列舒适区
+     MD3 window class 仍作参考：compact <600 / medium 600–839 /
      expanded 840–1199 / large 1200–1599 / xlarge ≥1600。         */
+  --easymc-bp-rail: 1024px;     /* shell ≤ 此值 → 图标轨道 */
   --easymc-nav-width: 212px;
-  --easymc-nav-rail-width: 76px; /* 窄窗（<840）收窄为图标轨道 */
-  --easymc-content-max: 1120px;  /* 顶栏与页面共用同一条内容列，超出即居中 */
-  /* 页面内边距随 shell 宽度平滑变化：cqi = shell 内联尺寸的 1%。
-     无容器祖先时按规范退回视口尺寸，仍可用。 */
-  --easymc-page-pad-x: clamp(16px, 1.6cqi + 8px, 36px);
-  --easymc-page-pad-y: clamp(12px, 1cqi + 6px, 22px);
+  --easymc-nav-rail-width: 72px; /* 窄窗图标轨道（略收以多让内容） */
+  --easymc-content-max: 1200px;  /* 顶栏与页面共用内容列，超出居中 */
+  /* 页面内边距随 shell 宽度平滑变化：cqi = shell 内联尺寸的 1%。 */
+  --easymc-page-pad-x: clamp(14px, 1.4cqi + 6px, 32px);
+  --easymc-page-pad-y: clamp(10px, 0.9cqi + 6px, 20px);
   /* Card / grid rhythm (shared across home · download · library · wardrobe · settings) */
   --easymc-card-pad-y: var(--easymc-space-3);
   --easymc-card-pad-x: var(--easymc-space-4);
   --easymc-card-radius: var(--md-sys-shape-corner-large);
   --easymc-grid-gap: var(--easymc-space-3);
-  --easymc-grid-min-dense: 208px; /* market / resource / wardrobe density */
-  --easymc-grid-min-tile: 240px;  /* home instance tiles · settings panels */
+  --easymc-grid-min-dense: 200px; /* market / resource / wardrobe — 1024→1280 顺滑换列 */
+  --easymc-grid-min-tile: 228px;  /* home instance tiles · settings panels */
+  --easymc-grid-min-dense-narrow: 168px; /* page <720 时更密 */
+  --easymc-grid-min-tile-narrow: 196px;
 
   /* ——— Layout / type (TYP-1 · ~1.15 ratio) ——— */
   --easymc-font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
