@@ -622,6 +622,9 @@ export interface AgentWorkspaceDto {
   message_zh: string;
 }
 
+/** Steve / Alex / auto — wardrobe + skinview3d. */
+export type SkinModelId = "classic" | "slim" | "default" | "auto-detect";
+
 export interface WardrobeEntryDto {
   id: string;
   name: string;

@@ -658,8 +658,9 @@ export class AgentPage extends LitElement {
     }
     button.tool .chev {
       color: var(--md-sys-color-outline);
-      font-size: 1.1em;
+      font-size: var(--easymc-type-title);
       line-height: 1;
+      font-weight: var(--easymc-weight-regular);
     }
     button.tool:hover {
       background: var(--md-sys-color-primary-container);

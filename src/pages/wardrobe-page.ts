@@ -55,16 +55,10 @@ export class WardrobePage extends LitElement {
       *::after {
         box-sizing: border-box;
       }
-      h1 {
-        font-size: var(--easymc-type-title);
-        font-weight: var(--easymc-weight-bold);
-        margin: 0 0 2px;
-        letter-spacing: -0.02em;
-      }
+      /* h1 / .sub → pageChromeStyles (TYP-1); wardrobe keeps shorter sub measure */
       .sub {
-        color: var(--md-sys-color-on-surface-variant);
-        font-size: var(--easymc-type-meta);
-        margin: 0 0 var(--easymc-space-4);
+        max-width: 42em;
+        margin-bottom: var(--easymc-space-3);
       }
       .layout {
         display: grid;
@@ -80,9 +74,10 @@ export class WardrobePage extends LitElement {
       .preview-card,
       .panel {
         padding: var(--easymc-space-4);
-        border-radius: var(--md-sys-shape-corner-large);
+        border-radius: var(--md-sys-shape-corner-extra-large);
         background: var(--md-sys-color-surface-container-lowest);
-        box-shadow: var(--md-sys-elevation-1);
+        box-shadow: var(--md-sys-elevation-1); /* CF-1: elev XOR border */
+        border: none;
         min-width: 0;
       }
       .preview-card {
@@ -91,7 +86,11 @@ export class WardrobePage extends LitElement {
         align-items: center;
         gap: var(--easymc-space-3);
         position: sticky;
-        top: 8px;
+        top: var(--easymc-space-2);
+      }
+      /* Avoid nested elevation soup: 3D stage sits flat inside the card */
+      .preview-card easymc-skin-viewer {
+        box-shadow: none;
       }
       .preview-meta {
         width: 100%;
@@ -99,11 +98,17 @@ export class WardrobePage extends LitElement {
       }
       .preview-meta strong {
         display: block;
-        font-size: var(--easymc-type-label);
+        font-size: var(--easymc-type-body);
+        font-weight: var(--easymc-weight-medium);
         margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
       }
       .preview-meta span {
         font-size: var(--easymc-type-meta);
+        font-weight: var(--easymc-weight-regular);
         color: var(--md-sys-color-on-surface-variant);
       }
       .list {
@@ -119,13 +124,19 @@ export class WardrobePage extends LitElement {
         font: inherit;
         color: inherit;
         cursor: pointer;
-        padding: 12px 14px;
+        min-height: 64px;
+        padding: var(--easymc-space-3) var(--easymc-space-4);
         border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface);
-        border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 45%, transparent);
+        border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+        box-shadow: none; /* CF-1: outline only */
         transition:
           border-color var(--easymc-dur-press) var(--easymc-ease-out),
           background var(--easymc-dur-press) var(--easymc-ease-out);
+      }
+      button.entry:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
       }
       button.entry:hover {
         background: var(--md-sys-color-surface-container);
@@ -137,7 +148,7 @@ export class WardrobePage extends LitElement {
       button.entry .thumb {
         width: 40px;
         height: 40px;
-        border-radius: 8px;
+        border-radius: var(--md-sys-shape-corner-medium);
         image-rendering: pixelated;
         background: var(--md-sys-color-surface-container);
         object-fit: cover;
@@ -161,9 +172,11 @@ export class WardrobePage extends LitElement {
         align-items: center;
         padding: 2px 8px;
         border-radius: var(--md-sys-shape-corner-full);
-        font-size: 11px;
+        font-size: var(--easymc-type-meta);
+        font-weight: var(--easymc-weight-medium);
         background: var(--md-sys-color-secondary-container);
         color: var(--md-sys-color-on-secondary-container);
+        flex-shrink: 0;
       }
       .row {
         display: flex;
@@ -178,7 +191,7 @@ export class WardrobePage extends LitElement {
       }
       label.field {
         display: grid;
-        gap: 6px;
+        gap: var(--easymc-space-2);
         font-size: var(--easymc-type-label);
         color: var(--md-sys-color-on-surface-variant);
       }
@@ -198,9 +211,11 @@ export class WardrobePage extends LitElement {
       }
       .tip {
         font-size: var(--easymc-type-meta);
+        font-weight: var(--easymc-weight-regular);
         color: var(--md-sys-color-on-surface-variant);
         margin: 0;
         line-height: 1.45;
+        max-width: 36em;
       }
       .err {
         color: var(--md-sys-color-error);
@@ -212,6 +227,22 @@ export class WardrobePage extends LitElement {
         flex-wrap: wrap;
         gap: var(--easymc-space-2);
         margin-top: var(--easymc-space-3);
+        justify-content: center;
+        width: 100%;
+      }
+      .actions button.primary,
+      .actions button.ghost,
+      .actions button.danger,
+      .actions button.tonal {
+        padding: 7px 14px;
+        font-size: var(--easymc-type-label);
+      }
+      button.entry .name {
+        font-size: var(--easymc-type-body);
+        font-weight: var(--easymc-weight-medium);
+      }
+      button.entry .meta {
+        font-weight: var(--easymc-weight-regular);
       }
     `,
   ];
@@ -329,7 +360,7 @@ export class WardrobePage extends LitElement {
   private async onFetch(kind: "official" | "littleskin") {
     const q = this.query.trim();
     if (!q) {
-      this.previewErr = kind === "official" ? "请输入正版玩家名或 UUID" : "请输入 LittleSkin 玩家名";
+      this.previewErr = kind === "official" ? "请输入正版玩家名" : "请输入 LittleSkin 玩家名";
       return;
     }
     this.busy = true;
@@ -422,7 +453,7 @@ export class WardrobePage extends LitElement {
   private renderMine() {
     return html`
       <div class="panel">
-        <p class="tip">本地衣柜保存在本机。选中后可三维预览（含披风）；当前选用会记在本地（进游戏应用皮肤稍后支持）。</p>
+        <p class="tip">本地衣柜保存在本机。选中后可三维预览（含披风）；设为当前后，启动游戏会套用这套皮肤。</p>
         <div class="form">
           <label class="field"
             >名称（可选）<input .value=${this.uploadName} @input=${(e: Event) => (this.uploadName = (e.target as HTMLInputElement).value)} placeholder="我的皮肤"
@@ -438,11 +469,11 @@ export class WardrobePage extends LitElement {
             <button class="primary" type="button" ?disabled=${this.busy} @click=${() => void this.onUpload()}>上传 PNG</button>
           </div>
         </div>
-        <div class="list" style="margin-top:16px" role="listbox" aria-label="衣柜列表">
+        <div class="list" style="margin-top:var(--easymc-space-4)" role="listbox" aria-label="衣柜列表">
           ${this.loading
             ? html`<div class="skel skel-block" style="height:64px;border-radius:var(--md-sys-shape-corner-large)"></div>`
             : this.entries.length === 0
-              ? html`<easymc-empty-state variant="panel" title="衣柜还是空的" description="上传一张 PNG，或去「正版 / LittleSkin」搜一搜"></easymc-empty-state>`
+              ? html`<easymc-empty-state variant="panel" title="衣柜还是空的" description="上传一张 PNG，或切到「正版 / LittleSkin」搜玩家名"></easymc-empty-state>`
               : this.entries.map((e) => {
                   const on = e.id === this.selectedId;
                   return html`<button
@@ -469,11 +500,11 @@ export class WardrobePage extends LitElement {
   }
 
   private renderSearch(kind: "official" | "littleskin") {
-    const label = kind === "official" ? "正版玩家名或 UUID" : "LittleSkin 玩家名";
+    const label = kind === "official" ? "正版玩家名" : "LittleSkin 玩家名";
     const tip =
       kind === "official"
-        ? "从微软正版档案拉取皮肤与披风（国内会走 BMCLAPI 会话回退）。"
-        : "从 LittleSkin 公共 CSL 接口按名字取皮肤（国内友好）。";
+        ? "从正版档案拉取皮肤与披风；国内会自动换更顺的线路。"
+        : "按玩家名从 LittleSkin 取皮肤；国内访问更稳。";
     return html`
       <div class="panel">
         <p class="tip">${tip}</p>
@@ -500,7 +531,7 @@ export class WardrobePage extends LitElement {
 
   render() {
     return html`
-      <div class="row" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:var(--easymc-space-2)">
         <button
           class="ghost"
           type="button"

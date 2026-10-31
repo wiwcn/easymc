@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { DepNodeDto, DepStatusId } from "../types";
 
@@ -11,7 +11,7 @@ function statusLabel(s: DepStatusId): string {
     case "conflict":
       return "冲突";
     case "provided":
-      return "环境";
+      return "自带";
     case "disabled":
       return "已禁用";
     default:
@@ -36,34 +36,40 @@ export class DepTree extends LitElement {
       padding: 0;
     }
     ul ul {
-      margin-left: 1.1rem;
-      padding-left: 0.75rem;
+      margin-left: var(--easymc-space-4);
+      padding-left: var(--easymc-space-3);
       border-left: 2px solid var(--md-sys-color-outline-variant);
     }
     .node {
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 6px 10px;
-      padding: 6px 0;
-      min-height: 32px;
+      gap: var(--easymc-space-1) var(--easymc-space-3);
+      padding: var(--easymc-space-2) 0;
+      min-height: 36px;
     }
     .name {
-      font-weight: var(--easymc-weight-medium, 500);
+      font-size: var(--easymc-type-body);
+      font-weight: var(--easymc-weight-medium);
       letter-spacing: -0.01em;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .ver {
       color: var(--md-sys-color-on-surface-variant);
-      font-size: var(--easymc-type-meta, 0.75rem);
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
       font-variant-numeric: tabular-nums;
     }
     .badge {
       display: inline-flex;
       align-items: center;
-      padding: 1px 8px;
-      border-radius: var(--md-sys-shape-corner-full, 999px);
-      font-size: 0.7rem;
-      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: var(--md-sys-shape-corner-full);
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-medium);
       line-height: 1.5;
     }
     .badge.ok {
@@ -94,8 +100,9 @@ export class DepTree extends LitElement {
       flex: 1 1 100%;
       margin: 0;
       color: var(--md-sys-color-on-surface-variant);
-      font-size: var(--easymc-type-meta, 0.75rem);
-      line-height: 1.4;
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
+      line-height: var(--easymc-leading-body, 1.45);
     }
     .msg.conflict,
     .msg.missing {
@@ -103,22 +110,25 @@ export class DepTree extends LitElement {
     }
     .kind {
       color: var(--md-sys-color-outline);
-      font-size: 0.7rem;
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
     }
     .empty {
       color: var(--md-sys-color-on-surface-variant);
-      padding: 8px 0;
+      padding: var(--easymc-space-4) 0;
+      font-size: var(--easymc-type-body);
+      text-align: center;
     }
   `;
 
   render() {
     if (!this.roots.length) {
-      return html`<p class="empty">暂无依赖树数据</p>`;
+      return html`<p class="empty">还没有依赖信息。装好模组后再回来看互相需要什么。</p>`;
     }
     return html`<ul role="tree">${this.roots.map((n) => this.renderNode(n, true))}</ul>`;
   }
 
-  private renderNode(node: DepNodeDto, isRoot: boolean) {
+  private renderNode(node: DepNodeDto, isRoot: boolean): TemplateResult | typeof nothing {
     const showProvided = !this.compact || node.status !== "provided";
     if (!showProvided && !isRoot) return nothing;
     const children = this.compact

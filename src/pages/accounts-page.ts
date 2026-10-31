@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
-import { controlStyles } from "../styles/controls";
+import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createOfflineOrThrow,
@@ -36,6 +36,7 @@ export class AccountsPage extends LitElement {
 
   static styles = [
     controlStyles,
+    pageChromeStyles,
     css`
       :host {
         display: flex;
@@ -53,17 +54,8 @@ export class AccountsPage extends LitElement {
       *::after {
         box-sizing: border-box;
       }
-      h1 {
-        font-size: var(--easymc-type-title);
-        font-weight: var(--easymc-weight-bold);
-        margin: 0 0 2px;
-        letter-spacing: -0.02em;
-      }
-      .sub {
-        color: var(--md-sys-color-on-surface-variant);
-        font-size: var(--easymc-type-meta);
-        margin: 0 0 var(--easymc-space-4);
-      }
+      /* h1 / .sub → pageChromeStyles (TYP-1) */
+      .sub { max-width: 42em; }
       .surf {
         flex: 1 1 auto;
         display: flex;
@@ -94,10 +86,11 @@ export class AccountsPage extends LitElement {
         font: inherit;
         color: inherit;
         cursor: pointer;
-        padding: 12px 14px;
+        padding: var(--easymc-space-3) var(--easymc-space-4);
         border-radius: var(--md-sys-shape-corner-large);
         background: var(--md-sys-color-surface);
-        border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 45%, transparent);
+        border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+        box-shadow: none; /* CF-1: outline */
         transition:
           border-color var(--easymc-dur-press) var(--easymc-ease-out),
           background var(--easymc-dur-press) var(--easymc-ease-out);

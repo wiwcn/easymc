@@ -99,34 +99,60 @@ export class InstancePage extends LitElement {
       width: 100%;
       box-sizing: border-box;
     }
-    h1 { font-size: var(--easymc-type-display); font-weight: var(--easymc-weight-medium); margin: 0 0 2px; letter-spacing: -0.02em; }
-    .sub { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); margin: 0 0 12px; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    button, select, input {
+    /* h1 / .sub → pageChromeStyles (TYP-1). Detail pages: slightly tighter sub measure */
+    .sub {
+      max-width: 42em;
+      margin-bottom: var(--easymc-space-3);
+    }
+    .toolbar { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; margin-bottom: var(--easymc-space-3); align-items: center; }
+    /* CMP-1: buttons from controlStyles only; form fields keep local chrome */
+    select, input {
       border: 1px solid var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
       border-radius: var(--md-sys-shape-corner-full);
       padding: 8px 14px;
       font-size: var(--easymc-type-body);
-      cursor: pointer;
+      font-weight: var(--easymc-weight-regular);
+      font-family: inherit;
     }
-    /* primary / ghost → controlStyles (CMP-1) */
-    button.danger { color: var(--md-sys-color-error); }
+    /* Compact card / toolbar CTAs — colors stay on controlStyles */
+    .res-card-foot button,
+    .toolbar button,
+    .dep-head button {
+      padding: 6px 12px;
+      font-size: var(--easymc-type-label);
+    }
+    /* Outline danger for uninstall (ghost+danger combo); filled danger keeps controlStyles */
+    button.danger.ghost {
+      color: var(--md-sys-color-error);
+      border-color: color-mix(in oklch, var(--md-sys-color-error) 45%, transparent);
+      background: transparent;
+    }
+    button.danger.ghost:hover:not(:disabled) {
+      background: color-mix(in oklch, var(--md-sys-color-error) 10%, transparent);
+    }
     .row-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px 14px;
+      display: flex; align-items: center; gap: var(--easymc-space-3);
+      padding: var(--easymc-space-3) var(--easymc-space-4);
       box-sizing: border-box; /* width:100% + padding must not overflow the list */
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      background: var(--md-sys-color-surface-container-lowest);
       border: 1px solid transparent;
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elev XOR border */
       cursor: pointer;
       text-align: left;
       width: 100%;
-      transition: background var(--easymc-dur-press) var(--easymc-ease-out);
+      min-height: 64px;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out), border-color var(--easymc-dur-press) var(--easymc-ease-out), box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
     .row-item:hover { background: var(--md-sys-color-surface-container); }
-    .row-item.active { border-color: var(--md-sys-color-primary); }
+    .row-item:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
+    .row-item.active {
+      border-color: var(--md-sys-color-primary);
+      box-shadow: none; /* CF-1: selected = outline, drop elev */
+      background: color-mix(in oklch, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container-lowest));
+    }
     .row-item.not-ready {
       opacity: 0.88;
       background: var(--md-sys-color-surface-container-low);
@@ -144,8 +170,19 @@ export class InstancePage extends LitElement {
       display: grid; place-items: center; font-weight: var(--easymc-weight-bold); flex-shrink: 0;
     }
     .meta { flex: 1; min-width: 0; }
-    .meta .name { font-weight: var(--easymc-weight-medium); }
-    .meta .info { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .meta .name {
+      font-size: var(--easymc-type-body);
+      font-weight: var(--easymc-weight-medium);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .meta .info {
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
+      color: var(--md-sys-color-on-surface-variant);
+      display: flex; flex-wrap: wrap; gap: var(--easymc-space-2); align-items: center;
+    }
     .st {
       display: inline-flex; align-items: center; gap: 4px;
       font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium);
@@ -184,16 +221,23 @@ export class InstancePage extends LitElement {
     .menu-panel button { border: none; background: transparent; text-align: left; border-radius: var(--md-sys-shape-corner-small); padding: 8px 10px; }
     .menu-panel button:hover { background: var(--md-sys-color-surface-container); }
     .menu-panel button:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
-    .back { margin-bottom: 8px; }
+    .back { margin-bottom: var(--easymc-space-2); }
     /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
     .panel {
-      padding: 16px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      padding: var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elev XOR border — was ghost low surface */
+      border: none;
     }
-    .panel h2 { margin: 0 0 10px; font-size: var(--easymc-type-title); }
-    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-width: 420px; }
-    .field label { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); }
+    .panel h2 {
+      margin: 0 0 var(--easymc-space-3);
+      font-size: var(--easymc-type-title);
+      font-weight: var(--easymc-weight-medium);
+      letter-spacing: -0.01em;
+    }
+    .field { display: flex; flex-direction: column; gap: var(--easymc-space-1); margin-bottom: var(--easymc-space-3); max-width: 420px; }
+    .field label { font-size: var(--easymc-type-label); font-weight: var(--easymc-weight-medium); color: var(--md-sys-color-on-surface-variant); }
     .field input, .field select { border-radius: var(--md-sys-shape-corner-small); }
     .list {
       flex: 1 1 auto;
@@ -214,7 +258,9 @@ export class InstancePage extends LitElement {
     }
     .list { gap: 6px; }
     .inst-skel { padding: var(--easymc-space-4) 0; }
-    .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); }
+    /* .muted → pageChrome meta; QP help uses body measure */
+    .muted { max-width: 42em; line-height: 1.45; }
+    .field .muted { font-size: var(--easymc-type-meta); }
     .resource-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
@@ -224,12 +270,14 @@ export class InstancePage extends LitElement {
     .res-card {
       display: flex;
       flex-direction: column;
-      gap: var(--easymc-space-3);
+      gap: var(--easymc-space-2);
       padding: var(--easymc-space-3);
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation XOR border */
-      min-height: 0;
+      background: var(--md-sys-color-surface);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      box-shadow: none; /* CF-1: outline inside elev panel — no nested elev */
+      min-height: 148px;
+      height: 100%;
     }
     .res-card.disabled { opacity: 0.62; }
     .res-card-top {
@@ -250,61 +298,77 @@ export class InstancePage extends LitElement {
       font-weight: var(--easymc-weight-medium);
       font-size: var(--easymc-type-body);
       word-break: break-word;
-      line-height: 1.35;
+      line-height: var(--easymc-leading-body, 1.35);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .res-card .meta {
       margin-top: 2px;
       font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
       color: var(--md-sys-color-on-surface-variant);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .res-card-foot {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: var(--easymc-space-2);
       margin-top: auto;
+      padding-top: var(--easymc-space-1);
+      align-items: center;
     }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--md-sys-color-outline-variant);
     }
     .dep-panel {
-      margin-top: 16px;
-      padding-top: 14px;
+      margin-top: var(--easymc-space-4);
+      padding-top: var(--easymc-space-4);
       border-top: 1px solid var(--md-sys-color-outline-variant);
     }
     .dep-head {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: var(--easymc-space-3);
     }
     .dep-head h3 {
       margin: 0;
       flex: 1;
-      font-size: var(--easymc-type-title, 1rem);
-      font-weight: var(--easymc-weight-medium, 500);
+      font-size: var(--easymc-type-title);
+      font-weight: var(--easymc-weight-medium);
+      letter-spacing: -0.01em;
     }
     .dep-summary {
-      margin: 0 0 8px;
+      margin: 0 0 var(--easymc-space-2);
       color: var(--md-sys-color-on-surface-variant);
-      font-size: var(--easymc-type-meta, 0.75rem);
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-regular);
+      line-height: var(--easymc-leading-body, 1.45);
     }
     .dep-alerts {
-      margin: 0 0 10px;
-      padding: 8px 12px;
-      border-radius: var(--md-sys-shape-corner-small, 8px);
+      margin: 0 0 var(--easymc-space-3);
+      padding: var(--easymc-space-2) var(--easymc-space-3);
+      border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-warning-container);
       color: var(--md-sys-color-on-warning-container);
-      font-size: var(--easymc-type-meta, 0.75rem);
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-medium);
     }
     .dep-alerts li { margin: 2px 0; }
     .dep-tree-wrap {
       max-height: 360px;
       overflow: auto;
-      padding: 4px 2px 8px;
-      border-radius: var(--md-sys-shape-corner-small, 8px);
+      padding: var(--easymc-space-2) var(--easymc-space-3) var(--easymc-space-3);
+      border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-surface-container-low);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      box-shadow: none; /* CF-1: outline only inside elev panel */
     }
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
@@ -407,7 +471,7 @@ export class InstancePage extends LitElement {
   private async fetchMissingDeps(instanceId: string) {
     if (this.depBusy) return;
     this.depBusy = true;
-    this.depMsg = "正在从 Modrinth 查找并下载缺失依赖…";
+    this.depMsg = "正在查找并下载还缺的模组…";
     try {
       const r = await fetchMissingModDeps(instanceId);
       this.depMsg = r.message_zh;
@@ -472,7 +536,7 @@ export class InstancePage extends LitElement {
       <p class="sub">管理本地游戏版本：设置、模组、世界与导出。</p>
       <div class="toolbar">
         <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
-        <button class="ghost" type="button" @click=${() => this.goDownload()}>去下载中心</button>
+        <button class="ghost" type="button" @click=${() => this.goDownload()}>去下载</button>
         <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>导入好友分享</button>
       </div>
       <div class="list">
@@ -480,7 +544,7 @@ export class InstancePage extends LitElement {
           ? html`<easymc-empty-state
               variant="panel"
               title="咦？似乎什么都没有…"
-              description="先添加一个版本，或去下载中心装整合包。"
+              description="先添加一个版本，或去「下载」装整合包。"
             >
               <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
               <button class="ghost" type="button" @click=${() => this.goDownload("modpack")}>去下载整合包</button>
@@ -554,7 +618,7 @@ export class InstancePage extends LitElement {
     return html`
       <button class="ghost back" type="button" @click=${() => (this.detailId = null)}>← 返回列表</button>
       <h1>${instancePlayerLabel(d)}</h1>
-      <p class="sub">${(d.name || "").trim() && (d.name || "").trim() !== instancePlayerLabel(d) ? `${d.name} · ` : ""}${d.loader_version ? `加载器 ${d.loader_version} · ` : ""}管理模组、世界与导出</p>
+      <p class="sub">${(d.name || "").trim() && (d.name || "").trim() !== instancePlayerLabel(d) ? `${d.name} · ` : ""}${d.loader_version ? `加载器 ${d.loader_version}` : "模组、世界与导出"}</p>
       <div class="md-tabs" role="tablist" aria-label="版本管理">
         <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map((t) => html`<button class=${this.tab === t.id ? "on" : ""} type="button" role="tab" aria-selected=${this.tab === t.id} @click=${() => this.setTab(t.id)}>${t.label}</button>`)}
@@ -613,8 +677,8 @@ export class InstancePage extends LitElement {
           </div>
           <div class="field"><label>额外启动参数（高级）</label><input placeholder="不懂就留空" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--md-sys-color-outline-variant)">
-            <label>快速进入（Quick Play）</label>
-            <p class="muted" style="margin:4px 0 8px">启动后跳过标题屏，直接进世界或服务器（需 Minecraft 1.20+；旧版本仅支持直连服务器）。灵感来自 CMCL / Prism。</p>
+            <label>快速进入</label>
+            <p class="muted" style="margin:4px 0 8px">启动后跳过标题屏，直接进世界或服务器（需 Minecraft 1.20+；更早的版本只能直连服务器）。</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
               <select
                 aria-label="快速进入方式"
@@ -650,7 +714,7 @@ export class InstancePage extends LitElement {
               const r = await uploadLatestLog(d.id);
               showToast(r.message_zh);
               try { await navigator.clipboard.writeText(r.url); showToast("链接已复制"); } catch { /* ignore */ }
-            })}>分享最新日志（mclo.gs）</button>
+            })}>上传游戏日志（排查用）</button>
           </div>
           ${d.container
             ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
@@ -678,11 +742,11 @@ export class InstancePage extends LitElement {
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: false });
                     showToast(r.message_zh);
-                  })}>分享环境说明</button>
+                  })}>分享配置说明</button>
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: true });
                     showToast(r.message_zh);
-                  })}>分享完整环境</button>
+                  })}>分享模组与配置</button>
                 </div>
               </div>`
             : html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
@@ -717,8 +781,8 @@ export class InstancePage extends LitElement {
           ${this.mods.length === 0
             ? html`<div class="panel-empty-slot"><easymc-empty-state
                 variant="panel"
-                title="咦？还没有模组呢…"
-                description="去下载中心挑几个装上吧"
+                title="还没有模组"
+                description="去「下载」挑几个装上吧"
               >
                 <button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>
               </easymc-empty-state></div>`
@@ -747,16 +811,16 @@ export class InstancePage extends LitElement {
                 </div>
                 <div class="dep-panel">
                   <div class="dep-head">
-                    <h3>依赖关系</h3>
-                    <button class="ghost" type="button" ?disabled=${this.depBusy} @click=${() => this.refreshTab()}>刷新树</button>
+                    <h3>模组互相需要什么</h3>
+                    <button class="ghost" type="button" ?disabled=${this.depBusy} @click=${() => this.refreshTab()}>重新检查</button>
                     <button
                       class="primary"
                       type="button"
                       ?disabled=${this.depBusy || !(this.depGraph?.missing_ids.length)}
                       @click=${() => this.fetchMissingDeps(d.id)}
-                    >${this.depBusy ? "下载中…" : "从 Modrinth 补齐缺失"}</button>
+                    >${this.depBusy ? "下载中…" : "一键补齐还缺的模组"}</button>
                   </div>
-                  <p class="dep-summary">${this.depMsg || (this.depGraph?.summary_zh ?? "解析依赖中…")}</p>
+                  <p class="dep-summary">${this.depMsg || (this.depGraph?.summary_zh ?? "正在查看模组互相需要什么…")}</p>
                   ${this.depGraph?.conflict_messages?.length
                     ? html`<ul class="dep-alerts">${this.depGraph.conflict_messages.map((m) => html`<li>${m}</li>`)}</ul>`
                     : nothing}
@@ -767,11 +831,11 @@ export class InstancePage extends LitElement {
               `}
         </div>`;
       case "worlds":
-        return this.renderLocals(d, "saves", "世界 / 存档", "咦？还没有存档呢… 进游戏创建世界后会出现在这里");
+        return this.renderLocals(d, "saves", "世界 / 存档", "还没有存档 — 进游戏创建世界后会出现在这里");
       case "resourcepacks":
-        return this.renderLocals(d, "resourcepacks", "资源包", "咦？还没有资源包呢…", "resourcepack");
+        return this.renderLocals(d, "resourcepacks", "资源包", "还没有资源包", "resourcepack");
       case "shaders":
-        return this.renderLocals(d, "shaderpacks", "光影", "咦？还没有光影呢…", "shader");
+        return this.renderLocals(d, "shaderpacks", "光影", "还没有光影", "shader");
       case "export":
         return html`<div class="panel">
           <h2>发给好友</h2>
@@ -781,18 +845,18 @@ export class InstancePage extends LitElement {
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
             <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
           </div>
-          <h2 style="margin-top:20px">分享隔离环境</h2>
-          <p class="muted">把模组、配置和加速偏好打包发给好友（不含存档）。对方导入后会得到一个新的隔离版本。</p>
+          <h2 style="margin-top:var(--easymc-space-5)">分享给好友</h2>
+          <p class="muted">把模组、配置和加速偏好打包发给好友（不含存档）。对方导入后会得到一个新版本。</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="tonal" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
               showToast((await containerExportEnv(d.id, { pack: false })).message_zh);
-            })}>分享环境说明（轻量）</button>
+            })}>分享配置说明（轻量）</button>
             <button class="ghost" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
               showToast((await containerExportEnv(d.id, { pack: true })).message_zh);
-            })}>分享完整环境（含模组）</button>
-            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入好友环境…</button>
+            })}>分享模组与配置（完整）</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入好友分享…</button>
           </div>
-          ${!d.container ? html`<p class="muted" style="margin-top:8px">这个版本还没开隔离。可先去「设置 → 启动」开启，或直接导入好友环境新建一个。</p>` : nothing}
+          ${!d.container ? html`<p class="muted" style="margin-top:8px">这个版本还没开「版本隔离」。可先在下方开启，或直接导入好友的分享包新建一个。</p>` : nothing}
         </div>`;
     }
   }
@@ -801,7 +865,7 @@ export class InstancePage extends LitElement {
     const isEmpty = this.locals.length === 0;
     return html`<div class="panel ${isEmpty ? "panel-empty" : ""}">
       <h2>${title}</h2>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:var(--easymc-space-2);margin-bottom:var(--easymc-space-3);flex-wrap:wrap">
         <button class="ghost" type="button" @click=${() => this.act(async () => { showToast(await openInstanceFolder(d.id, kind === "saves" ? "saves" : kind)); })}>打开文件夹</button>
         ${downloadTab ? html`<button class="primary" type="button" @click=${() => this.goDownload(downloadTab)}>去下载</button>` : nothing}
       </div>
