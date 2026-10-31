@@ -89,6 +89,7 @@ export class HomePage extends LitElement {
   @state() private accounts: AccountDto[] = [];
   @state() private loading = true;
   @state() private busy = false;
+  @state() private gameLaunched = false;
   @state() private status = "";
   @state() private launchFailed = false;
   @state() private progress: InstallProgressDto | null = null;
@@ -781,6 +782,7 @@ export class HomePage extends LitElement {
       const msg = await launchInstance(f.id);
       this.status = msg;
       this.launchFailed = false;
+      this.gameLaunched = true;
       showToast("游戏已启动");
       await this.boot();
     } catch (e) {
@@ -985,7 +987,7 @@ export class HomePage extends LitElement {
           }
         }}
       >
-        生成启动脚本
+        高级：导出启动方式
       </button>
       <button
         type="button"
@@ -995,19 +997,22 @@ export class HomePage extends LitElement {
           this.showLogs = !this.showLogs;
         }}
       >
-        ${this.showLogs ? "隐藏日志" : "查看日志"}
+        ${this.showLogs ? "收起运行记录" : "查看运行记录"}
       </button>
-      <button
+      ${this.gameLaunched || this.busy
+        ? html`<button
         type="button"
         @click=${() => {
           this.featuredMenu = false;
           this.menuOpenId = null;
           void stopInstance();
+          this.gameLaunched = false;
           showToast("已请求停止");
         }}
       >
         停止游戏
-      </button>
+      </button>`
+        : nothing}
     </div>`;
   }
 

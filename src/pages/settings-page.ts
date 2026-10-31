@@ -359,7 +359,7 @@ export class SettingsPage extends LitElement {
     ];
     return html`
       <h1>设置</h1>
-      <p class="sub">启动环境、内存与使用偏好。账户请到「账户」页管理。高级选项默认折叠。</p>
+      <p class="sub">先选使用模式，再配 Java、内存与助手连接。账户请到「账户」页。高级选项默认折叠。</p>
       <div class="md-tabs" role="tablist" aria-label="设置分组">
         <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map(
@@ -385,6 +385,31 @@ export class SettingsPage extends LitElement {
     const best = this.javaList.find((j) => j.major >= 21) ?? this.javaList[0] ?? null;
     const ready = !!best && best.major >= 21;
     return html`
+      <div class="card">
+        <h2>使用模式</h2>
+        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。容器隔离只在需要时再开。</p>
+        <div class="md-segmented" role="radiogroup" aria-label="使用模式">
+          <span class="md-tab-ind" aria-hidden="true"></span>
+          <button
+            class=${this.mode === "agent" ? "on" : ""}
+            type="button"
+            role="radio"
+            aria-checked=${this.mode === "agent"}
+            @click=${() => this.setMode("agent")}
+          >
+            助手模式
+          </button>
+          <button
+            class=${this.mode === "standard" ? "on" : ""}
+            type="button"
+            role="radio"
+            aria-checked=${this.mode === "standard"}
+            @click=${() => this.setMode("standard")}
+          >
+            标准模式
+          </button>
+        </div>
+      </div>
       <div class="card">
         <h2>Java 运行环境</h2>
         <p>
@@ -485,11 +510,11 @@ export class SettingsPage extends LitElement {
             @change=${async (e: Event) => {
               const v = (e.target as HTMLSelectElement).value;
               this.settings = await updateSettings({ download_source: v });
-              showToast(v === "bmclapi" ? "已切换为 BMCLAPI 加速" : "已切换为官方源");
+              showToast(v === "bmclapi" ? "已切换为国内加速" : "已切换为官方源");
             }}
           >
             <option value="official">官方源</option>
-            <option value="bmclapi">BMCLAPI 加速</option>
+            <option value="bmclapi">国内加速（BMCLAPI）</option>
           </select>
           <button
             class="btn ghost"
@@ -873,40 +898,15 @@ export class SettingsPage extends LitElement {
 
   private renderPersonal() {
     return html`<div class="card">
-        <h2>使用模式</h2>
-        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。容器隔离只在需要时再开。</p>
-        <div class="md-segmented" role="radiogroup" aria-label="使用模式">
-          <span class="md-tab-ind" aria-hidden="true"></span>
-          <button
-            class=${this.mode === "agent" ? "on" : ""}
-            type="button"
-            role="radio"
-            aria-checked=${this.mode === "agent"}
-            @click=${() => this.setMode("agent")}
-          >
-            助手模式
-          </button>
-          <button
-            class=${this.mode === "standard" ? "on" : ""}
-            type="button"
-            role="radio"
-            aria-checked=${this.mode === "standard"}
-            @click=${() => this.setMode("standard")}
-          >
-            标准模式
-          </button>
-        </div>
-      </div>
-      <div class="card">
         <h2>主题与动效</h2>
-        <p>当前为青绿主题。完整主题定制会在后续版本提供。动效已跟随系统「减少动态效果」设置。</p>
+        <p>当前为青绿主题。完整主题定制会在后续版本提供。动效已跟随系统「减少动态效果」设置。使用模式请到「启动」分组切换。</p>
       </div>`;
   }
 
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到助手模式（容器隔离可在「启动」里选开）" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式（需要时再到下方开容器隔离）" : "已切换到标准模式");
   }
 
   private renderOther() {
@@ -919,7 +919,8 @@ export class SettingsPage extends LitElement {
           type="button"
           @click=${async () => {
             await updateSettings({ onboarding_complete: false });
-            showToast("下次打开将显示欢迎引导");
+            try { localStorage.setItem("easymc.previewOnboarding", "1"); } catch { /* ignore */ }
+            showToast("正在打开欢迎引导…");
             this.dispatchEvent(new CustomEvent("onboarding-done", { bubbles: true, composed: true }));
             location.reload();
           }}

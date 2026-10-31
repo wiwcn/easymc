@@ -1681,7 +1681,7 @@ ${extraContent}` : t.content,
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="还没版本的话先去下载中心装一个；有版本可以说说启动不了、崩了，或点下方快捷工具"
+                  description="还没版本的话先去「下载」装一个；有版本可以说说启动不了、崩了，或点下方快捷工具"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
@@ -1810,7 +1810,7 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
           </div>
-          <p class="note">「优化配置」只生成建议，需点「应用更改」才会写入。工具在你这台电脑上执行。</p>
+          <p class="note">「优化配置」只给出建议，点「应用更改」后才会真正改动。都在你这台电脑上完成。</p>
         </aside>
       </div>
     `;

@@ -599,7 +599,7 @@ export class DownloadPage extends LitElement {
                   </button>`
                 : nothing}
               <div class="row">
-                <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="版本名称（可选）" style="flex:1;min-width:140px" />
+                <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" />
                 <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
                   ${this.busy ? "安装中…" : "安装并添加版本"}
                 </button>
@@ -609,7 +609,7 @@ export class DownloadPage extends LitElement {
             ? html`<div class="loader-panel">
                 <div class="muted">将安装原版 ${this.pick}</div>
                 <div class="row">
-                  <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="版本名称（可选）" style="flex:1;min-width:140px" />
+                  <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" />
                   <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
                     ${this.busy ? "安装中…" : "安装并添加版本"}
                   </button>
