@@ -8,6 +8,7 @@ description = "Local rule-based MC Agent + optional OpenAI-compatible LLM"
 [dependencies]
 easymc-core = { workspace = true }
 easymc-container = { workspace = true }
+easymc-mods = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }

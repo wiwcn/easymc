@@ -25,6 +25,14 @@ const SKILL_INDEX: &[SkillIndex] = &[
         keywords: &["删除版本", "删版本", "删除模组", "删模组", "卸载模组", "delete_instance", "delete_mod"],
     },
     SkillIndex {
+        file: "agent-mod-deps.md",
+        keywords: &[
+            "缺依赖", "依赖缺失", "缺少依赖", "查依赖", "检查依赖", "补依赖", "补全依赖",
+            "补全缺失", "依赖关系", "依赖图", "依赖树", "缺啥", "缺什么模组", "能不能补上",
+            "能不能玩", "missing dep", "dependency", "check_mod_deps", "fetch_missing",
+        ],
+    },
+    SkillIndex {
         file: "agent-mod-toggle-mrpack.md",
         keywords: &[
             "禁用", "启用", "整合包", "mrpack", "toggle", "导入整合", "制作整合",
@@ -157,6 +165,12 @@ const BUILTIN_SEE_ACT_VERIFY: &str = r#"# Agent：see → act → verify（崩�
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selects_deps_skill() {
+        let hits = select_skills_for_prompt("这个整合包好像缺依赖，你帮我查查能不能补上", 3);
+        assert!(hits.iter().any(|(n, _)| n.contains("mod-deps")), "{:?}", hits);
+    }
 
     #[test]
     fn selects_crash_skill() {

@@ -233,6 +233,223 @@ pub fn check_mods(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
 }
 
 /// Pack diagnose report + log excerpt into `diagnostics/easymc-diag-*.txt`.
+
+/// Parse fabric/forge/quilt metadata and report missing required deps + conflicts.
+pub fn check_mod_deps(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "check_mod_deps".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "check_mod_deps".into(),
+            message_zh: "还没有选版本，没法查依赖。请先选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "check_mod_deps".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let report = match easymc_mods::build_dep_graph(inst) {
+        Ok(r) => r,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "check_mod_deps".into(),
+                message_zh: format!("解析模组依赖失败：{e}"),
+                path: Some(PathBuf::from(&inst.game_dir).join("mods").display().to_string()),
+                value: None,
+            };
+        }
+    };
+
+    let missing = &report.missing_ids;
+    let conflicts = &report.conflict_messages;
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!(
+        "版本「{}」依赖检查：{}",
+        inst.name, report.summary_zh
+    ));
+    if missing.is_empty() && conflicts.is_empty() {
+        lines.push("必需依赖都齐了，也没看出明显冲突。".into());
+    } else {
+        if !missing.is_empty() {
+            let preview: Vec<_> = missing.iter().take(16).cloned().collect();
+            let more = if missing.len() > preview.len() {
+                format!(" …等共 {} 个", missing.len())
+            } else {
+                String::new()
+            };
+            lines.push(format!("缺失必需依赖：{}{}", preview.join("、"), more));
+            lines.push("可以说「补全缺失依赖」让我从 Modrinth 自动下载能匹配到的项。".into());
+        }
+        if !conflicts.is_empty() {
+            let preview: Vec<_> = conflicts.iter().take(8).cloned().collect();
+            lines.push(format!("冲突/版本不匹配：\n- {}", preview.join("\n- ")));
+        }
+    }
+
+    // Compact tree snippets for the LLM (root → missing/conflict children).
+    let mut tree_bits: Vec<String> = Vec::new();
+    for root in report.roots.iter().take(40) {
+        let bad: Vec<_> = root
+            .children
+            .iter()
+            .filter(|c| {
+                matches!(
+                    c.status,
+                    easymc_mods::DepStatus::Missing
+                        | easymc_mods::DepStatus::Conflict
+                        | easymc_mods::DepStatus::Disabled
+                )
+            })
+            .take(6)
+            .map(|c| {
+                format!(
+                    "{}[{}]",
+                    c.mod_id,
+                    c.status.label_zh()
+                )
+            })
+            .collect();
+        if !bad.is_empty() {
+            tree_bits.push(format!("{} → {}", root.mod_id, bad.join(", ")));
+        }
+    }
+    if !tree_bits.is_empty() {
+        lines.push(format!("关系摘录：\n{}", tree_bits.join("\n")));
+    }
+
+    let mods_dir = PathBuf::from(&inst.game_dir).join("mods");
+    ActionResult {
+        ok: true,
+        action: "check_mod_deps".into(),
+        message_zh: lines.join("\n"),
+        path: Some(mods_dir.display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "installed_count": report.installed.len(),
+            "missing_ids": report.missing_ids,
+            "conflict_messages": report.conflict_messages,
+            "summary_zh": report.summary_zh,
+            "suggest_fetch_missing": !report.missing_ids.is_empty(),
+            "roots": report.roots,
+        })),
+    }
+}
+
+/// Host-deferred: ask Tauri to download missing required deps via Modrinth.
+pub fn fetch_missing_mod_deps_action(
+    paths: &Paths,
+    instance_id: Option<&str>,
+    only_ids: Option<Vec<String>>,
+) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "fetch_missing_mod_deps".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "fetch_missing_mod_deps".into(),
+            message_zh: "还没有选版本，没法补依赖。请先选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "fetch_missing_mod_deps".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    // Quick local peek so the agent card / reply is useful before host finishes.
+    let peek = easymc_mods::build_dep_graph(inst).ok();
+    let missing = peek
+        .as_ref()
+        .map(|r| r.missing_ids.clone())
+        .unwrap_or_default();
+    let targets = only_ids.clone().unwrap_or_else(|| missing.clone());
+    if targets.is_empty() {
+        return ActionResult {
+            ok: true,
+            action: "fetch_missing_mod_deps".into(),
+            message_zh: format!(
+                "版本「{}」目前没有可自动补全的缺失依赖。{}",
+                inst.name,
+                peek
+                    .as_ref()
+                    .map(|r| r.summary_zh.as_str())
+                    .unwrap_or("")
+            ),
+            path: Some(PathBuf::from(&inst.game_dir).join("mods").display().to_string()),
+            value: Some(serde_json::json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "missing_ids": missing,
+                "only_ids": only_ids,
+                "skipped": true,
+            })),
+        };
+    }
+    ActionResult {
+        ok: true,
+        action: "fetch_missing_mod_deps".into(),
+        message_zh: format!(
+            "准备为「{}」从 Modrinth 补全 {} 个缺失依赖：{}…",
+            inst.name,
+            targets.len(),
+            targets.iter().take(8).cloned().collect::<Vec<_>>().join("、")
+        ),
+        path: Some(PathBuf::from(&inst.game_dir).join("mods").display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "missing_ids": missing,
+            "only_ids": only_ids,
+            "targets": targets,
+            "deferred": true,
+        })),
+    }
+}
+
+
 pub fn write_diagnostic_bundle(paths: &Paths, report: &DiagnoseReport) -> Result<ActionResult> {
     let dir = paths.root.join("diagnostics");
     fs::create_dir_all(&dir)?;

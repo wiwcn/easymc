@@ -60,6 +60,11 @@ const TOOL_TITLES: Record<string, string> = {
   show_data_dir: "数据目录",
   check_mods: "已装模组",
   list_installed_mods: "已装模组",
+  check_mod_deps: "模组依赖",
+  mod_dep_graph: "模组依赖",
+  analyze_mod_deps: "模组依赖",
+  fetch_missing_mod_deps: "补全依赖",
+  install_missing_deps: "补全依赖",
   toggle_mod: "启用/禁用模组",
   enable_mod: "启用模组",
   disable_mod: "禁用模组",
@@ -114,6 +119,7 @@ const SKILL_HINTS: { label: string; prompt: string; tool?: string }[] = [
   { label: "看看有哪些版本", prompt: "版本列表", tool: "list_instances" },
   { label: "内存不够卡", prompt: "优化配置", tool: "propose_changes" },
   { label: "禁用某个模组", prompt: "已装模组", tool: "check_mods" },
+  { label: "查缺依赖", prompt: "这个整合包好像缺依赖，你帮我查查能不能补上", tool: "check_mod_deps" },
 ];
 
 function runningTool(name: string, args: { key: string; label_zh: string; value: string }[] = []): ToolCallDto {
@@ -1079,6 +1085,8 @@ export class AgentPage extends LitElement {
       action.action === "build_pack" ||
       action.action === "set_download_source" ||
       action.action === "check_mods" ||
+      action.action === "check_mod_deps" ||
+      action.action === "fetch_missing_mod_deps" ||
       action.action === "open_instance_dir"
     ) {
       return action.message_zh || reply;
@@ -1415,6 +1423,14 @@ ${extraContent}` : t.content,
     }
     if (actionId === "run_check_mods") {
       await this.onAsk("已装模组", runningTool("check_mods"));
+      return;
+    }
+    if (actionId === "run_check_mod_deps") {
+      await this.onAsk("查依赖", runningTool("check_mod_deps"));
+      return;
+    }
+    if (actionId === "run_fetch_missing_deps") {
+      await this.onAsk("补全缺失依赖", runningTool("fetch_missing_mod_deps"));
       return;
     }
     if (actionId === "open_home") {
@@ -2113,6 +2129,14 @@ ${extraContent}` : t.content,
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onCheckMods()}>
               <span class="tool-copy"><strong>已装模组</strong><span>列出当前版本 mods 文件夹</span></span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+            <button
+              class="tool"
+              ?disabled=${this.busy}
+              @click=${() => this.onAsk("查依赖", runningTool("check_mod_deps"))}
+            >
+              <span class="tool-copy"><strong>查依赖</strong><span>分析缺失依赖与冲突，可一键补全</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
           </div>

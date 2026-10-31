@@ -104,6 +104,8 @@ fn is_host_deferred_tool(name: &str) -> bool {
             | "export_modpack"
             | "import_mrpack"
             | "import_modpack"
+            | "fetch_missing_mod_deps"
+            | "install_missing_deps"
     )
 }
 

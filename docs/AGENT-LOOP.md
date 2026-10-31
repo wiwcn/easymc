@@ -64,3 +64,26 @@ model the player must confirm in Chinese so the rule path can execute.
 
 `AskResponse.tools: ToolCall[]` — Lit Agent page renders every card from a multi-step run;
 `tool` remains the last/primary card for older clients.
+
+## Mod dependency tools
+
+Fuzzy player asks like 「缺依赖」「能不能补上」「缺啥」route to `CheckModDeps` (rules) or, on the LLM path, should call:
+
+1. `check_mod_deps` — local jar metadata → missing ids / conflicts / tree excerpt
+2. `fetch_missing_mod_deps` — host downloads via Modrinth (`fetch_missing_deps`); confirm not required (install into mods/), same pattern as `install_mod`
+
+Skill: `skills/agent-mod-deps.md`. Do not stop after `list_installed_mods` alone.
+
+## Full pi kernel vs EasyMC AgentLoop
+
+William authorized vendoring the full **earendil-works/pi** agent runtime (MIT) if the
+thin loop could not do multi-step deps reliably. **Path taken for v0.1.2:** keep the
+existing Rust `agent_loop` (already adapted from `packages/agent/src/agent-loop.ts`:
+all tool_calls per turn, `role=tool` refeed, `max_turns` ≥ 64, skill inject) and
+**wire real dependency tools** instead of dropping in the TypeScript pi package.
+
+Root cause of the「缺依赖」failure was not a broken loop budget — the model only had
+`list_installed_mods`, so it listed jars and stopped. Fix: `check_mod_deps` /
+`fetch_missing_mod_deps` + `skills/agent-mod-deps.md` + rule intent for 缺依赖.
+No `vendor/pi` tree added; NOTICE still attributes the adapted loop concept.
+

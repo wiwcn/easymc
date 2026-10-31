@@ -27,7 +27,7 @@ EasyMC 面向普通玩家：装好、启动、装模组、分享配置、排错�
 |---|---|
 | **仓库** | https://github.com/wiwcn/easymc |
 | **许可** | [LGPL-3.0-or-later](./LICENSE)（见 [COPYING](./COPYING) / [NOTICE](./NOTICE)） |
-| **版本** | 0.1.0 |
+| **版本** | 0.1.2 |
 
 ## 功能概览
 

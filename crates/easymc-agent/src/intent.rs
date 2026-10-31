@@ -27,6 +27,14 @@ pub enum Intent {
     OpenInstanceDir { instance_id: Option<String> },
     /// List jars in instance mods/ (player: 已装模组 / 检查模组).
     CheckMods { instance_id: Option<String> },
+    /// Build mod dependency graph; report missing / conflicts (player: 缺依赖 / 查依赖).
+    CheckModDeps { instance_id: Option<String> },
+    /// Auto-download missing required deps from Modrinth (player: 补全缺失依赖).
+    FetchMissingModDeps {
+        instance_id: Option<String>,
+        /// Optional subset of mod ids; None = all missing.
+        only_ids: Option<Vec<String>>,
+    },
     /// Enable / disable a mod jar (PCL/HMCL-style rename).
     ToggleMod {
         query: String,
@@ -1015,6 +1023,62 @@ let log_file_keys = [
         }
     }
 
+
+    // mod dependency graph / fetch missing (before plain "检查模组")
+    let dep_fetch_keys = [
+        "补全缺失依赖",
+        "补全依赖",
+        "自动补依赖",
+        "下载缺失依赖",
+        "安装缺失依赖",
+        "fetch missing deps",
+        "install missing deps",
+        "resolve missing deps",
+    ];
+    for k in dep_fetch_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::FetchMissingModDeps {
+                    instance_id: None,
+                    only_ids: None,
+                },
+                confidence: 0.94,
+                matched: k.into(),
+                reply_zh: "正在补全缺失的模组依赖…".into(),
+            };
+        }
+    }
+    let dep_keys = [
+        "缺依赖",
+        "依赖缺失",
+        "缺少依赖",
+        "查依赖",
+        "检查依赖",
+        "模组依赖",
+        "依赖关系",
+        "依赖图",
+        "依赖树",
+        "补依赖",
+        "能不能补上",
+        "缺啥模组",
+        "缺什么模组",
+        "check deps",
+        "mod deps",
+        "dependency tree",
+        "missing deps",
+        "missing dependencies",
+    ];
+    for k in dep_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::CheckModDeps { instance_id: None },
+                confidence: 0.93,
+                matched: k.into(),
+                reply_zh: "正在分析模组依赖关系…".into(),
+            };
+        }
+    }
+
     // check mods
     let mods_keys = [
         "检查模组",
@@ -1304,6 +1368,8 @@ pub fn help_text() -> String {
 · 「搜模组 sodium」— 在 Modrinth 搜索，给你可选列表（再说「装 xxx」安装）
 · 「推荐模组 科技」— 按生存 / 科技 / 魔法等主题推荐互补模组
 · 「检查模组」/「已装模组」— 列出当前版本已装模组
+· 「缺依赖」/「查依赖」— 分析模组依赖树，列出缺失与冲突
+· 「补全缺失依赖」— 从 Modrinth 自动下载能匹配到的缺失依赖
 · 「禁用 sodium」/「启用 iris」— 启用或禁用模组（改名 .jar.disabled）
 · 「版本列表」— 看看已安装了哪些版本
 · 「切换版本 1.21.1」— 把当前版本切到匹配的那一个
@@ -1354,6 +1420,15 @@ mod tests {
         }
         assert!(matches!(route("制作整合包").intent, Intent::BuildPack { .. }));
         assert!(matches!(route("已装模组").intent, Intent::CheckMods { .. }));
+        assert!(matches!(
+            route("这个整合包好像缺依赖，你帮我查查能不能补上").intent,
+            Intent::CheckModDeps { .. }
+        ));
+        assert!(matches!(
+            route("补全缺失依赖").intent,
+            Intent::FetchMissingModDeps { .. }
+        ));
+        assert!(matches!(route("查依赖").intent, Intent::CheckModDeps { .. }));
         match route("禁用 sodium").intent {
             Intent::ToggleMod { query, enable, .. } => {
                 assert!(query.contains("sodium"));

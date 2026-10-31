@@ -1756,6 +1756,146 @@ async fn agent_ask(
             }
         }
     }
+    // fetch_missing_mod_deps: download via Modrinth (host-deferred from agent)
+    if let Some(action) = resp.action.clone() {
+        if action.action == "fetch_missing_mod_deps" {
+            let skipped = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("skipped"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !skipped {
+                let only_ids = match (
+                    action
+                        .value
+                        .as_ref()
+                        .and_then(|v| v.get("only_ids"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>()
+                        }),
+                    action
+                        .value
+                        .as_ref()
+                        .and_then(|v| v.get("targets"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>()
+                        }),
+                ) {
+                    (Some(ids), _) if !ids.is_empty() => Some(ids),
+                    (_, Some(t)) if !t.is_empty() => Some(t),
+                    _ => None,
+                };
+                let store = match load_instances(&state.paths) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let msg = format!("读取版本列表失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "fetch_missing_mod_deps".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: None,
+                        });
+                        return Ok(resp);
+                    }
+                };
+                let id = action
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.get("instance_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .or(instance_id.clone())
+                    .or(store.active_id.clone());
+                let Some(id) = id else {
+                    let msg = "还没有选版本，没法补依赖。请先选一个版本。".to_string();
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "fetch_missing_mod_deps".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: None,
+                    });
+                    return Ok(resp);
+                };
+                let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                    let msg = format!("找不到版本 {id}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "fetch_missing_mod_deps".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "instance_id": id })),
+                    });
+                    return Ok(resp);
+                };
+                if let Ok(settings) = load_settings(&state.paths) {
+                    sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                }
+                let app2 = app.clone();
+                match fetch_missing_deps(&inst, only_ids, move |p| {
+                    let _ = app2.emit("install-progress", &p);
+                })
+                .await
+                {
+                    Ok(r) => {
+                        let msg = r.message_zh.clone();
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: r.failed.is_empty() || !r.installed.is_empty(),
+                            action: "fetch_missing_mod_deps".into(),
+                            message_zh: msg,
+                            path: Some(
+                                std::path::PathBuf::from(&inst.game_dir)
+                                    .join("mods")
+                                    .display()
+                                    .to_string(),
+                            ),
+                            value: Some(serde_json::json!({
+                                "instance_id": inst.id,
+                                "instance_name": inst.name,
+                                "attempted": r.attempted,
+                                "installed": r.installed.iter().map(|i| serde_json::json!({
+                                    "project_name": i.project_name,
+                                    "filename": i.filename,
+                                    "path": i.path,
+                                })).collect::<Vec<_>>(),
+                                "failed": r.failed.iter().map(|f| serde_json::json!({
+                                    "mod_id": f.mod_id,
+                                    "error_zh": f.error_zh,
+                                })).collect::<Vec<_>>(),
+                            })),
+                        });
+                    }
+                    Err(e) => {
+                        let msg = format!("补全缺失依赖失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "fetch_missing_mod_deps".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({
+                                "instance_id": inst.id,
+                                "instance_name": inst.name,
+                            })),
+                        });
+                    }
+                }
+            }
+        }
+    }
     // setup_env: compose ensure_java + status already in action.message
     if let Some(action) = resp.action.clone() {
         if action.action == "setup_env" {

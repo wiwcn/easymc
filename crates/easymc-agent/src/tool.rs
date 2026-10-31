@@ -79,6 +79,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_instance_dir" => ("打开版本文件夹", Some("文件")),
         "show_data_dir" => ("数据目录", Some("文件")),
         "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
+        "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => ("模组依赖", Some("依赖")),
+        "fetch_missing_mod_deps" | "install_missing_deps" => ("补全依赖", Some("依赖")),
         "toggle_mod" | "enable_mod" | "disable_mod" => ("启用/禁用模组", Some("模组")),
         "list_instances" | "list_versions" => ("版本列表", Some("版本")),
         "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
@@ -224,6 +226,34 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
             }
             if let Some(c) = v.get("count").and_then(|x| x.as_u64()) {
                 out.push(arg("count", "模组数", format!("{c}")));
+            }
+        }
+        "check_mod_deps" | "mod_dep_graph" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(c) = v.get("installed_count").and_then(|x| x.as_u64()) {
+                out.push(arg("installed", "已解析", format!("{c}")));
+            }
+            if let Some(arr) = v.get("missing_ids").and_then(|x| x.as_array()) {
+                out.push(arg("missing", "缺失", format!("{}", arr.len())));
+            }
+            if let Some(arr) = v.get("conflict_messages").and_then(|x| x.as_array()) {
+                out.push(arg("conflicts", "冲突", format!("{}", arr.len())));
+            }
+        }
+        "fetch_missing_mod_deps" | "install_missing_deps" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(arr) = v.get("targets").or(v.get("attempted")).and_then(|x| x.as_array()) {
+                out.push(arg("targets", "尝试", format!("{}", arr.len())));
+            }
+            if let Some(arr) = v.get("installed").and_then(|x| x.as_array()) {
+                out.push(arg("installed", "成功", format!("{}", arr.len())));
+            }
+            if let Some(arr) = v.get("failed").and_then(|x| x.as_array()) {
+                out.push(arg("failed", "失败", format!("{}", arr.len())));
             }
         }
         "toggle_mod" | "enable_mod" | "disable_mod" => {
@@ -436,6 +466,20 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
             {
                 acts.push(ui("run_diagnose", "查看崩溃"));
             }
+        }
+        "check_mod_deps" if ok => {
+            if value
+                .and_then(|v| v.get("suggest_fetch_missing"))
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false)
+            {
+                acts.push(ui("run_fetch_missing_deps", "补全缺失依赖"));
+            }
+            acts.push(ui("run_check_mod_deps", "再查依赖"));
+        }
+        "fetch_missing_mod_deps" if ok => {
+            acts.push(ui("run_check_mod_deps", "再查依赖"));
+            acts.push(ui("run_check_mods", "再看模组列表"));
         }
         "build_pack" | "import_mrpack" | "diagnostics" if ok => {
             acts.push(ui(
