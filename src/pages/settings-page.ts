@@ -510,9 +510,9 @@ export class SettingsPage extends LitElement {
           : nothing}
       </div>
       <div class="card">
-        <h2>容器模式</h2>
+        <h2>容器隔离（可选）</h2>
         <p>
-          用 Podman 把模组与配置按版本隔离开；运行时 Java 来自 Temurin 镜像。这是<strong>内容隔离</strong>，不是额外安全承诺。Windows 开玩需 Podman Machine（WSL2）+ WSLg。不装也能继续用助手与标准模式。
+          把每个版本的模组、配置分开存放，互不打架。适合爱折腾多版本的玩家；不装也完全能玩。Windows 首次启用时会引导安装配套运行环境。
         </p>
         <p class="muted" style="margin:0 0 12px">
           ${this.preheatStatus
@@ -527,36 +527,36 @@ export class SettingsPage extends LitElement {
               @change=${async (e: Event) => {
                 const on = (e.target as HTMLInputElement).checked;
                 this.settings = await updateSettings({ container_mode_enabled: on });
-                showToast(on ? "已启用容器模式偏好" : "已关闭容器模式偏好");
+                showToast(on ? "已开启容器隔离" : "已关闭容器隔离");
               }}
             />
-            启用容器模式偏好
+            开启容器隔离
           </label>
         </div>
         <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
-          <label for="ctr-mirror">容器镜像源</label>
+          <label for="ctr-mirror">下载加速源</label>
           <select
             id="ctr-mirror"
-            aria-label="容器镜像源"
+            aria-label="容器下载加速源"
             .value=${this.settings?.container_mirror_profile
               || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
             @change=${async (e: Event) => {
               const v = (e.target as HTMLSelectElement).value;
               this.settings = await updateSettings({ container_mirror_profile: v });
               const labels: Record<string, string> = {
-                daocloud: "国内源（DaoCloud）",
-                dockerproxy: "国内源（DockerProxy）",
-                onems: "国内源（1ms）",
-                official: "官方源",
+                daocloud: "国内加速 · DaoCloud",
+                dockerproxy: "国内加速 · DockerProxy",
+                onems: "国内加速 · 1ms",
+                official: "官方源（海外）",
               };
               showToast(`已切换为${labels[v] || v}`);
               await this.refreshPreheatStatus();
             }}
           >
-            <option value="daocloud">国内源（DaoCloud）</option>
-            <option value="dockerproxy">国内源（DockerProxy）</option>
-            <option value="onems">国内源（1ms）</option>
-            <option value="official">官方源</option>
+            <option value="daocloud">国内加速 · DaoCloud</option>
+            <option value="dockerproxy">国内加速 · DockerProxy</option>
+            <option value="onems">国内加速 · 1ms</option>
+            <option value="official">官方源（海外）</option>
           </select>
           <button
             class="btn ghost"
@@ -588,7 +588,7 @@ export class SettingsPage extends LitElement {
                 showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
               }}
             />
-            容器版本修改存档需确认（推荐）
+            改存档前先问我一声（推荐）
           </label>
         </div>
         <div class="row" style="margin-bottom:10px">
@@ -599,10 +599,10 @@ export class SettingsPage extends LitElement {
               @change=${async (e: Event) => {
                 const on = (e.target as HTMLInputElement).checked;
                 this.settings = await updateSettings({ container_auto_preheat: on });
-                showToast(on ? "将在合适时机自动预热" : "已关闭自动预热");
+                showToast(on ? "已开启后台预热" : "已关闭后台预热");
               }}
             />
-            自动预热容器运行时（缩短冷启动）
+            后台预热，缩短下次启动等待
           </label>
         </div>
         <div class="row" style="flex-wrap:wrap;gap:8px">
@@ -620,7 +620,7 @@ export class SettingsPage extends LitElement {
               }
             }}
           >
-            探测 Podman
+            检查隔离环境
           </button>
           <button
             class="tonal"
@@ -639,7 +639,7 @@ export class SettingsPage extends LitElement {
               }
             }}
           >
-            预热容器运行时
+            立刻预热
           </button>
           <button
             class="ghost"
@@ -654,7 +654,7 @@ export class SettingsPage extends LitElement {
               }
             }}
           >
-            写入镜像加速配置
+            应用加速源配置
           </button>
           <button
             class="primary"
@@ -673,7 +673,7 @@ export class SettingsPage extends LitElement {
               }
             }}
           >
-            一键修复容器环境
+            一键修复隔离环境
           </button>
         </div>
       </div>
@@ -687,7 +687,7 @@ export class SettingsPage extends LitElement {
         </p>
         <div class="row">
           <input
-            placeholder="Azure 应用客户端 ID（可选）"
+            placeholder="微软登录用的应用 ID（一般不用填）"
             .value=${this.msaDraft}
             @input=${(e: Event) => (this.msaDraft = (e.target as HTMLInputElement).value)}
           />
@@ -714,7 +714,7 @@ export class SettingsPage extends LitElement {
             恢复默认
           </button>
         </div>
-        <h2 style="margin-top:16px">CurseForge 密钥（可选）</h2>
+        <h2 style="margin-top:16px">CurseForge 下载密钥（可选）</h2>
         <p>浏览 CurseForge 时需要。Modrinth 不用。</p>
         <div class="muted">状态：${this.cf?.configured ? "已保存" : "未设置"}</div>
         <div class="row">
@@ -747,44 +747,42 @@ export class SettingsPage extends LitElement {
             清除
           </button>
         </div>
-        <h2 style="margin-top:16px">云端助手 API</h2>
+        <h2 style="margin-top:16px">云端助手接口</h2>
         <p>
-          默认只用本机规则诊断。填写下方 OpenAI 兼容接口后，助手页可走云端对话。密钥只保存在本机
-          <code>~/.config/easymc/llm.env</code>，不会进 git。
+          填好接口后，助手页就能云端聊天帮忙查崩溃。密钥只保存在本机，不会上传。
         </p>
         <div class="muted" style="margin-bottom:8px">
           状态：${
             this.llm?.configured
               ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
-              : "未配置（仅本地助手）"
+              : "还没配置（只能用本地规则提示）"
           }
-          ${this.llmCfg?.path ? html`<br /><code class="path">${this.llmCfg.path}</code>` : nothing}
         </div>
         <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">Base URL</span>
+          <span style="min-width:5.5em">接口地址</span>
           <input
             style="flex:1"
-            placeholder="https://api.example.com 或 …/v1"
+            placeholder="例如 https://api.deepseek.com/v1"
             .value=${this.llmBase}
             @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
           />
         </label>
         <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">API Key</span>
+          <span style="min-width:5.5em">密钥</span>
           <input
             style="flex:1"
             type="password"
             autocomplete="off"
-            placeholder=${this.llmCfg?.api_key_set ? `已保存 ${this.llmCfg.api_key_hint}（留空则保持）` : "sk-…"}
+            placeholder=${this.llmCfg?.api_key_set ? `已保存 ${this.llmCfg.api_key_hint}（留空则保持）` : "粘贴服务商给你的密钥"}
             .value=${this.llmKey}
             @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
           />
         </label>
         <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">Model</span>
+          <span style="min-width:5.5em">模型名称</span>
           <input
             style="flex:1"
-            placeholder="deepseek-chat"
+            placeholder="例如 deepseek-chat"
             .value=${this.llmModel}
             @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
           />
@@ -869,7 +867,7 @@ export class SettingsPage extends LitElement {
   private renderPersonal() {
     return html`<div class="card">
         <h2>使用模式</h2>
-        <p>Agent 模式让助手更显眼；标准模式是经典启动器布局。</p>
+        <p>助手模式把侧栏「助手」放得更显眼；标准模式是经典启动器布局。</p>
         <div class="md-segmented" role="radiogroup" aria-label="使用模式">
           <span class="md-tab-ind" aria-hidden="true"></span>
           <button
@@ -879,7 +877,7 @@ export class SettingsPage extends LitElement {
             aria-checked=${this.mode === "agent"}
             @click=${() => this.setMode("agent")}
           >
-            Agent 模式
+            助手模式
           </button>
           <button
             class=${this.mode === "standard" ? "on" : ""}
@@ -901,7 +899,7 @@ export class SettingsPage extends LitElement {
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到 Agent 模式" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式" : "已切换到标准模式");
   }
 
   private renderOther() {

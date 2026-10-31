@@ -438,19 +438,19 @@ export class InstancePage extends LitElement {
               </button>
             </div>
           </div>
-          <div class="field"><label>Java 路径（可选）</label><input placeholder="留空则自动选择" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>Java 位置（可选）</label><input placeholder="一般不用填，留空会自动选" .value=${this.javaDraft} @input=${(e: Event) => (this.javaDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>窗口宽 × 高（可选）</label>
             <div style="display:flex;gap:8px">
               <input type="number" placeholder="宽" .value=${this.widthDraft} @input=${(e: Event) => (this.widthDraft = (e.target as HTMLInputElement).value)} />
               <input type="number" placeholder="高" .value=${this.heightDraft} @input=${(e: Event) => (this.heightDraft = (e.target as HTMLInputElement).value)} />
             </div>
           </div>
-          <div class="field"><label>额外 JVM 参数（高级）</label><input placeholder="-XX:+UseG1GC …" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
+          <div class="field"><label>额外启动参数（高级）</label><input placeholder="不懂就留空" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
           <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
           ${d.container
             ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
-                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器可写层</h2>
-                <p class="muted" style="margin:0 0 10px">Agent 工作区绑定到本版本游戏目录。应用 = 提交基线；丢弃 = 从基线重建（不含存档）。</p>
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">隔离层改动</h2>
+                <p class="muted" style="margin:0 0 10px">助手改模组或配置后，可在这里「应用」保留，或「丢弃」恢复原样（存档不会动）。</p>
                 <p class="muted" style="margin:0 0 10px">${this.layerState?.message_zh || this.workspaceHint || "加载层状态…"}</p>
                 <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
@@ -458,7 +458,7 @@ export class InstancePage extends LitElement {
                     showToast(r.message_zh);
                     await this.refreshLayer(d.id);
                     await this.load();
-                  })}>准备运行时 / 卷</button>
+                  })}>准备隔离环境</button>
                   <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerLayerApply(d.id);
                     showToast(r.message_zh);
@@ -473,7 +473,7 @@ export class InstancePage extends LitElement {
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: false });
                     showToast(r.message_zh);
-                  })}>导出环境（.easymc-env）</button>
+                  })}>导出环境包</button>
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: true });
                     showToast(r.message_zh);
@@ -481,14 +481,14 @@ export class InstancePage extends LitElement {
                 </div>
               </div>`
             : html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
-                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器模式</h2>
-                <p class="muted" style="margin:0 0 10px">把这个版本改为容器隔离（可选）。需要本机已配置 Podman。</p>
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器隔离</h2>
+                <p class="muted" style="margin:0 0 10px">可选。开启后，这个版本的模组与配置会单独存放，不影响其它版本。请先在设置里完成一键配置。</p>
                 <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                   await containerAttach(d.id);
-                  showToast("已挂上容器元数据");
+                  showToast("已为这个版本开启容器隔离");
                   await this.load();
                   await this.refreshLayer(d.id);
-                })}>启用容器隔离</button>
+                })}>开启容器隔离</button>
               </div>`}
         </div>`;
       case "installers":
@@ -541,8 +541,8 @@ export class InstancePage extends LitElement {
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
             <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
           </div>
-          <h2 style="margin-top:20px">容器环境</h2>
-          <p class="muted">把容器版本的镜像偏好与模组/配置层导出为 <code>.easymc-env</code>（不含存档）。好友导入后会得到一个新的容器版本。</p>
+          <h2 style="margin-top:20px">分享环境包</h2>
+          <p class="muted">把模组、配置和加速源偏好打成环境包（不含存档），发给好友导入后会得到一个新的隔离版本。</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="tonal" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
               showToast((await containerExportEnv(d.id, { pack: false })).message_zh);
@@ -552,7 +552,7 @@ export class InstancePage extends LitElement {
             })}>导出完整环境包</button>
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入环境包…</button>
           </div>
-          ${!d.container ? html`<p class="muted" style="margin-top:8px">当前不是容器版本；可先在「设置」里启用容器隔离，或直接导入环境包创建新版本。</p>` : nothing}
+          ${!d.container ? html`<p class="muted" style="margin-top:8px">这个版本还没开隔离。可先去「设置」开启，或直接导入环境包新建一个。</p>` : nothing}
         </div>`;
     }
   }

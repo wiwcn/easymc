@@ -636,12 +636,12 @@ export class OnboardingPage extends LitElement {
       body: html`
         <div class="options" role="radiogroup">
           <button class="opt ${this.mode === "agent" ? "sel" : ""}" role="radio" aria-checked=${this.mode === "agent"} @click=${() => (this.mode = "agent")}>
-            <strong>Agent 模式</strong>
+            <strong>助手模式</strong>
             <span>助手常驻：游戏崩了帮你看报错、一键修 Java 和内存，适合不想折腾的玩家。</span>
           </button>
           <button class="opt ${this.mode === "standard" ? "sel" : ""}" role="radio" aria-checked=${this.mode === "standard"} @click=${() => (this.mode = "standard")}>
             <strong>标准模式</strong>
-            <span>经典启动器布局：选实例、装模组、启动。需要时仍可打开助手。</span>
+            <span>经典启动器布局：选版本、装模组、启动。需要时仍可打开助手。</span>
           </button>
         </div>
       `,
@@ -658,10 +658,10 @@ export class OnboardingPage extends LitElement {
     const mirrors = this.registryProbes.length
       ? this.registryProbes
       : [
-          { id: "daocloud", label_zh: "国内源（DaoCloud）", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "dockerproxy", label_zh: "国内源（DockerProxy）", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "onems", label_zh: "国内源（1ms）", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "official", label_zh: "官方源", region_zh: "全球", prefer_china: false, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "daocloud", label_zh: "国内加速 · DaoCloud", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "dockerproxy", label_zh: "国内加速 · DockerProxy", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "onems", label_zh: "国内加速 · 1ms", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "official", label_zh: "官方源（海外）", region_zh: "全球", prefer_china: false, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
         ];
     const body = unsupported
       ? html`<div class="notice">${probe?.message_zh || "当前系统不走容器模式。"} 可直接跳过。</div>`
@@ -670,16 +670,16 @@ export class OnboardingPage extends LitElement {
             <div class="check ${ready ? "ok" : ""}">
               <span class="mark" aria-hidden="true">${ready ? "✓" : "·"}</span>
               <div>
-                <strong>Podman 环境</strong>
+                <strong>隔离运行环境</strong>
                 <div class="meta">${probe?.message_zh || "检测中…"}</div>
               </div>
             </div>
             <div class="check ok">
               <span class="mark" aria-hidden="true">✓</span>
               <div>
-                <strong>容器镜像源</strong>
-                <div class="meta">国内网络建议选国内源；测速后可选最快，也可手动指定。</div>
-                <div class="mirror-list" role="radiogroup" aria-label="容器镜像源">
+                <strong>下载加速源</strong>
+                <div class="meta">国内网络建议选国内加速；测速后可自动选最快，也可自己点。</div>
+                <div class="mirror-list" role="radiogroup" aria-label="下载加速源">
                   ${mirrors.map(
                     (m) => html`
                       <button
@@ -717,14 +717,14 @@ export class OnboardingPage extends LitElement {
           </div>
           <div class="actions-stack">
             <button class="btn primary" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
-              ${this.containerBusy ? "正在配置…" : ready ? "再次检查容器环境" : "一键配置容器"}
+              ${this.containerBusy ? "正在配置…" : ready ? "再检查一次隔离环境" : "一键配置隔离环境"}
             </button>
             ${this.containerLog ? html`<div class="java-log" aria-live="polite">${this.containerLog}</div>` : nothing}
           </div>
         `;
     return {
       title: "要用容器隔离吗？",
-      sub: "可选。容器把每个版本的 mods / 存档分开，不影响本机其它程序。不想装也完全没问题——Agent 和标准模式都能直接开玩。",
+      sub: "可选。开启后，每个版本的模组与存档分开存放，互不干扰。不想装也完全没问题——助手和标准模式都能直接开玩。",
       body,
       footLeft: html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => (this.step = 1)}>上一步</button>`,
       footRight: html`

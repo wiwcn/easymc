@@ -680,13 +680,18 @@ export class AgentPage extends LitElement {
       line-height: 1.45;
     }
     .gate label.row {
+      display: grid;
+      grid-template-columns: 4.5em minmax(0, 1fr);
+      gap: var(--easymc-space-3);
+      align-items: center;
       width: 100%;
-      margin-bottom: 8px;
+      margin-bottom: var(--easymc-space-3);
     }
     .gate label.row span {
-      min-width: 5.5em;
       color: var(--md-sys-color-on-surface-variant);
       font-size: var(--easymc-type-label);
+      font-weight: var(--easymc-weight-medium);
+      white-space: nowrap;
     }
     .gate input {
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -747,7 +752,7 @@ export class AgentPage extends LitElement {
   private requireCloud(): boolean {
     if (this.cloudReady) return true;
     this.showLlmForm = true;
-    this.error = "请先配置云端助手 API（Base URL + API Key）后再使用。";
+    this.error = "请先填好助手的接口地址和密钥，才能开始聊天哦。";
     return false;
   }
 
@@ -1478,37 +1483,36 @@ ${extraContent}` : t.content,
   private renderCloudGate() {
     return html`
       <div class="gate" role="dialog" aria-labelledby="llm-gate-title">
-        <h2 id="llm-gate-title">配置云端助手</h2>
+        <h2 id="llm-gate-title">先连上云端助手</h2>
         <p class="muted">
-          助手默认使用云端对话。请填写 OpenAI 兼容接口后继续。密钥只保存在本机
-          <code>~/.config/easymc/llm.env</code>，不会进 git。
+          填好下面三项就能开聊。密钥只保存在本机，不会上传或进版本库。
           ${this.llmCfg?.api_key_set
-            ? html`已有密钥提示：${this.llmCfg.api_key_hint}`
+            ? html`已保存密钥提示：${this.llmCfg.api_key_hint}`
             : nothing}
         </p>
         ${this.error ? html`<p class="err">${this.error}</p>` : nothing}
         <label class="row">
-          <span>Base URL</span>
+          <span>接口地址</span>
           <input
-            placeholder="https://api.example.com 或 …/v1"
+            placeholder="例如 https://api.deepseek.com/v1"
             .value=${this.llmBase}
             @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
           />
         </label>
         <label class="row">
-          <span>API Key</span>
+          <span>密钥</span>
           <input
             type="password"
             autocomplete="off"
-            placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存密钥" : "sk-…"}
+            placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存的密钥" : "粘贴服务商给你的密钥"}
             .value=${this.llmKey}
             @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
           />
         </label>
         <label class="row">
-          <span>Model</span>
+          <span>模型名称</span>
           <input
-            placeholder="deepseek-chat"
+            placeholder="例如 deepseek-chat"
             .value=${this.llmModel}
             @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
           />
@@ -1560,7 +1564,7 @@ ${extraContent}` : t.content,
                   type="button"
                   @click=${() => (this.showLlmForm = !this.showLlmForm)}
                 >
-                  ${this.showLlmForm ? "收起 API 配置" : "更改 API"}
+                  ${this.showLlmForm ? "收起接口设置" : "更改接口"}
                 </button>
                 <button
                   class="ghost"
@@ -1591,38 +1595,38 @@ ${extraContent}` : t.content,
 
           ${this.showLlmForm
             ? html`<div class="card" style="margin-bottom:12px">
-                <h3 style="margin:0 0 6px">云端助手 API</h3>
+                <h3 style="margin:0 0 6px">云端助手接口</h3>
                 <p class="muted" style="margin:0 0 10px">
-                  修改后保存到 <code>~/.config/easymc/llm.env</code>。
+                  改完点保存即可，密钥只留在本机。
                   ${this.llmCfg?.api_key_set
                     ? html`当前密钥：${this.llmCfg.api_key_hint}`
                     : nothing}
                 </p>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">Base URL</span>
+                  <span style="min-width:5.5em">接口地址</span>
                   <input
                     style="flex:1"
-                    placeholder="https://api.example.com"
+                    placeholder="例如 https://api.deepseek.com/v1"
                     .value=${this.llmBase}
                     @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
                   />
                 </label>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">API Key</span>
+                  <span style="min-width:5.5em">密钥</span>
                   <input
                     style="flex:1"
                     type="password"
                     autocomplete="off"
-                    placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存密钥" : "sk-…"}
+                    placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存的密钥" : "粘贴服务商给你的密钥"}
                     .value=${this.llmKey}
                     @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
                   />
                 </label>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">Model</span>
+                  <span style="min-width:5.5em">模型名称</span>
                   <input
                     style="flex:1"
-                    placeholder="deepseek-chat"
+                    placeholder="例如 deepseek-chat"
                     .value=${this.llmModel}
                     @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
                   />
