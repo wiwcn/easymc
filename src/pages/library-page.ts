@@ -28,6 +28,7 @@ import {
 import { loaderLabel } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import { instanceIconUrl } from "../lib/instance-icon";
 import "../components/empty-state";
 
 @customElement("easymc-library-page")
@@ -148,6 +149,15 @@ export class LibraryPage extends LitElement {
     .card.active {
       border: 2px solid var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
+    }
+    .card-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--md-sys-color-surface-container);
+      display: block;
     }
     .card h3 {
       margin: 0;
@@ -1185,6 +1195,9 @@ export class LibraryPage extends LitElement {
         class="card ${isActive ? "active" : ""} ${selected ? "selected" : ""}"
         @click=${() => this.openDetail(inst.id)}
       >
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <img class="card-thumb" src=${instanceIconUrl(inst)} alt="" width="48" height="48" loading="lazy" />
+          <div style="min-width:0;flex:1">
         <div>
           ${isActive ? html`<span class="badge def">默认</span>` : null}
           ${inst.version_ready
@@ -1195,6 +1208,8 @@ export class LibraryPage extends LitElement {
         <h3>${inst.name}</h3>
         <div class="meta">${ver} · ${loaderLabel(inst.loader)}${inst.loader_version ? ` ${inst.loader_version}` : ""}</div>
         <div class="meta">${inst.description ?? ""}</div>
+          </div>
+        </div>
         <div class="row" @click=${(e: Event) => e.stopPropagation()}>
           ${!isActive
             ? html`<button class="btn ghost sm" type="button" @click=${() => this.onSetActive(inst.id)}>

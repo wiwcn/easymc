@@ -42,6 +42,7 @@ import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versio
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { sortInstancesReadyFirst } from "../lib/download-ux";
+import { instanceIconUrl } from "../lib/instance-icon";
 import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import "../components/install-progress";
@@ -168,6 +169,10 @@ export class InstancePage extends LitElement {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       display: grid; place-items: center; font-weight: var(--easymc-weight-bold); flex-shrink: 0;
+      overflow: hidden;
+    }
+    .icon img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
     }
     .meta { flex: 1; min-width: 0; }
     .meta .name {
@@ -585,7 +590,7 @@ export class InstancePage extends LitElement {
     const ready = !!i.version_ready;
     return html`
       <div class="row-item ${i.id === this.activeId ? "active" : ""} ${ready ? "" : "not-ready"}" @click=${() => this.openDetail(i.id)}>
-        <div class="icon" aria-hidden="true">${ver.slice(0, 1) || "?"}</div>
+        <div class="icon" aria-hidden="true"><img src=${instanceIconUrl(i)} alt="" width="40" height="40" loading="lazy" /></div>
         <div class="meta">
           <div class="name">${label}</div>
           <div class="info">

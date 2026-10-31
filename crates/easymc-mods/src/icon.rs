@@ -7,6 +7,7 @@
 
 use std::io::Read;
 use std::path::Path;
+use easymc_core::{Instance, ModLoader};
 
 use base64::Engine;
 use zip::ZipArchive;
@@ -140,9 +141,76 @@ pub fn extract_local_icon(path: &Path) -> Option<String> {
     None
 }
 
+/// PCL-aligned default icon key for a loader (UI maps to `/instance-icons/{key}.png`).
+pub fn default_loader_icon_key(loader: ModLoader) -> &'static str {
+    match loader {
+        ModLoader::Forge => "forge",
+        ModLoader::NeoForge => "neoforge",
+        ModLoader::Fabric => "fabric",
+        ModLoader::Quilt => "quilt",
+        ModLoader::Vanilla => "grass",
+    }
+}
+
+fn looks_like_remote_or_data_url(s: &str) -> bool {
+    let t = s.trim();
+    t.starts_with("https://")
+        || t.starts_with("http://")
+        || t.starts_with("data:image/")
+}
+
+/// Directories to probe for pack/instance icons (game dir + parent + `PCL/`).
+fn instance_icon_dirs(inst: &Instance) -> Vec<std::path::PathBuf> {
+    let game = std::path::PathBuf::from(&inst.game_dir);
+    let mut dirs = vec![game.clone()];
+    if let Some(parent) = game.parent() {
+        dirs.push(parent.to_path_buf());
+    }
+    dirs.push(game.join("PCL"));
+    dirs
+}
+
+fn extract_from_instance_dirs(inst: &Instance) -> Option<String> {
+    for dir in instance_icon_dirs(inst) {
+        if !dir.is_dir() {
+            continue;
+        }
+        // Prefer pack/icon; also accept PCL `Logo.png` path (compat only — no PCL assets).
+        for name in [
+            "pack.png",
+            "pack.jpg",
+            "pack.jpeg",
+            "icon.png",
+            "icon.jpg",
+            "Logo.png",
+            "logo.png",
+        ] {
+            if let Some(bytes) = read_capped(&dir.join(name)) {
+                return bytes_to_data_url(&bytes);
+            }
+        }
+    }
+    None
+}
+
+/// Resolve a displayable icon for a version/instance (PCL-style order).
+///
+/// 1. `instance.icon` when it is an HTTP(S) or `data:` URL (Modrinth / CurseForge cache)
+/// 2. Local `pack.png` / `icon.png` / `Logo.png` under the instance game dir (or parent / `PCL/`)
+/// 3. `None` — UI falls back to loader defaults (grass / forge / neoforge)
+pub fn resolve_instance_icon(inst: &Instance) -> Option<String> {
+    if let Some(raw) = inst.icon.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if looks_like_remote_or_data_url(raw) {
+            return Some(raw.to_string());
+        }
+    }
+    extract_from_instance_dirs(inst)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use easymc_core::{Instance, McVersion, ModLoader};
     use std::io::Write;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
@@ -187,5 +255,35 @@ mod tests {
         let url = extract_local_icon(&zip_path).unwrap();
         assert!(url.starts_with("data:image/png;base64,"));
         let _ = std::fs::remove_file(&zip_path);
+    }
+
+    #[test]
+    fn prefers_http_icon_field() {
+        let mut inst = Instance::new("id", "n", McVersion("1.21.1".into()), "/tmp/nope".into());
+        inst.icon = Some("https://cdn.example/pack.png".into());
+        assert_eq!(
+            resolve_instance_icon(&inst).as_deref(),
+            Some("https://cdn.example/pack.png")
+        );
+    }
+
+    #[test]
+    fn reads_pack_png_from_game_dir() {
+        let dir = std::env::temp_dir().join(format!("easymc-inst-icon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("pack.png"), tiny_png()).unwrap();
+        let inst = Instance::new("id", "n", McVersion("1.21.1".into()), dir.to_string_lossy().into());
+        let url = resolve_instance_icon(&inst).unwrap();
+        assert!(url.starts_with("data:image/png;base64,"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn loader_keys() {
+        assert_eq!(default_loader_icon_key(ModLoader::Vanilla), "grass");
+        assert_eq!(default_loader_icon_key(ModLoader::Forge), "forge");
+        assert_eq!(default_loader_icon_key(ModLoader::NeoForge), "neoforge");
+        assert_eq!(default_loader_icon_key(ModLoader::Fabric), "fabric");
     }
 }

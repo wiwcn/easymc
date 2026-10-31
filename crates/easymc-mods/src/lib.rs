@@ -29,7 +29,7 @@ pub use modpack::{install_modpack, install_mrpack_file, ModpackInstallResult};
 pub use metadata::{
     is_provided_mod_id, read_mod_meta, version_satisfies, DepKind, ModDepReq, ModMeta, ModMetaKind,
 };
-pub use icon::{bytes_to_data_url, extract_local_icon};
+pub use icon::{bytes_to_data_url, default_loader_icon_key, extract_local_icon, resolve_instance_icon};
 pub use deps::{
     build_dep_graph, fetch_missing_deps, DepGraphReport, DepNode, DepStatus, FetchFail,
     FetchMissingResult,

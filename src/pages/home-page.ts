@@ -30,6 +30,7 @@ import {
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { sortInstancesReadyFirst } from "../lib/download-ux";
+import { instanceIconUrl } from "../lib/instance-icon";
 import "../components/install-progress";
 import "../components/empty-state";
 
@@ -51,16 +52,6 @@ function tileFor(id: string) {
   return TILE_PALETTES[Math.abs(h) % TILE_PALETTES.length];
 }
 
-function tileGlyph(loader: string) {
-  const l = (loader || "vanilla").toLowerCase();
-  if (l === "fabric" || l === "quilt") {
-    return svg`<path d="M7 17V7h2.2l2.3 6.2L13.8 7H16v10h-1.7v-6.4L12.2 17h-1.4L8.7 10.6V17H7Z" fill="currentColor"/>`;
-  }
-  if (l === "forge" || l === "neoforge") {
-    return svg`<path d="M6 16.5 12 5.5l6 11H6Zm3.2-1.8h5.6L12 9.2 9.2 14.7Z" fill="currentColor"/>`;
-  }
-  return svg`<rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" opacity="0.9"/><path d="M9 9h6v2H9V9Zm0 4h4v2H9v-2Z" fill="var(--md-sys-color-surface-container-lowest)" opacity="0.85"/>`;
-}
 
 function formatLastPlayed(iso?: string | null): string {
   if (!iso) return "还没玩过";
@@ -225,6 +216,8 @@ export class HomePage extends LitElement {
         linear-gradient(165deg, var(--easymc-art-base-from), var(--easymc-art-base-to));
       position: relative;
       overflow: hidden;
+      display: grid;
+      place-items: center;
       transition:
         width var(--easymc-dur-med) var(--easymc-ease-out),
         height var(--easymc-dur-med) var(--easymc-ease-out);
@@ -234,26 +227,24 @@ export class HomePage extends LitElement {
       height: 72px;
       border-radius: var(--md-sys-shape-corner-medium);
     }
-    .art::after {
-      content: "";
-      position: absolute;
-      left: -10%;
-      right: -10%;
-      bottom: 0;
-      height: 42%;
-      background: var(--easymc-art-hill);
-      border-radius: 50% 50% 0 0;
+    .art img {
+      width: 72%;
+      height: 72%;
+      object-fit: contain;
+      image-rendering: auto;
+      filter: drop-shadow(0 6px 14px oklch(0.35 0.04 160 / 0.28));
     }
-    .art::before {
-      content: "";
-      position: absolute;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--easymc-art-sun);
-      top: 22%;
-      right: 22%;
-      box-shadow: 0 0 0 6px var(--easymc-art-sun-halo);
+    .featured.compact .art img {
+      width: 78%;
+      height: 78%;
+      filter: none;
+    }
+    .tile img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: inherit;
+      display: block;
     }
     .feat-body {
       flex: 1;
@@ -920,7 +911,9 @@ export class HomePage extends LitElement {
     return html`
       <section class="featured ${compact ? "compact" : ""}" aria-label="当前版本">
         <div class="featured-top">
-          <div class="art" aria-hidden="true"></div>
+          <div class="art" aria-hidden="true">
+            <img src=${instanceIconUrl(f)} alt="" width="128" height="128" loading="lazy" />
+          </div>
           <div class="feat-body">
             <h1 class="feat-title">${title}</h1>
             <div class="chips">
@@ -1092,8 +1085,8 @@ export class HomePage extends LitElement {
         <div class="menu-wrap" style="position:absolute;top:40px;right:8px;z-index:20">
           ${this.renderMenu(i, false, this.menuOpenId === i.id)}
         </div>
-        <span class="tile" style=${`background:${tile.bg};color:${tile.fg}`} aria-hidden="true">
-          <svg viewBox="0 0 24 24">${tileGlyph(i.loader)}</svg>
+        <span class="tile" style=${`background:${tile.bg}`} aria-hidden="true">
+          <img src=${instanceIconUrl(i)} alt="" width="48" height="48" loading="lazy" />
         </span>
         <span class="vcard-body">
           <span class="title">${title}</span>

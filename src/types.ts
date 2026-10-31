@@ -30,6 +30,8 @@ export interface InstanceDto {
   version_ready?: boolean;
   created_at?: string;
   icon?: string | null;
+  /** Resolved pack / marketplace icon (`http(s)` or `data:`). Prefer over `icon` for display. */
+  icon_url?: string | null;
   category?: string | null;
   memory_mb?: number | null;
   java_path?: string | null;

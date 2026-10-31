@@ -56,10 +56,10 @@ use easymc_container::{
 use easymc_mods::{
     api_key, api_key_source, build_dep_graph, delete_local, fetch_missing_deps, install_content,
     install_mod, install_modpack, list_installed_mod_entries, list_local, list_mod_versions, local_dir,
-    remove_mod, search_and_install_best, search_mods, set_mod_disabled, sync_api_key_from_settings,
-    ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult, InstalledModEntry, LocalEntry,
-    ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult, ProjectType,
-    SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    remove_mod, resolve_instance_icon, search_and_install_best, search_mods, set_mod_disabled,
+    sync_api_key_from_settings, ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult,
+    InstalledModEntry, LocalEntry, ModInstallResult, ModProject, ModSource, ModVersion,
+    ModpackInstallResult, ProjectType, SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -95,10 +95,28 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
     })
 }
 
+/// Instance row for UI — core fields plus resolved display `icon_url` (PCL-style).
+#[derive(Serialize)]
+struct InstanceListItem {
+    #[serde(flatten)]
+    instance: Instance,
+    /// Resolved pack / marketplace / local icon (`http(s)` or `data:`). `None` → UI loader default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    icon_url: Option<String>,
+}
+
 #[derive(Serialize)]
 struct InstancesStateDto {
-    instances: Vec<Instance>,
+    instances: Vec<InstanceListItem>,
     active_id: Option<String>,
+}
+
+fn instance_list_item(inst: Instance) -> InstanceListItem {
+    let icon_url = resolve_instance_icon(&inst);
+    InstanceListItem {
+        instance: inst,
+        icon_url,
+    }
 }
 
 #[derive(Serialize)]
@@ -293,9 +311,24 @@ async fn wardrobe_import_littleskin_cmd(
 fn list_instances(state: State<'_, AppState>) -> Result<InstancesStateDto, String> {
     let (store, _) = ensure_defaults(state_paths(&state)).map_err(|e| e.to_string())?;
     Ok(InstancesStateDto {
-        instances: store.instances,
+        instances: store.instances.into_iter().map(instance_list_item).collect(),
         active_id: store.active_id,
     })
+}
+
+/// Resolve one instance's display icon (pack.png / cached URL). UI may call after local file drops.
+#[tauri::command]
+fn resolve_instance_icon_cmd(
+    state: State<'_, AppState>,
+    instance_id: String,
+) -> Result<Option<String>, String> {
+    let (store, _) = ensure_defaults(state_paths(&state)).map_err(|e| e.to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == instance_id)
+        .ok_or_else(|| "找不到这个版本".to_string())?;
+    Ok(resolve_instance_icon(inst))
 }
 
 #[tauri::command]
@@ -354,7 +387,7 @@ fn set_active_instance_cmd(
     ensure_defaults(paths).map_err(|e| e.to_string())?;
     let store = set_active_instance(paths, &instance_id).map_err(|e| e.to_string())?;
     Ok(InstancesStateDto {
-        instances: store.instances,
+        instances: store.instances.into_iter().map(instance_list_item).collect(),
         active_id: store.active_id,
     })
 }
@@ -2660,6 +2693,7 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
         .invoke_handler(tauri::generate_handler![
             app_info,
             list_instances,
+            resolve_instance_icon_cmd,
             create_instance,
             set_active_instance_cmd,
             list_accounts,
