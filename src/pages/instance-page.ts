@@ -37,6 +37,7 @@ import { listenInstallProgress } from "../api";
 import type { ContainerLayerStateDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import "../components/install-progress";
@@ -291,7 +292,7 @@ export class InstancePage extends LitElement {
     try {
       await fn();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.busy = false;
       this.menuFor = null;

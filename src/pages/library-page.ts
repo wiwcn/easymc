@@ -27,6 +27,7 @@ import {
 } from "../install-progress";
 import { loaderLabel } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 
 @customElement("easymc-library-page")
 export class LibraryPage extends LitElement {
@@ -553,7 +554,7 @@ export class LibraryPage extends LitElement {
         this.newVersion = this.versions[0].id;
       }
     } catch (e) {
-      showToast(String(e));
+      showToast(friendlyError(e));
     } finally {
       this.versionsLoading = false;
     }
@@ -582,7 +583,7 @@ export class LibraryPage extends LitElement {
     } catch (e) {
       this.loaderVersions = [];
       this.newLoaderVersion = "";
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = friendlyError(e);
       showToast(msg);
     }
   }
@@ -629,7 +630,7 @@ export class LibraryPage extends LitElement {
       this.showCreate = false;
       await this.load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = friendlyError(e);
       this.status = msg;
       showToast(msg);
     } finally {
@@ -644,7 +645,7 @@ export class LibraryPage extends LitElement {
       this.activeId = state.active_id;
       showToast("已设为默认实例");
     } catch (e) {
-      showToast(String(e));
+      showToast(friendlyError(e));
     }
   }
 
@@ -661,7 +662,7 @@ export class LibraryPage extends LitElement {
       this.status = msg;
       await this.load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = friendlyError(e);
       this.status = msg;
       showToast(msg);
     } finally {
@@ -691,7 +692,7 @@ export class LibraryPage extends LitElement {
     try {
       this.mods = await listInstalledMods(id);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
       this.mods = [];
     } finally {
       this.modsLoading = false;
@@ -730,7 +731,7 @@ export class LibraryPage extends LitElement {
       await new Promise((r) => setTimeout(r, 160));
       await this.refreshMods();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.busyMod = null;
       this.removingMod = null;
@@ -746,7 +747,7 @@ export class LibraryPage extends LitElement {
       showToast(disabled ? `已禁用 ${next}` : `已启用 ${next}`);
       await this.refreshMods();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.busyMod = null;
     }
@@ -766,8 +767,8 @@ export class LibraryPage extends LitElement {
         /* clipboard may be unavailable */
       }
     } catch (e) {
-      this.status = String(e);
-      showToast(String(e));
+      this.status = friendlyError(e);
+      showToast(friendlyError(e));
     } finally {
       this.busy = false;
     }
@@ -790,8 +791,8 @@ export class LibraryPage extends LitElement {
       this.instances = st.instances;
       this.activeId = st.active_id;
     } catch (e) {
-      this.status = String(e);
-      showToast(String(e));
+      this.status = friendlyError(e);
+      showToast(friendlyError(e));
     } finally {
       this.busy = false;
     }

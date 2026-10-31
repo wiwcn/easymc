@@ -38,6 +38,7 @@ import type {
   SettingsDto,
 } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import { syncIndicator } from "../lib/indicator";
 
 const MEM_MIN = 512;
@@ -274,7 +275,7 @@ export class SettingsPage extends LitElement {
       showToast(`Java ${j.major} 已就绪`);
       this.javaList = await detectJava();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = friendlyError(e);
       this.javaStatus = "配置失败";
       this.javaLog = this.javaLog ? `${this.javaLog}\n${msg}` : msg;
       showToast(`配置失败：${msg}`);
@@ -311,7 +312,7 @@ export class SettingsPage extends LitElement {
         showToast("测速完成，但没有可用的下载源");
       }
     } catch (e) {
-      showToast(`下载源测速失败：${e instanceof Error ? e.message : String(e)}`);
+      showToast(friendlyError(e, "下载源测速失败，请稍后重试"));
     } finally {
       this.downloadProbeBusy = false;
     }
@@ -332,7 +333,7 @@ export class SettingsPage extends LitElement {
         showToast("测速完成，但没有可用的容器镜像源");
       }
     } catch (e) {
-      showToast(`容器源测速失败：${e instanceof Error ? e.message : String(e)}`);
+      showToast(friendlyError(e, "加速源测速失败，请稍后重试"));
     } finally {
       this.registryProbeBusy = false;
     }
@@ -458,19 +459,20 @@ export class SettingsPage extends LitElement {
             max=${MEM_MAX}
             step=${MEM_STEP}
             .value=${String(this.mem)}
-            aria-label="游戏内存（兆字节）"
-            aria-valuetext="${this.mem} 兆字节"
+            aria-label="游戏内存"
+            aria-valuetext="${(this.mem / 1024).toFixed(1)} GB（${this.mem} MB）"
             @input=${(e: Event) => {
               this.mem = Number((e.target as HTMLInputElement).value);
             }}
             @change=${() => void this.saveMem(this.mem)}
           />
-          <span class="slider-value" aria-live="polite">${this.mem}<span class="unit">MB</span></span>
+          <span class="slider-value" aria-live="polite">${(this.mem / 1024).toFixed(this.mem % 1024 === 0 ? 0 : 1)}<span class="unit">GB</span>
+            <span class="unit" style="opacity:.7;margin-left:4px">${this.mem} MB</span></span>
         </div>
         <div class="mem-hints">
-          <span>${MEM_MIN}</span>
-          <span>推荐 2048–8192</span>
-          <span>${MEM_MAX}</span>
+          <span>${MEM_MIN / 1024} GB</span>
+          <span>推荐 2–8 GB</span>
+          <span>${MEM_MAX / 1024} GB</span>
         </div>
       </div>
       <div class="card">
@@ -510,170 +512,70 @@ export class SettingsPage extends LitElement {
           : nothing}
       </div>
       <div class="card">
-        <h2>容器隔离（可选）</h2>
+        <h2>云端助手接口</h2>
         <p>
-          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」玩家；标准模式一般不用开。不装也完全能玩。
+          想让「助手」页真的会聊天、查崩溃，先在这里填好。密钥只保存在本机，不会上传。标准模式也能配，随时切助手模式即可用。
         </p>
-        <p class="muted" style="margin:0 0 12px">
-          ${this.preheatStatus
-            ? (this.preheatStatus.warm ? "状态：已预热 · " : "状态：偏冷 · ") + this.preheatStatus.message_zh
-            : "状态：尚未检测"}
-        </p>
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${!!this.settings?.container_mode_enabled}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_mode_enabled: on });
-                showToast(on ? "已开启容器隔离" : "已关闭容器隔离");
-              }}
-            />
-            开启容器隔离
-          </label>
+        <div class="muted" style="margin-bottom:8px">
+          状态：${
+            this.llm?.configured
+              ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
+              : "还没配置（只能用本地规则提示）"
+          }
         </div>
-        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
-          <label for="ctr-mirror">下载加速源</label>
-          <select
-            id="ctr-mirror"
-            aria-label="容器下载加速源"
-            .value=${this.settings?.container_mirror_profile
-              || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
-            @change=${async (e: Event) => {
-              const v = (e.target as HTMLSelectElement).value;
-              this.settings = await updateSettings({ container_mirror_profile: v });
-              const labels: Record<string, string> = {
-                daocloud: "国内加速 · DaoCloud",
-                dockerproxy: "国内加速 · DockerProxy",
-                onems: "国内加速 · 1ms",
-                official: "官方源（海外）",
-              };
-              showToast(`已切换为${labels[v] || v}`);
-              await this.refreshPreheatStatus();
-            }}
-          >
-            <option value="daocloud">国内加速 · DaoCloud</option>
-            <option value="dockerproxy">国内加速 · DockerProxy</option>
-            <option value="onems">国内加速 · 1ms</option>
-            <option value="official">官方源（海外）</option>
-          </select>
-          <button
-            class="btn ghost"
-            ?disabled=${this.registryProbeBusy}
-            @click=${() => void this.probeRegistries()}
-          >${this.registryProbeBusy
-            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
-            : "测速并选用最快"}</button>
-        </div>
-        ${this.registryProbes.length
-          ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
-              ${this.registryProbes.map(
-                (r) => html`<li>
-                  ${r.label_zh}（${r.region_zh}）—
-                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
-                  ${r.recommended ? " · 推荐" : ""}
-                </li>`,
-              )}
-            </ul>`
-          : nothing}
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${this.settings?.container_saves_require_propose !== false}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_saves_require_propose: on });
-                showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
-              }}
-            />
-            改存档前先问我一声（推荐）
-          </label>
-        </div>
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${this.settings?.container_auto_preheat !== false}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_auto_preheat: on });
-                showToast(on ? "已开启后台预热" : "已关闭后台预热");
-              }}
-            />
-            后台预热，缩短下次启动等待
-          </label>
-        </div>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button
-            class="ghost"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              try {
-                const p = await containerProbe();
-                showToast(p.message_zh);
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(String(e));
-              }
-            }}
-          >
-            检查隔离环境
-          </button>
-          <button
-            class="tonal"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              this.containerBusy = true;
-              try {
-                const r = await containerPreheat(true);
-                showToast(r.messages_zh.join("；") || (r.ok ? "预热完成" : "预热未完成"));
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(String(e));
-              } finally {
-                this.containerBusy = false;
-              }
-            }}
-          >
-            立刻预热
-          </button>
-          <button
-            class="ghost"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              try {
-                const r = await containerWriteRegistries();
-                showToast(r.message_zh);
-              } catch (e) {
-                showToast(String(e));
-              }
-            }}
-          >
-            应用加速源配置
-          </button>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">接口地址</span>
+          <input
+            style="flex:1"
+            placeholder="例如 https://api.deepseek.com/v1"
+            .value=${this.llmBase}
+            @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">密钥</span>
+          <input
+            style="flex:1"
+            type="password"
+            autocomplete="off"
+            placeholder=${this.llmCfg?.api_key_set ? `已保存 ${this.llmCfg.api_key_hint}（留空则保持）` : "粘贴服务商给你的密钥"}
+            .value=${this.llmKey}
+            @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label class="row" style="width:100%; margin-bottom:8px">
+          <span style="min-width:5.5em">模型名称</span>
+          <input
+            style="flex:1"
+            placeholder="例如 deepseek-chat"
+            .value=${this.llmModel}
+            @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <div class="row" style="margin-top:8px">
           <button
             class="primary"
             type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              this.containerBusy = true;
-              try {
-                const r = await containerRepair({ reprovision: true });
-                showToast(r.messages_zh.slice(-2).join("；") || (r.ok ? "修复完成" : "修复未完成"));
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(String(e));
-              } finally {
-                this.containerBusy = false;
-              }
-            }}
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.saveLlm()}
           >
-            一键修复隔离环境
+            保存并启用
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.clearLlm()}
+          >
+            清除
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.llmBusy}
+            @click=${() => void this.refresh()}
+          >
+            刷新
           </button>
         </div>
       </div>
@@ -748,74 +650,176 @@ export class SettingsPage extends LitElement {
           </button>
         </div>
       </details>
-      <div class="card">
-        <h2>云端助手接口</h2>
+      <details class="card" ?open=${!!this.settings?.container_mode_enabled}>
+        <summary>容器隔离（可选 · 高级）</summary>
         <p>
-          想让「助手」页真的会聊天、查崩溃，先在这里填好。密钥只保存在本机，不会上传。标准模式也能配，随时切助手模式即可用。
+          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」玩家；标准模式一般不用开。不装也完全能玩。
         </p>
-        <div class="muted" style="margin-bottom:8px">
-          状态：${
-            this.llm?.configured
-              ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
-              : "还没配置（只能用本地规则提示）"
-          }
+        <p class="muted" style="margin:0 0 12px">
+          ${this.preheatStatus
+            ? (this.preheatStatus.warm ? "状态：已预热 · " : "状态：偏冷 · ") + this.preheatStatus.message_zh
+            : "状态：尚未检测"}
+        </p>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${!!this.settings?.container_mode_enabled}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_mode_enabled: on });
+                showToast(on ? "已开启容器隔离" : "已关闭容器隔离");
+              }}
+            />
+            开启容器隔离
+          </label>
         </div>
-        <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">接口地址</span>
-          <input
-            style="flex:1"
-            placeholder="例如 https://api.deepseek.com/v1"
-            .value=${this.llmBase}
-            @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">密钥</span>
-          <input
-            style="flex:1"
-            type="password"
-            autocomplete="off"
-            placeholder=${this.llmCfg?.api_key_set ? `已保存 ${this.llmCfg.api_key_hint}（留空则保持）` : "粘贴服务商给你的密钥"}
-            .value=${this.llmKey}
-            @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="row" style="width:100%; margin-bottom:8px">
-          <span style="min-width:5.5em">模型名称</span>
-          <input
-            style="flex:1"
-            placeholder="例如 deepseek-chat"
-            .value=${this.llmModel}
-            @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <div class="row" style="margin-top:8px">
-          <button
-            class="primary"
-            type="button"
-            ?disabled=${this.llmBusy}
-            @click=${() => void this.saveLlm()}
+        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
+          <label for="ctr-mirror">下载加速源</label>
+          <select
+            id="ctr-mirror"
+            aria-label="容器下载加速源"
+            .value=${this.settings?.container_mirror_profile
+              || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
+            @change=${async (e: Event) => {
+              const v = (e.target as HTMLSelectElement).value;
+              this.settings = await updateSettings({ container_mirror_profile: v });
+              const labels: Record<string, string> = {
+                daocloud: "国内线路 A",
+                dockerproxy: "国内线路 B",
+                onems: "国内线路 C",
+                official: "官方线路（海外）",
+              };
+              showToast(`已切换为${labels[v] || v}`);
+              await this.refreshPreheatStatus();
+            }}
           >
-            保存并启用
+            <option value="daocloud">国内线路 A</option>
+            <option value="dockerproxy">国内线路 B</option>
+            <option value="onems">国内线路 C</option>
+            <option value="official">官方线路（海外）</option>
+          </select>
+          <button
+            class="btn ghost"
+            ?disabled=${this.registryProbeBusy}
+            @click=${() => void this.probeRegistries()}
+          >${this.registryProbeBusy
+            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+            : "测速并选用最快"}</button>
+        </div>
+        ${this.registryProbes.length
+          ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
+              ${this.registryProbes.map(
+                (r) => html`<li>
+                  ${r.label_zh}（${r.region_zh}）—
+                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
+                  ${r.recommended ? " · 推荐" : ""}
+                </li>`,
+              )}
+            </ul>`
+          : nothing}
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_saves_require_propose !== false}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_saves_require_propose: on });
+                showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
+              }}
+            />
+            改存档前先问我一声（推荐）
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_auto_preheat !== false}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_auto_preheat: on });
+                showToast(on ? "已开启后台预热" : "已关闭后台预热");
+              }}
+            />
+            后台预热，缩短下次启动等待
+          </label>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${async () => {
+              try {
+                const p = await containerProbe();
+                showToast(p.message_zh);
+                await this.refreshPreheatStatus();
+              } catch (e) {
+                showToast(friendlyError(e));
+              }
+            }}
+          >
+            检查隔离环境
+          </button>
+          <button
+            class="tonal"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${async () => {
+              this.containerBusy = true;
+              try {
+                const r = await containerPreheat(true);
+                showToast(r.messages_zh.join("；") || (r.ok ? "预热完成" : "预热未完成"));
+                await this.refreshPreheatStatus();
+              } catch (e) {
+                showToast(friendlyError(e));
+              } finally {
+                this.containerBusy = false;
+              }
+            }}
+          >
+            立刻预热
           </button>
           <button
             class="ghost"
             type="button"
-            ?disabled=${this.llmBusy}
-            @click=${() => void this.clearLlm()}
+            ?disabled=${this.containerBusy}
+            @click=${async () => {
+              try {
+                const r = await containerWriteRegistries();
+                showToast(r.message_zh);
+              } catch (e) {
+                showToast(friendlyError(e));
+              }
+            }}
           >
-            清除
+            应用加速源配置
           </button>
           <button
-            class="ghost"
+            class=${this.settings?.container_mode_enabled ? "tonal" : "ghost"}
             type="button"
-            ?disabled=${this.llmBusy}
-            @click=${() => void this.refresh()}
+            ?disabled=${this.containerBusy || !this.settings?.container_mode_enabled}
+            title=${this.settings?.container_mode_enabled ? "修复隔离环境" : "先开启容器隔离后再修复"}
+            @click=${async () => {
+              this.containerBusy = true;
+              try {
+                const r = await containerRepair({ reprovision: true });
+                showToast(r.messages_zh.slice(-2).join("；") || (r.ok ? "修复完成" : "修复未完成"));
+                await this.refreshPreheatStatus();
+              } catch (e) {
+                showToast(friendlyError(e));
+              } finally {
+                this.containerBusy = false;
+              }
+            }}
           >
-            刷新
+            修复隔离环境
           </button>
         </div>
-      </div>
+      </details>
+
 
     `;
   }
@@ -828,7 +832,7 @@ export class SettingsPage extends LitElement {
       this.llmKey = "";
       showToast(this.llm.configured ? "云端助手已启用" : "已保存，但仍未就绪");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.llmBusy = false;
     }
@@ -844,7 +848,7 @@ export class SettingsPage extends LitElement {
       this.llmModel = "deepseek-chat";
       showToast("已清除云端助手配置");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.llmBusy = false;
     }
@@ -870,7 +874,7 @@ export class SettingsPage extends LitElement {
   private renderPersonal() {
     return html`<div class="card">
         <h2>使用模式</h2>
-        <p>助手模式：侧栏有「助手」，适合爱折腾；标准模式：经典启动器，安静好上手。容器隔离只在需要时再开。</p>
+        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。容器隔离只在需要时再开。</p>
         <div class="md-segmented" role="radiogroup" aria-label="使用模式">
           <span class="md-tab-ind" aria-hidden="true"></span>
           <button
@@ -902,7 +906,7 @@ export class SettingsPage extends LitElement {
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到助手模式（可选：下方开容器隔离）" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式（容器隔离可在「启动」里选开）" : "已切换到标准模式");
   }
 
   private renderOther() {

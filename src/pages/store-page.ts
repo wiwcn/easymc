@@ -16,6 +16,7 @@ import {
   type InstallProgressDto,
 } from "../install-progress";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import type {
   CurseForgeStatusDto,
   InstanceDto,
@@ -323,7 +324,7 @@ export class StorePage extends LitElement {
       this.cf = await curseforgeConfigured();
       this.cfKeyDraft = "";
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     }
   }
 
@@ -333,7 +334,7 @@ export class StorePage extends LitElement {
       showToast(res.message);
       this.cf = await curseforgeConfigured();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     }
   }
 
@@ -363,7 +364,7 @@ export class StorePage extends LitElement {
           : "暂时没有热门结果，稍后再试或换个来源。";
       }
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      this.error = friendlyError(e);
     } finally {
       this.loading = false;
     }
@@ -388,7 +389,7 @@ export class StorePage extends LitElement {
         loader && loader !== "vanilla" ? loader : null,
       );
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.versionsLoading = false;
     }
@@ -410,7 +411,7 @@ export class StorePage extends LitElement {
           : `已安装 ${res.project_name} → ${res.filename}（可在「库」管理）`,
       );
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = friendlyError(e);
       this.error = msg;
       showToast(msg);
     } finally {

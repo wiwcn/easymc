@@ -150,6 +150,7 @@ export class EasyMcApp extends LitElement {
     this.addEventListener("nav-change", this.onNav as EventListener);
     this.addEventListener("onboarding-done", this.onOnboarded);
     this.addEventListener("mode-change", this.onModeChange as EventListener);
+    this.addEventListener("accounts-changed", this.onAccountsChanged as EventListener);
     void this.loadSettings();
     void this.loadAccounts();
   }
@@ -190,10 +191,15 @@ export class EasyMcApp extends LitElement {
     if (m) this.mode = m;
   };
 
+  private onAccountsChanged = () => {
+    void this.loadAccounts();
+  };
+
   disconnectedCallback() {
     this.removeEventListener("nav-change", this.onNav as EventListener);
     this.removeEventListener("onboarding-done", this.onOnboarded);
     this.removeEventListener("mode-change", this.onModeChange as EventListener);
+    this.removeEventListener("accounts-changed", this.onAccountsChanged as EventListener);
     super.disconnectedCallback();
   }
 

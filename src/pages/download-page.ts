@@ -33,6 +33,7 @@ import type {
 } from "../types";
 import { loaderLabel, versionType } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import { syncIndicator } from "../lib/indicator";
 import { loaderIcon } from "../loader-icons";
 import "../components/install-progress";
@@ -436,7 +437,7 @@ export class DownloadPage extends LitElement {
           ? await searchMods(this.source, this.query, game, loader)
           : await searchContent(this.source, this.projectType(), this.query, game, loader);
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      this.error = friendlyError(e, "模组列表暂时加载不了");
       this.results = [];
     } finally {
       this.loading = false;
@@ -454,7 +455,7 @@ export class DownloadPage extends LitElement {
       const game = this.active ? String(this.active.version) : null;
       this.versions = await listModVersions(this.source, p.id, game, this.tab === "mod" ? this.active?.loader : null);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
       this.versions = [];
     } finally {
       this.versionsLoading = false;
@@ -495,7 +496,7 @@ export class DownloadPage extends LitElement {
         showToast(r.skipped ? `已有 ${r.filename}` : `已下载 ${r.project_name}`);
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e, "安装没成功，请稍后在桌面版重试"));
     } finally {
       this.installingId = null;
     }
@@ -703,7 +704,7 @@ export class DownloadPage extends LitElement {
       this.activeId = st.active_id;
       showToast(`已装好「${inst.name}」，可以去启动页开玩`);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e, "安装没成功。请在 EasyMC 桌面窗口重试，或换个下载源后再试"));
     } finally {
       this.busy = false;
     }
@@ -759,7 +760,6 @@ export class DownloadPage extends LitElement {
             <datalist id="worlds">${this.worlds.map((w) => html`<option value=${w}></option>`)}</datalist>
           </div>`
         : nothing}
-      ${this.error ? html`<p class="muted" style="color:var(--md-sys-color-error)">${this.error}</p>` : nothing}
       ${this.loading
         ? html`<div class="market-skel" aria-busy="true" aria-label="正在搜索">
             ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block card-skel"></div>`)}
@@ -768,15 +768,23 @@ export class DownloadPage extends LitElement {
       <div class="market-grid">
         ${this.results.map((p) => this.renderCard(p))}
       </div>
-      ${!this.loading && this.results.length === 0 && !this.error
+      ${!this.loading && this.error
         ? html`<div class="results-slot"><easymc-empty-state
             variant="panel"
-            title="咦？好像什么都没搜到…"
-            description="换个关键词试试，或者清空后再搜热门内容"
+            title="模组列表暂时加载不了"
+            description=${this.error}
           >
-            <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>清空筛选</button>
+            <button class="primary" type="button" @click=${() => void this.onSearch()}>再试一次</button>
           </easymc-empty-state></div>`
-        : nothing}
+        : !this.loading && this.results.length === 0
+          ? html`<div class="results-slot"><easymc-empty-state
+            variant="panel"
+            title=${this.query.trim() ? "咦？好像什么都没搜到…" : "咦？热门列表空空的…"}
+            description=${this.query.trim() ? "换个关键词试试，或者清空后再看热门" : "稍后再试，或换个来源看看"}
+          >
+            <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>重新加载</button>
+          </easymc-empty-state></div>`
+          : nothing}
     `;
   }
 

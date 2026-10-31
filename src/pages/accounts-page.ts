@@ -9,6 +9,7 @@ import {
 } from "../api";
 import type { AccountDto } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import "../components/empty-state";
 import "../components/msa-login";
 
@@ -377,6 +378,7 @@ export class AccountsPage extends LitElement {
               const st = await setActiveAccount(a.id);
               this.accounts = st.accounts;
               this.activeAccountId = st.active_id;
+              this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
               showToast(`已切换到 ${a.username}`);
             }}
             @keydown=${(e: KeyboardEvent) => {
@@ -398,17 +400,18 @@ export class AccountsPage extends LitElement {
               <button
                 class="text"
                 type="button"
-                title="移除"
-                style="color:var(--md-sys-color-error)"
+                title="从本机移除此账户"
+                style="color:var(--md-sys-color-on-surface-variant)"
                 @click=${async () => {
-                  if (!confirm(`移除账户「${a.username}」？`)) return;
+                  if (!confirm(`确定移除账户「${a.username}」？此操作不会删除正版账号本身。`)) return;
                   const st = await removeAccount(a.id);
                   this.accounts = st.accounts;
                   this.activeAccountId = st.active_id;
+                  this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
                   showToast("已移除");
                 }}
               >
-                移除
+                移除…
               </button>
             </span>
           </div>`;
@@ -513,11 +516,12 @@ export class AccountsPage extends LitElement {
     if (err) return;
     try {
       const acc = await createOfflineOrThrow(this.name.trim());
+      this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
       showToast(`已切换到 ${acc.username}`);
       this.panel = null;
       await this.refresh();
     } catch (e) {
-      this.nameError = e instanceof Error ? e.message : String(e);
+      this.nameError = friendlyError(e);
     }
   }
 

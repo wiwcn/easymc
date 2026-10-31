@@ -19,7 +19,8 @@ import {
   type JavaInstallDto,
   type MinecraftDirDto,
 } from "../api";
-import { showToast } from "../toast";
+import { clearToasts, showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import "../components/msa-login";
 import type {
   AppMode,
@@ -181,6 +182,7 @@ export class OnboardingPage extends LitElement {
         box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.opt:hover { background: var(--md-sys-color-surface-container); box-shadow: var(--md-sys-elevation-2); }
+    .skip-cta { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
     button.opt.sel {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
@@ -323,9 +325,17 @@ export class OnboardingPage extends LitElement {
   }
 
   private friendly(e: unknown): string {
-    const s = e instanceof Error ? e.message : String(e);
-    if (/invoke|__TAURI|undefined/i.test(s)) return "请在 EasyMC 窗口内完成此操作";
-    return s;
+    return friendlyError(e);
+  }
+
+  /** Short top toast so foot CTAs stay clickable; never stick across steps. */
+  private softToast(msg: string) {
+    showToast(msg, { ms: 1600, placement: "top" });
+  }
+
+  private goStep(next: Step) {
+    clearToasts();
+    this.step = next;
   }
 
   private async onOffline() {
@@ -347,6 +357,11 @@ export class OnboardingPage extends LitElement {
   /** Container ask only after 助手模式; 标准模式 jumps straight to env. */
   private async afterModeNext() {
     if (this.mode === "agent") {
+      try {
+        await updateSettings({ mode: "agent" });
+      } catch {
+        /* preview */
+      }
       await this.enterContainerStep();
       return;
     }
@@ -365,7 +380,7 @@ export class OnboardingPage extends LitElement {
   }
 
   private async enterContainerStep() {
-    this.step = 2;
+    this.goStep(2);
     this.containerLog = "";
     try {
       this.containerProbe = await containerProbe();
@@ -400,7 +415,7 @@ export class OnboardingPage extends LitElement {
         if (best) this.pickContainerMirror(best.id, !!best.prefer_china);
       }
     } catch (e) {
-      showToast(`加速源测速失败：${this.friendly(e)}`);
+      this.softToast(this.friendly(e));
     } finally {
       this.registryProbeBusy = false;
     }
@@ -420,7 +435,7 @@ export class OnboardingPage extends LitElement {
         }
       }
     } catch (e) {
-      showToast(`下载源测速失败：${this.friendly(e)}`);
+      this.softToast(this.friendly(e));
     } finally {
       this.downloadProbeBusy = false;
     }
@@ -432,9 +447,29 @@ export class OnboardingPage extends LitElement {
   }
 
   private latencyLabel(ok: boolean, ms?: number | null, err?: string | null): string {
-    if (ok && ms != null) return `${ms} ms`;
-    if (err) return err;
+    if (ok && ms != null) return ms < 50 ? "很快" : ms < 150 ? "较快" : `${Math.round(ms)} ms`;
+    if (err) {
+      const soft = friendlyError(err, "");
+      if (!soft || /请在 EasyMC|操作没成功|预览/.test(soft)) return "预览未测";
+      return soft.length > 18 ? "暂时测不到" : soft;
+    }
     return "未测速";
+  }
+
+  /** Newbie-friendly mirror labels (no DaoCloud / DockerProxy / 1ms brand noise). */
+  private softMirrorLabel(id: string, fallback: string): string {
+    const map: Record<string, string> = {
+      daocloud: "国内线路 A",
+      dockerproxy: "国内线路 B",
+      onems: "国内线路 C",
+      official: "官方线路（海外）",
+      bmclapi: "国内加速",
+      bmclapi_alt: "国内加速 · 备用",
+    };
+    return map[id] || fallback.replace(/DaoCloud|DockerProxy|1ms/gi, (m) => {
+      const x: Record<string, string> = { DaoCloud: "线路 A", DockerProxy: "线路 B", "1ms": "线路 C" };
+      return x[m] || m;
+    });
   }
 
   /** From env: 助手 → back to container; 标准 → back to mode. */
@@ -443,11 +478,11 @@ export class OnboardingPage extends LitElement {
       await this.enterContainerStep();
       return;
     }
-    this.step = 1;
+    this.goStep(1);
   }
 
   private async enterEnvStep() {
-    this.step = 3;
+    this.goStep(3);
     await this.refreshEnv();
     void this.runDownloadProbe(false);
   }
@@ -491,10 +526,10 @@ export class OnboardingPage extends LitElement {
         container_mirror_profile: this.containerMirrorId,
         container_setup_done: ready || (result.pending?.length ?? 0) > 0,
       });
-      showToast(ready ? "隔离环境已就绪" : "已记下配置，可稍后继续完成安装");
+      this.softToast(ready ? "隔离环境已就绪" : "已记下配置，可稍后继续完成安装");
     } catch (e) {
       this.containerLog = this.friendly(e);
-      showToast(`隔离环境：${this.friendly(e)}`);
+      this.softToast(this.friendly(e));
     } finally {
       this.containerBusy = false;
     }
@@ -602,12 +637,12 @@ export class OnboardingPage extends LitElement {
 
       this.javaList = await detectJava();
       this.envDone = this.javaReady;
-      showToast("基础环境已准备好");
+      this.softToast("基础环境已准备好");
     } catch (e) {
       const msg = this.friendly(e);
       this.javaStatus = "准备未完成";
       this.javaLog = this.javaLog ? `${this.javaLog}\n${msg}` : msg;
-      showToast(`准备失败：${msg}`);
+      this.softToast(`准备失败：${msg}`);
       this.envDone = false;
     } finally {
       this.unlistenJavaLog?.();
@@ -704,10 +739,10 @@ export class OnboardingPage extends LitElement {
     const mirrors = this.registryProbes.length
       ? this.registryProbes
       : [
-          { id: "daocloud", label_zh: "国内加速 · DaoCloud", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "dockerproxy", label_zh: "国内加速 · DockerProxy", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "onems", label_zh: "国内加速 · 1ms", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
-          { id: "official", label_zh: "官方源（海外）", region_zh: "全球", prefer_china: false, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "daocloud", label_zh: "国内线路 A", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "dockerproxy", label_zh: "国内线路 B", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "onems", label_zh: "国内线路 C", region_zh: "国内", prefer_china: true, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
+          { id: "official", label_zh: "官方线路（海外）", region_zh: "全球", prefer_china: false, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
         ];
     const body = unsupported
       ? html`<div class="notice">${probe?.message_zh || "当前系统不走容器模式。"} 可直接跳过。</div>`
@@ -737,9 +772,9 @@ export class OnboardingPage extends LitElement {
                         @click=${() => this.pickContainerMirror(m.id, !!m.prefer_china)}
                       >
                         <span>
-                          ${m.label_zh}
+                          ${this.softMirrorLabel(m.id, m.label_zh)}
                           <span class="meta" style="display:inline;margin-left:6px">${m.region_zh}</span>
-                          ${m.recommended ? html`<span class="badge">推荐·最快</span>` : nothing}
+                          ${m.recommended ? html`<span class="badge">推荐</span>` : nothing}
                         </span>
                         <span class="lat">${this.registryProbeBusy && !m.ok && m.latency_ms == null && !m.error_zh
                           ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
@@ -762,22 +797,22 @@ export class OnboardingPage extends LitElement {
             </div>
           </div>
           <div class="actions-stack">
-            <button class="btn primary" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
-              ${this.containerBusy ? "正在配置…" : ready ? "再检查一次隔离环境" : "一键配置隔离环境"}
+            <button class="btn ghost" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
+              ${this.containerBusy ? "正在配置…" : ready ? "再检查一次（可选）" : "配置隔离环境（可选）"}
             </button>
             ${this.containerLog ? html`<div class="java-log" aria-live="polite">${this.containerLog}</div>` : nothing}
           </div>
         `;
     return {
-      title: "要用容器隔离吗？",
-      sub: "可选。开启后，每个版本的模组与存档分开存放，互不干扰。不想装也完全没问题——助手和标准模式都能直接开玩。",
+      title: "要用隔离环境吗？（可选）",
+      sub: "完全可选。开启后每个版本的模组与存档分开存放。不想装也没关系——直接点「暂不使用，继续」就能往下走。",
       body,
-      footLeft: html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => (this.step = 1)}>上一步</button>`,
+      footLeft: html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => this.goStep(1)}>上一步</button>`,
       footRight: html`
-        <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用</button>
-        <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>
-          ${unsupported || this.containerWanted === false ? "继续" : ready ? "下一步" : "稍后再说，先继续"}
-        </button>
+        <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
+        ${ready
+          ? html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>已配置，下一步</button>`
+          : nothing}
       `,
     };
   }
@@ -880,8 +915,8 @@ export class OnboardingPage extends LitElement {
       `,
       footLeft: html`<button class="btn ghost" ?disabled=${this.envBusy} @click=${() => void this.backFromEnv()}>上一步</button>`,
       footRight: html`
-        <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => { this.step = 4; showToast("可稍后在「设置 → 启动」里配置 Java"); }}>先跳过</button>
-        <button class="btn primary" ?disabled=${this.envBusy || !this.javaReady} @click=${() => (this.step = 4)}>下一步</button>
+        <button class="btn ghost skip-cta" ?disabled=${this.envBusy} @click=${() => { this.goStep(4); this.softToast("可稍后在「设置 → 启动」里配置 Java"); }}>先跳过</button>
+        <button class="btn primary" ?disabled=${this.envBusy} @click=${() => this.goStep(4)}>${this.javaReady ? "下一步" : "先继续"}</button>
       `,
     };
   }
@@ -898,7 +933,7 @@ export class OnboardingPage extends LitElement {
           </button>
           <button class="opt ${this.login === "offline" ? "sel" : ""}" role="radio" aria-checked=${this.login === "offline"} @click=${() => this.pickLogin("offline")}>
             <strong>离线游玩</strong>
-            <span>输入想在游戏里显示的名字，马上就能玩单人或离线服务器。</span>
+            <span>马上就能玩单人或离线服务器，下一步再起名字。</span>
           </button>
           <button class="opt ${this.login === "skin_station" ? "sel" : ""}" role="radio" aria-checked=${this.login === "skin_station"} @click=${() => this.pickLogin("skin_station")}>
             <strong>第三方皮肤站</strong>
@@ -907,12 +942,12 @@ export class OnboardingPage extends LitElement {
         </div>
       `,
       footLeft: html`<button class="btn ghost" @click=${() => void this.enterEnvStep()}>上一步</button>`,
-      footRight: html`<button class="btn primary" ?disabled=${!this.login} @click=${() => (this.step = 5)}>下一步</button>`,
+      footRight: html`<button class="btn primary" ?disabled=${!this.login} @click=${() => this.goStep(5)}>下一步</button>`,
     };
   }
 
   private chromeAccount() {
-    const back = html`<button class="btn ghost" ?disabled=${this.busy} @click=${() => (this.step = 4)}>上一步</button>`;
+    const back = html`<button class="btn ghost" ?disabled=${this.busy} @click=${() => this.goStep(4)}>上一步</button>`;
     if (this.login === "microsoft") {
       return {
         title: "正版登录",

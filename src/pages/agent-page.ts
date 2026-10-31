@@ -16,6 +16,7 @@ import {
   openInstanceFolder,
 } from "../api";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import "../components/empty-state";
 import type {
   AgentActionDto,
@@ -885,12 +886,12 @@ export class AgentPage extends LitElement {
         this.turns = [...this.turns, assistantTurn];
       }
     } catch (e) {
-      this.error = String(e);
+      this.error = friendlyError(e);
       const errTurn: ChatTurn = {
         role: "assistant",
         content: `出错了：${e}`,
         tool: runningHint
-          ? { ...runningHint, status: "error", result_zh: String(e) }
+          ? { ...runningHint, status: "error", result_zh: friendlyError(e) }
           : null,
       };
       if (runningHint) {
@@ -1047,7 +1048,7 @@ ${extraContent}` : t.content,
       showToast("已应用更改，下次启动生效");
       this.patchTurnProposal(turnIndex, "applied", msg);
     } catch (e) {
-      this.error = String(e);
+      this.error = friendlyError(e);
       showToast("应用更改失败");
     } finally {
       this.busy = false;
@@ -1063,7 +1064,7 @@ ${extraContent}` : t.content,
       showToast("已撤销更改");
       this.patchTurnProposal(turnIndex, "undone", msg);
     } catch (e) {
-      this.error = String(e);
+      this.error = friendlyError(e);
       showToast("撤销失败");
     } finally {
       this.busy = false;
@@ -1155,7 +1156,7 @@ ${extraContent}` : t.content,
         i === this.turns.length - 1 && x.tool?.status === "running" ? turn : x,
       );
     } catch (e) {
-      this.error = String(e);
+      this.error = friendlyError(e);
     } finally {
       this.busy = false;
     }
@@ -1190,7 +1191,7 @@ ${extraContent}` : t.content,
         i === this.turns.length - 1 && x.tool?.status === "running" ? turn : x,
       );
     } catch (e) {
-      this.error = String(e);
+      this.error = friendlyError(e);
     } finally {
       this.busy = false;
     }
@@ -1231,7 +1232,7 @@ ${extraContent}` : t.content,
           await openInstanceFolder(this.instanceId, tool.name === "open_latest_log" ? "game" : "root");
           showToast("已打开文件夹");
         } catch (e) {
-          showToast(String(e));
+          showToast(friendlyError(e));
         }
       } else if (tool.path) {
         showToast(`路径：${tool.path}`);
@@ -1464,7 +1465,7 @@ ${extraContent}` : t.content,
         showToast("已保存，但仍未就绪");
       }
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      this.error = friendlyError(e);
     } finally {
       this.llmBusy = false;
     }
@@ -1483,7 +1484,7 @@ ${extraContent}` : t.content,
       this.report = null;
       showToast("已清除，请重新配置云端助手");
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      this.error = friendlyError(e);
     } finally {
       this.llmBusy = false;
     }

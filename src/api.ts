@@ -400,15 +400,15 @@ export async function searchMods(
   loader?: string | null,
   limit = 20,
 ): Promise<ModProjectDto[]> {
-  return (
-    (await invokeSafe<ModProjectDto[]>("search_mods_cmd", {
-      source,
-      query: query || null,
-      gameVersion: gameVersion || null,
-      loader: loader || null,
-      limit,
-    })) ?? []
-  );
+  // Use invokeOrThrow so preview / network failures surface as errors
+  // (UI can show 「模组列表暂时加载不了」 instead of a false empty state).
+  return invokeOrThrow<ModProjectDto[]>("search_mods_cmd", {
+    source,
+    query: query || null,
+    gameVersion: gameVersion || null,
+    loader: loader || null,
+    limit,
+  });
 }
 
 export async function listModVersions(
@@ -605,21 +605,52 @@ function previewOnboardingForced(): boolean {
   return false;
 }
 
-export async function getSettings(): Promise<SettingsDto> {
-  return (
-    (await invokeSafe<SettingsDto>("get_settings")) ?? {
-      memory_mb: 2048,
-      mode: "standard",
-      // Browser preview skips onboarding unless ?onboard=1 or localStorage easymc.previewOnboarding=1
-      onboarding_complete: !previewOnboardingForced(),
-      download_source: "official",
-      container_mode_enabled: false,
-      container_china_mirrors: true,
-      container_setup_done: false,
-      container_saves_require_propose: true,
-      container_auto_preheat: true,
+const PREVIEW_SETTINGS_KEY = "easymc.previewSettings";
+
+function defaultPreviewSettings(): SettingsDto {
+  return {
+    memory_mb: 2048,
+    mode: "standard",
+    // Browser preview skips onboarding unless ?onboard=1 or localStorage easymc.previewOnboarding=1
+    onboarding_complete: !previewOnboardingForced(),
+    download_source: "official",
+    container_mode_enabled: false,
+    container_china_mirrors: true,
+    container_setup_done: false,
+    container_saves_require_propose: true,
+    container_auto_preheat: true,
+  };
+}
+
+function readPreviewSettings(): SettingsDto {
+  try {
+    const raw = localStorage.getItem(PREVIEW_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SettingsDto>;
+      const base = defaultPreviewSettings();
+      const merged: SettingsDto = { ...base, ...parsed };
+      // Force-onboard query/flag always wins until completeOnboarding clears it.
+      if (previewOnboardingForced()) merged.onboarding_complete = false;
+      return merged;
     }
-  );
+  } catch {
+    /* ignore */
+  }
+  return defaultPreviewSettings();
+}
+
+function writePreviewSettings(s: SettingsDto): void {
+  try {
+    localStorage.setItem(PREVIEW_SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function getSettings(): Promise<SettingsDto> {
+  const remote = await invokeSafe<SettingsDto>("get_settings");
+  if (remote) return remote;
+  return readPreviewSettings();
 }
 
 export async function updateSettings(patch: {
@@ -637,14 +668,37 @@ export async function updateSettings(patch: {
   container_auto_preheat?: boolean;
   container_mirror_profile?: string;
 }): Promise<SettingsDto> {
-  return invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
+  try {
+    return await invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
+  } catch {
+    // Browser preview: persist mode / container flags so settings match onboarding.
+    const cur = readPreviewSettings();
+    const next: SettingsDto = {
+      ...cur,
+      ...(patch.mode != null ? { mode: (patch.mode as AppMode) || cur.mode } : {}),
+      ...(patch.onboarding_complete != null ? { onboarding_complete: !!patch.onboarding_complete } : {}),
+      ...(patch.memory_mb != null ? { memory_mb: patch.memory_mb } : {}),
+      ...(patch.download_source != null ? { download_source: patch.download_source } : {}),
+      ...(patch.container_mode_enabled != null ? { container_mode_enabled: !!patch.container_mode_enabled } : {}),
+      ...(patch.container_china_mirrors != null ? { container_china_mirrors: !!patch.container_china_mirrors } : {}),
+      ...(patch.container_setup_done != null ? { container_setup_done: !!patch.container_setup_done } : {}),
+      ...(patch.container_saves_require_propose != null
+        ? { container_saves_require_propose: !!patch.container_saves_require_propose }
+        : {}),
+      ...(patch.container_auto_preheat != null ? { container_auto_preheat: !!patch.container_auto_preheat } : {}),
+      ...(patch.container_mirror_profile != null ? { container_mirror_profile: patch.container_mirror_profile } : {}),
+      ...(patch.preferred_login !== undefined ? { preferred_login: patch.preferred_login as never } : {}),
+    };
+    writePreviewSettings(next);
+    return next;
+  }
 }
 
 export async function containerProbe(): Promise<import("./types").ContainerRuntimeProbeDto> {
   return (
     (await invokeSafe<import("./types").ContainerRuntimeProbeDto>("container_probe_cmd")) ?? {
       status: "not_installed",
-      message_zh: "容器探测不可用（预览模式）",
+      message_zh: "当前是预览，隔离环境需在桌面版里配置；也可以先跳过。",
       platform: "other",
       podman: null,
     }
@@ -715,7 +769,7 @@ export async function completeOnboarding(
       preferredLogin: preferredLogin ?? null,
     });
   } catch {
-    // Browser preview: clear force flag so shell leaves onboarding
+    // Browser preview: clear force flag so shell leaves onboarding, persist mode.
     try {
       localStorage.removeItem("easymc.previewOnboarding");
       if (typeof history !== "undefined" && typeof location !== "undefined" && location.search.includes("onboard=1")) {
@@ -726,17 +780,17 @@ export async function completeOnboarding(
     } catch {
       /* ignore */
     }
-    return {
-      memory_mb: 2048,
-      mode: (mode as AppMode) || "standard",
+    const cur = readPreviewSettings();
+    const next: SettingsDto = {
+      ...cur,
+      memory_mb: cur.memory_mb ?? 2048,
+      mode: (mode as AppMode) || cur.mode || "standard",
       onboarding_complete: true,
-      download_source: "official",
-      container_mode_enabled: false,
-      container_china_mirrors: true,
-      container_setup_done: true,
-      container_saves_require_propose: true,
-      container_auto_preheat: true,
+      preferred_login: (preferredLogin as never) ?? cur.preferred_login,
+      container_setup_done: cur.container_setup_done ?? true,
     };
+    writePreviewSettings(next);
+    return next;
   }
 }
 
@@ -816,16 +870,14 @@ export async function searchContent(
   loader?: string | null,
   limit = 20,
 ): Promise<ModProjectDto[]> {
-  return (
-    (await invokeSafe<ModProjectDto[]>("search_content_cmd", {
+  return invokeOrThrow<ModProjectDto[]>("search_content_cmd", {
       source,
       projectType,
       query: query || null,
       gameVersion: gameVersion || null,
       loader: loader || null,
       limit,
-    })) ?? []
-  );
+    });
 }
 
 export async function installContent(

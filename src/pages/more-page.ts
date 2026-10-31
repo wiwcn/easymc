@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { AppMode } from "../types";
 import { controlStyles, pageChromeStyles } from "../styles/controls";
+import { showToast } from "../toast";
 
 @customElement("easymc-more-page")
 export class MorePage extends LitElement {
@@ -48,23 +49,24 @@ export class MorePage extends LitElement {
           <span>选版本、开游戏——最常用的入口</span>
         </button>
         <button class="tile surf-outline" type="button" @click=${() => this.go("instances")}>
-          <strong>分享版本</strong>
-          <span>在版本管理的「导出」里发给好友，或导入好友的分享包</span>
+          <strong>导出 / 管理版本</strong>
+          <span>打开版本管理：导出给好友，或从启动页返回</span>
         </button>
-        <button class="tile surf-outline" type="button" @click=${() => window.open("https://github.com/wiwcn/easymc/issues", "_blank")}>
+        <button class="tile surf-outline" type="button" @click=${() => showToast("仓库公开后可在此反馈。也可发邮件到 feedback@easymc.local（占位）", { ms: 3200 })}>
           <strong>反馈</strong>
-          <span>在 GitHub 提建议或报告问题</span>
+          <span>仓库公开后可在此反馈；当前请先记下来，或用下方邮件</span>
         </button>
-        <button class="tile surf-outline" type="button" @click=${() => window.open("https://github.com/wiwcn/easymc#readme", "_blank")}>
+        <button class="tile surf-outline" type="button" @click=${() => showToast("帮助文档即将上线。日常问题可先问侧栏「助手」。", { ms: 3200 })}>
           <strong>帮助</strong>
-          <span>使用说明与常见问题</span>
+          <span>使用说明即将上线；也可先问问侧栏「助手」</span>
         </button>
       </div>
       <div class="about surf-outline" id="about">
         <strong style="color:var(--md-sys-color-on-surface)">关于 EasyMC</strong><br />
         版本 0.1.12 · MIT 许可<br />
         开源 Minecraft Java Edition 启动器。<br />
-        源码：<a href="https://github.com/wiwcn/easymc" target="_blank" rel="noreferrer">github.com/wiwcn/easymc</a>
+        源码仓库公开后可在此查看；反馈占位：
+        <a href="mailto:feedback@easymc.local?subject=EasyMC%20反馈">feedback@easymc.local</a>
       </div>
     `;
   }

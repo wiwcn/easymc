@@ -28,6 +28,7 @@ import {
   versionType,
 } from "../types";
 import { showToast } from "../toast";
+import { friendlyError } from "../lib/friendly-error";
 import "../components/install-progress";
 import "../components/empty-state";
 
@@ -180,13 +181,16 @@ export class HomePage extends LitElement {
     .featured {
       display: flex;
       flex-direction: column;
+      flex-shrink: 0; /* never collapse under「显示全部」grid */
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: var(--md-sys-shape-corner-extra-large);
       box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
-      overflow: hidden;
+      overflow: visible; /* menus must not clip; art still clips via .art */
       margin-bottom: var(--easymc-space-5);
       transition:
         margin var(--easymc-dur-med) var(--easymc-ease-out);
+      position: relative;
+      z-index: 2;
     }
     .featured.compact {
       margin-bottom: var(--easymc-space-4);
@@ -205,7 +209,7 @@ export class HomePage extends LitElement {
     .featured.compact .featured-top {
       padding: var(--easymc-space-4) var(--easymc-space-4) var(--easymc-space-3);
       gap: var(--easymc-space-4);
-      min-height: 0;
+      min-height: 96px; /* keep title + art visible when list expands */
       align-items: center;
     }
     .art {
@@ -269,11 +273,18 @@ export class HomePage extends LitElement {
       max-width: 100%;
     }
     .featured.compact .feat-title {
-      margin: 0 0 6px;
+      margin: 0 0 4px;
       font-size: var(--easymc-type-title);
     }
-    .featured.compact .feat-desc { display: none; }
-    .featured.compact .chips { margin-bottom: 0; }
+    .featured.compact .feat-desc {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: var(--easymc-type-meta);
+      margin: 0;
+    }
+    .featured.compact .chips { margin-bottom: 4px; }
     .chips {
       display: flex;
       flex-wrap: wrap;
@@ -379,7 +390,7 @@ export class HomePage extends LitElement {
       position: absolute;
       right: 0;
       top: calc(100% + 6px);
-      z-index: 50;
+      z-index: 80;
       min-width: 200px;
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: var(--md-sys-shape-corner-medium);
@@ -397,6 +408,13 @@ export class HomePage extends LitElement {
         opacity var(--easymc-dur-fast) var(--easymc-ease-out),
         transform var(--easymc-dur-fast) var(--easymc-ease-out),
         visibility 0s linear var(--easymc-dur-fast);
+    }
+    /* Featured bar sits low — open upward so the panel is not clipped by the page. */
+    .menu-panel.open-up {
+      top: auto;
+      bottom: calc(100% + 6px);
+      transform: translateY(6px) scale(0.96);
+      transform-origin: bottom right;
     }
     .menu-panel.open {
       opacity: 1;
@@ -753,8 +771,7 @@ export class HomePage extends LitElement {
       showToast("游戏已启动");
       await this.boot();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.status = msg;
+      this.status = friendlyError(e, "启动没成功，可让助手看看");
       this.launchFailed = true;
       showToast("启动失败，可让助手看看");
     } finally {
@@ -822,7 +839,7 @@ export class HomePage extends LitElement {
       showToast(`已添加「${instancePlayerLabel(inst)}」`);
       await this.boot();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showToast(friendlyError(e));
     } finally {
       this.busy = false;
     }
@@ -911,7 +928,7 @@ export class HomePage extends LitElement {
 
   private renderMenu(f: InstanceDto, featured: boolean, open: boolean) {
     return html`<div
-      class="menu-panel ${open ? "open" : ""}"
+      class="menu-panel ${open ? "open" : ""} ${featured ? "open-up" : ""}"
       role="menu"
       aria-hidden=${open ? "false" : "true"}
       style=${featured ? "" : "bottom:auto;top:calc(100% + 4px);"}
@@ -935,7 +952,7 @@ export class HomePage extends LitElement {
           try {
             showToast(await openInstanceFolder(f.id, "game"));
           } catch (e) {
-            showToast(e instanceof Error ? e.message : String(e));
+            showToast(friendlyError(e));
           }
         }}
       >
@@ -951,7 +968,7 @@ export class HomePage extends LitElement {
             const r = await writeLaunchScript(f.id);
             showToast(r.message_zh);
           } catch (e) {
-            showToast(e instanceof Error ? e.message : String(e));
+            showToast(friendlyError(e));
           }
         }}
       >

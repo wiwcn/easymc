@@ -93,9 +93,9 @@ pre,
   }
 }
 
-#toast-host {
+#toast-host,
+#toast-host-top {
   position: fixed;
-  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -106,8 +106,16 @@ pre,
   pointer-events: none;
   width: min(420px, calc(100vw - 32px));
 }
+#toast-host {
+  bottom: 24px;
+}
+/* Top host: keep onboarding foot CTAs («先跳过» / «暂不使用») uncovered. */
+#toast-host-top {
+  top: 20px;
+  bottom: auto;
+}
 
-#toast-host .toast {
+#toast-host .toast, #toast-host-top .toast {
   pointer-events: auto;
   background: var(--md-sys-color-inverse-surface);
   color: var(--md-sys-color-inverse-on-surface);
@@ -123,7 +131,7 @@ pre,
   animation: easymc-toast-in var(--easymc-dur-med) var(--easymc-ease-out) forwards;
 }
 
-#toast-host .toast.out {
+#toast-host .toast.out, #toast-host-top .toast.out {
   animation: easymc-toast-out var(--easymc-dur-fast) var(--easymc-ease-in) forwards;
 }
 
@@ -142,12 +150,12 @@ pre,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #toast-host .toast {
+  #toast-host .toast, #toast-host-top .toast {
     animation: none;
     opacity: 1;
     transform: none;
   }
-  #toast-host .toast.out {
+  #toast-host .toast.out, #toast-host-top .toast.out {
     opacity: 0;
   }
 }
