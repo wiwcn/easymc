@@ -2,9 +2,11 @@
 
 mod content;
 mod curseforge;
+mod deps;
 mod modpack;
 mod http;
 mod install;
+mod metadata;
 mod modrinth;
 mod types;
 
@@ -22,10 +24,16 @@ pub use content::{
     LocalEntry,
 };
 pub use modpack::{install_modpack, install_mrpack_file, ModpackInstallResult};
+pub use metadata::{
+    is_provided_mod_id, read_mod_meta, version_satisfies, DepKind, ModDepReq, ModMeta, ModMetaKind,
+};
+pub use deps::{
+    build_dep_graph, fetch_missing_deps, DepGraphReport, DepNode, DepStatus, FetchFail,
+    FetchMissingResult,
+};
 
 pub use modrinth::HashLookup;
 
 pub async fn lookup_modrinth_by_sha1(sha1_hex: &str) -> easymc_core::Result<Option<HashLookup>> {
     modrinth::lookup_by_sha1(sha1_hex).await
 }
-

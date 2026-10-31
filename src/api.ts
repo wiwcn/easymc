@@ -472,6 +472,23 @@ export async function setModDisabled(
 }
 
 
+
+export async function modDepGraph(instanceId?: string | null): Promise<import("./types").DepGraphReportDto> {
+  return invokeOrThrow<import("./types").DepGraphReportDto>("mod_dep_graph_cmd", {
+    instanceId: instanceId || null,
+  });
+}
+
+export async function fetchMissingModDeps(
+  instanceId?: string | null,
+  onlyIds?: string[] | null,
+): Promise<import("./types").FetchMissingResultDto> {
+  return invokeOrThrow<import("./types").FetchMissingResultDto>("fetch_missing_mod_deps_cmd", {
+    instanceId: instanceId || null,
+    onlyIds: onlyIds ?? null,
+  });
+}
+
 export async function agentLlmStatus(): Promise<LlmStatusDto> {
   return (
     (await invokeSafe<LlmStatusDto>("agent_llm_status")) ?? {

@@ -12,6 +12,8 @@ import {
   installVersion,
   launchInstance,
   listInstalledMods,
+  modDepGraph,
+  fetchMissingModDeps,
   listInstancesState,
   listLoaderVersions,
   listLocalContent,
@@ -34,7 +36,7 @@ import {
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
-import type { ContainerLayerStateDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
+import type { ContainerLayerStateDto, DepGraphReportDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
@@ -43,6 +45,7 @@ import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import "../components/install-progress";
 import "../components/empty-state";
+import "../components/dep-tree";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
 
@@ -55,6 +58,9 @@ export class InstancePage extends LitElement {
   @state() private loading = true;
   @state() private busy = false;
   @state() private mods: string[] = [];
+  @state() private depGraph: DepGraphReportDto | null = null;
+  @state() private depBusy = false;
+  @state() private depMsg = "";
   @state() private layerState: ContainerLayerStateDto | null = null;
   @state() private workspaceHint = "";
   @state() private locals: LocalEntryDto[] = [];
@@ -212,6 +218,45 @@ export class InstancePage extends LitElement {
     }
     .mod-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
     .mod-row code { flex: 1; font-size: var(--easymc-type-meta); word-break: break-all; }
+    .dep-panel {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .dep-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .dep-head h3 {
+      margin: 0;
+      flex: 1;
+      font-size: var(--easymc-type-title, 1rem);
+      font-weight: var(--easymc-weight-medium, 500);
+    }
+    .dep-summary {
+      margin: 0 0 8px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-meta, 0.75rem);
+    }
+    .dep-alerts {
+      margin: 0 0 10px;
+      padding: 8px 12px;
+      border-radius: var(--md-sys-shape-corner-small, 8px);
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+      font-size: var(--easymc-type-meta, 0.75rem);
+    }
+    .dep-alerts li { margin: 2px 0; }
+    .dep-tree-wrap {
+      max-height: 360px;
+      overflow: auto;
+      padding: 4px 2px 8px;
+      border-radius: var(--md-sys-shape-corner-small, 8px);
+      background: var(--md-sys-color-surface-container-low);
+    }
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
       .menu-panel, .menu-panel.open { transition: none; transform: none; }
@@ -276,7 +321,16 @@ export class InstancePage extends LitElement {
     const d = this.detail;
     if (!d) return;
     if (this.tab === "settings") await this.refreshLayer(d.id);
-    if (this.tab === "mods") this.mods = await listInstalledMods(d.id);
+    if (this.tab === "mods") {
+      this.mods = await listInstalledMods(d.id);
+      try {
+        this.depGraph = await modDepGraph(d.id);
+        this.depMsg = this.depGraph.summary_zh;
+      } catch (e) {
+        this.depGraph = null;
+        this.depMsg = friendlyError(e);
+      }
+    }
     if (this.tab === "worlds") this.locals = await listLocalContent(d.id, "saves");
     if (this.tab === "resourcepacks") this.locals = await listLocalContent(d.id, "resourcepacks");
     if (this.tab === "shaders") this.locals = await listLocalContent(d.id, "shaderpacks");
@@ -285,6 +339,24 @@ export class InstancePage extends LitElement {
   private async setTab(t: Tab) {
     this.tab = t;
     await this.refreshTab();
+  }
+
+  private async fetchMissingDeps(instanceId: string) {
+    if (this.depBusy) return;
+    this.depBusy = true;
+    this.depMsg = "正在从 Modrinth 查找并下载缺失依赖…";
+    try {
+      const r = await fetchMissingModDeps(instanceId);
+      this.depMsg = r.message_zh;
+      showToast(r.message_zh);
+      this.mods = await listInstalledMods(instanceId);
+      this.depGraph = await modDepGraph(instanceId);
+    } catch (e) {
+      this.depMsg = friendlyError(e);
+      showToast(this.depMsg);
+    } finally {
+      this.depBusy = false;
+    }
   }
 
   private goDownload(tab?: string) {
@@ -548,14 +620,35 @@ export class InstancePage extends LitElement {
               >
                 <button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>
               </easymc-empty-state></div>`
-            : this.mods.map((m) => {
-                const disabled = m.endsWith(".disabled");
-                return html`<div class="mod-row">
-                  <code>${m}</code>
-                  <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
-                  <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
-                </div>`;
-              })}
+            : html`
+                ${this.mods.map((m) => {
+                  const disabled = m.endsWith(".disabled");
+                  return html`<div class="mod-row">
+                    <code>${m}</code>
+                    <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
+                    <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
+                  </div>`;
+                })}
+                <div class="dep-panel">
+                  <div class="dep-head">
+                    <h3>依赖关系</h3>
+                    <button class="ghost" type="button" ?disabled=${this.depBusy} @click=${() => this.refreshTab()}>刷新树</button>
+                    <button
+                      class="primary"
+                      type="button"
+                      ?disabled=${this.depBusy || !(this.depGraph?.missing_ids.length)}
+                      @click=${() => this.fetchMissingDeps(d.id)}
+                    >${this.depBusy ? "下载中…" : "从 Modrinth 补齐缺失"}</button>
+                  </div>
+                  <p class="dep-summary">${this.depMsg || (this.depGraph?.summary_zh ?? "解析依赖中…")}</p>
+                  ${this.depGraph?.conflict_messages?.length
+                    ? html`<ul class="dep-alerts">${this.depGraph.conflict_messages.map((m) => html`<li>${m}</li>`)}</ul>`
+                    : nothing}
+                  ${this.depGraph
+                    ? html`<div class="dep-tree-wrap"><easymc-dep-tree .roots=${this.depGraph.roots} compact></easymc-dep-tree></div>`
+                    : nothing}
+                </div>
+              `}
         </div>`;
       case "worlds":
         return this.renderLocals(d, "saves", "世界 / 存档", "咦？还没有存档呢… 进游戏创建世界后会出现在这里");

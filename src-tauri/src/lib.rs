@@ -39,11 +39,12 @@ use easymc_container::{
     EnvExportOptions, EnvImportOptions, EnvPackMode, MirrorProfile,
 };
 use easymc_mods::{
-    api_key, api_key_source, delete_local, install_content, install_mod, install_modpack,
-    list_installed_mods, list_local, list_mod_versions, local_dir, remove_mod, search_and_install_best,
-    search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource, ContentInstallResult,
-    LocalEntry, ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult,
-    ProjectType, SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    api_key, api_key_source, build_dep_graph, delete_local, fetch_missing_deps, install_content,
+    install_mod, install_modpack, list_installed_mods, list_local, list_mod_versions, local_dir,
+    remove_mod, search_and_install_best, search_mods, set_mod_disabled, sync_api_key_from_settings,
+    ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult, LocalEntry,
+    ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult, ProjectType,
+    SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -956,6 +957,50 @@ fn list_installed_mods_cmd(
         .find(|i| i.id == id)
         .ok_or_else(|| format!("实例不存在: {id}"))?;
     list_installed_mods(inst).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn mod_dep_graph_cmd(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<DepGraphReport, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?;
+    build_dep_graph(inst).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn fetch_missing_mod_deps_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+    only_ids: Option<Vec<String>>,
+) -> Result<FetchMissingResult, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .clone();
+    let app2 = app.clone();
+    fetch_missing_deps(&inst, only_ids, move |p| {
+        let _ = app2.emit("install-progress", &p);
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2375,6 +2420,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             list_mod_versions_cmd,
             install_mod_cmd,
             list_installed_mods_cmd,
+            mod_dep_graph_cmd,
+            fetch_missing_mod_deps_cmd,
             remove_mod_cmd,
             set_mod_disabled_cmd,
             agent_llm_status,

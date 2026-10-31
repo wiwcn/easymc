@@ -220,6 +220,48 @@ export interface ModInstallResultDto {
   skipped: boolean;
 }
 
+export type DepStatusId = "ok" | "missing" | "conflict" | "provided" | "disabled" | "unknown";
+export type DepKindId = "required" | "optional" | "incompatible";
+
+export interface DepNodeDto {
+  mod_id: string;
+  display_name: string;
+  version?: string | null;
+  filename?: string | null;
+  status: DepStatusId;
+  message_zh?: string | null;
+  version_range?: string | null;
+  dep_kind?: DepKindId | null;
+  fetchable: boolean;
+  children: DepNodeDto[];
+}
+
+export interface ModMetaDto {
+  mod_id: string;
+  version: string;
+  name?: string | null;
+  filename: string;
+  disabled: boolean;
+  kind: string;
+  depends: { mod_id: string; version_range?: string | null; kind: DepKindId }[];
+  breaks: { mod_id: string; version_range?: string | null; kind: DepKindId }[];
+}
+
+export interface DepGraphReportDto {
+  roots: DepNodeDto[];
+  installed: ModMetaDto[];
+  missing_ids: string[];
+  conflict_messages: string[];
+  summary_zh: string;
+}
+
+export interface FetchMissingResultDto {
+  attempted: string[];
+  installed: ModInstallResultDto[];
+  failed: { mod_id: string; error_zh: string }[];
+  message_zh: string;
+}
+
 export interface CurseForgeStatusDto {
   configured: boolean;
   env: string;

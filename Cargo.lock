@@ -905,6 +905,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "tokio",
+ "toml 0.8.2",
  "tracing",
  "zip",
 ]
