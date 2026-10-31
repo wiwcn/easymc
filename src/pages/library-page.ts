@@ -1,6 +1,6 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { InstanceDto, VersionSummary } from "../types";
+import type { InstalledModEntryDto, InstanceDto, VersionSummary } from "../types";
 import { versionId, versionType } from "../types";
 import {
   listInstancesState,
@@ -54,7 +54,7 @@ export class LibraryPage extends LitElement {
 
   /** Instance whose mods panel is open (PCL-like: mods live under the instance). */
   @state() private detailId: string | null = null;
-  @state() private mods: string[] = [];
+  @state() private mods: InstalledModEntryDto[] = [];
   @state() private modsLoading = false;
   @state() private busyMod: string | null = null;
   @state() private modFilter: "all" | "enabled" | "disabled" = "all";
@@ -407,21 +407,37 @@ export class LibraryPage extends LitElement {
       flex: 1;
     }
     .mod-rows {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+      gap: var(--easymc-space-3);
     }
     .mod-row {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      border-radius: var(--md-sys-shape-corner-medium);
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
       font-size: var(--easymc-type-label);
+      min-height: 0;
     }
     .mod-row.leaving {
       animation: row-out var(--easymc-dur-fast) var(--easymc-ease-in) both;
+    }
+    .mod-row.disabled { opacity: 0.62; }
+    .mod-row-top {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .mod-row img, .mod-row .ph {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--md-sys-shape-corner-large);
+      object-fit: cover;
+      background: var(--md-sys-color-primary-container);
+      flex-shrink: 0;
     }
     .mod-row .name {
       flex: 1;
@@ -429,8 +445,19 @@ export class LibraryPage extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: var(--easymc-type-label);
+      font-weight: var(--easymc-weight-medium);
+      font-size: var(--easymc-type-body);
+    }
+    .mod-row .meta {
+      margin-top: 2px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .mod-row .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: auto;
     }
     .mod-row .badge.off {
       font-size: var(--easymc-type-meta);
@@ -715,16 +742,12 @@ export class LibraryPage extends LitElement {
     }
   }
 
-  private isDisabledJar(name: string): boolean {
-    return name.endsWith(".jar.disabled");
-  }
-
-  private filteredMods(): string[] {
+  private filteredMods(): InstalledModEntryDto[] {
     if (this.modFilter === "enabled") {
-      return this.mods.filter((m) => !this.isDisabledJar(m));
+      return this.mods.filter((m) => !m.disabled);
     }
     if (this.modFilter === "disabled") {
-      return this.mods.filter((m) => this.isDisabledJar(m));
+      return this.mods.filter((m) => m.disabled);
     }
     return this.mods;
   }
@@ -917,28 +940,40 @@ export class LibraryPage extends LitElement {
           : list.length
             ? html`<div class="mod-rows">
                 ${list.map((m) => {
-                  const busy = this.busyMod === m;
-                  const disabled = this.isDisabledJar(m);
-                  const leaving = this.removingMod === m;
-                  return html`<div class="mod-row ${leaving ? "leaving" : ""}">
-                    <span class="name" title=${m}>${m}</span>
-                    ${disabled ? html`<span class="badge off">已禁用</span>` : null}
-                    <button
-                      class="btn ghost sm"
-                      type="button"
-                      ?disabled=${busy}
-                      @click=${() => this.onToggleDisabled(m)}
-                    >
-                      ${disabled ? "启用" : "禁用"}
-                    </button>
-                    <button
-                      class="danger"
-                      type="button"
-                      ?disabled=${busy}
-                      @click=${() => this.onUninstall(m)}
-                    >
-                      ${busy && leaving ? "…" : "卸载"}
-                    </button>
+                  const busy = this.busyMod === m.filename;
+                  const disabled = m.disabled;
+                  const leaving = this.removingMod === m.filename;
+                  const label = m.filename.replace(/\.jar(\.disabled)?$/i, "");
+                  const kb = Math.max(1, Math.round(m.size / 1024));
+                  return html`<div class="mod-row ${leaving ? "leaving" : ""} ${disabled ? "disabled" : ""}">
+                    <div class="mod-row-top">
+                      ${m.icon_url
+                        ? html`<img src=${m.icon_url} alt="" loading="lazy" />`
+                        : html`<div class="ph" aria-hidden="true"></div>`}
+                      <div style="min-width:0;flex:1">
+                        <div class="name" title=${m.filename}>${label}</div>
+                        <div class="meta">${kb} KB${m.source ? ` · ${m.source}` : ""}</div>
+                      </div>
+                      ${disabled ? html`<span class="badge off">已禁用</span>` : null}
+                    </div>
+                    <div class="actions">
+                      <button
+                        class="btn ghost sm"
+                        type="button"
+                        ?disabled=${busy}
+                        @click=${() => this.onToggleDisabled(m.filename)}
+                      >
+                        ${disabled ? "启用" : "禁用"}
+                      </button>
+                      <button
+                        class="danger"
+                        type="button"
+                        ?disabled=${busy}
+                        @click=${() => this.onUninstall(m.filename)}
+                      >
+                        ${busy && leaving ? "…" : "卸载"}
+                      </button>
+                    </div>
                   </div>`;
                 })}
               </div>`

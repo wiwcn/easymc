@@ -36,7 +36,7 @@ import {
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
-import type { ContainerLayerStateDto, DepGraphReportDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
+import type { ContainerLayerStateDto, DepGraphReportDto, InstalledModEntryDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
@@ -57,7 +57,7 @@ export class InstancePage extends LitElement {
   @state() private tab: Tab = "settings";
   @state() private loading = true;
   @state() private busy = false;
-  @state() private mods: string[] = [];
+  @state() private mods: InstalledModEntryDto[] = [];
   @state() private depGraph: DepGraphReportDto | null = null;
   @state() private depBusy = false;
   @state() private depMsg = "";
@@ -212,12 +212,58 @@ export class InstancePage extends LitElement {
     .list { gap: 6px; }
     .inst-skel { padding: var(--easymc-space-4) 0; }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); }
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+      gap: var(--easymc-space-3);
+      margin-top: 4px;
+    }
+    .res-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--easymc-space-3);
+      padding: var(--easymc-space-3);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation XOR border */
+      min-height: 0;
+    }
+    .res-card.disabled { opacity: 0.62; }
+    .res-card-top {
+      display: flex;
+      gap: var(--easymc-space-3);
+      align-items: flex-start;
+    }
+    .res-card img, .res-card .ph {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--md-sys-shape-corner-large);
+      object-fit: cover;
+      background: var(--md-sys-color-primary-container);
+      flex-shrink: 0;
+    }
+    .res-card .body { flex: 1; min-width: 0; }
+    .res-card .name {
+      font-weight: var(--easymc-weight-medium);
+      font-size: var(--easymc-type-body);
+      word-break: break-word;
+      line-height: 1.35;
+    }
+    .res-card .meta {
+      margin-top: 2px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .res-card-foot {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: auto;
+    }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--md-sys-color-outline-variant);
     }
-    .mod-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
-    .mod-row code { flex: 1; font-size: var(--easymc-type-meta); word-break: break-all; }
     .dep-panel {
       margin-top: 16px;
       padding-top: 14px;
@@ -621,14 +667,28 @@ export class InstancePage extends LitElement {
                 <button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>
               </easymc-empty-state></div>`
             : html`
-                ${this.mods.map((m) => {
-                  const disabled = m.endsWith(".disabled");
-                  return html`<div class="mod-row">
-                    <code>${m}</code>
-                    <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
-                    <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
-                  </div>`;
-                })}
+                <div class="resource-grid">
+                  ${this.mods.map((m) => {
+                    const disabled = m.disabled;
+                    const label = m.filename.replace(/\.jar(\.disabled)?$/i, "");
+                    const kb = Math.max(1, Math.round(m.size / 1024));
+                    return html`<div class="res-card ${disabled ? "disabled" : ""}">
+                      <div class="res-card-top">
+                        ${m.icon_url
+                          ? html`<img src=${m.icon_url} alt="" loading="lazy" />`
+                          : html`<div class="ph" aria-hidden="true"></div>`}
+                        <div class="body">
+                          <div class="name" title=${m.filename}>${label}</div>
+                          <div class="meta">${kb} KB${disabled ? " · 已禁用" : ""}${m.source ? ` · ${m.source}` : ""}</div>
+                        </div>
+                      </div>
+                      <div class="res-card-foot">
+                        <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m.filename, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
+                        <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m.filename, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
+                      </div>
+                    </div>`;
+                  })}
+                </div>
                 <div class="dep-panel">
                   <div class="dep-head">
                     <h3>依赖关系</h3>
@@ -695,14 +755,26 @@ export class InstancePage extends LitElement {
             title=${empty}
             description=""
           ></easymc-empty-state></div>`
-        : this.locals.map((e) => html`<div class="local-row">
-            <span>${e.name}${e.is_dir ? "/" : ""} <span class="muted">${Math.round(e.size / 1024)} KB</span></span>
-            <button class="danger ghost" type="button" @click=${() => this.act(async () => {
-              if (!confirm(`删除 ${e.name}？`)) return;
-              await deleteLocalContent(d.id, kind, e.name);
-              await this.refreshTab();
-            })}>删除</button>
+        : html`<div class="resource-grid">
+          ${this.locals.map((e) => html`<div class="res-card">
+            <div class="res-card-top">
+              ${e.icon_url
+                ? html`<img src=${e.icon_url} alt="" loading="lazy" />`
+                : html`<div class="ph" aria-hidden="true"></div>`}
+              <div class="body">
+                <div class="name" title=${e.name}>${e.name}${e.is_dir ? "/" : ""}</div>
+                <div class="meta">${Math.max(1, Math.round(e.size / 1024))} KB</div>
+              </div>
+            </div>
+            <div class="res-card-foot">
+              <button class="danger ghost" type="button" @click=${() => this.act(async () => {
+                if (!confirm(`删除 ${e.name}？`)) return;
+                await deleteLocalContent(d.id, kind, e.name);
+                await this.refreshTab();
+              })}>删除</button>
+            </div>
           </div>`)}
+        </div>`}
     </div>`;
   }
 

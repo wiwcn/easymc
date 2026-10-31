@@ -53,9 +53,9 @@ use easymc_container::{
 };
 use easymc_mods::{
     api_key, api_key_source, build_dep_graph, delete_local, fetch_missing_deps, install_content,
-    install_mod, install_modpack, list_installed_mods, list_local, list_mod_versions, local_dir,
+    install_mod, install_modpack, list_installed_mod_entries, list_local, list_mod_versions, local_dir,
     remove_mod, search_and_install_best, search_mods, set_mod_disabled, sync_api_key_from_settings,
-    ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult, LocalEntry,
+    ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult, InstalledModEntry, LocalEntry,
     ModInstallResult, ModProject, ModSource, ModVersion, ModpackInstallResult, ProjectType,
     SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
@@ -1119,7 +1119,7 @@ async fn install_mod_cmd(
 fn list_installed_mods_cmd(
     state: State<'_, AppState>,
     instance_id: Option<String>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<InstalledModEntry>, String> {
     let paths = state_paths(&state);
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
@@ -1130,7 +1130,7 @@ fn list_installed_mods_cmd(
         .iter()
         .find(|i| i.id == id)
         .ok_or_else(|| format!("实例不存在: {id}"))?;
-    list_installed_mods(inst).map_err(|e| e.to_string())
+    list_installed_mod_entries(inst).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

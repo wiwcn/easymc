@@ -142,11 +142,12 @@ export class StorePage extends LitElement {
       transition: width 0.15s ease;
     }
     .list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--easymc-space-2);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+      gap: var(--easymc-space-3);
       flex: 1 1 auto;
       min-height: 220px;
+      align-content: start;
     }
     .results-slot {
       flex: 1 1 auto;
@@ -155,36 +156,48 @@ export class StorePage extends LitElement {
       min-height: 220px;
     }
     .card {
-      display: grid;
-      grid-template-columns: 44px 1fr auto;
+      display: flex;
+      flex-direction: column;
       gap: var(--easymc-space-3);
-      align-items: start;
-      padding: var(--easymc-space-3) var(--easymc-space-4);
+      padding: var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      box-shadow: var(--md-sys-elevation-1);
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1); /* CF-1 */
+      min-height: 0;
+    }
+    .card-top {
+      display: flex;
+      gap: var(--easymc-space-3);
+      align-items: flex-start;
     }
     .icon {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--md-sys-shape-corner-medium);
+      width: 56px;
+      height: 56px;
+      border-radius: var(--md-sys-shape-corner-large);
       object-fit: cover;
-      background: var(--md-sys-color-surface-container-highest);
+      background: var(--md-sys-color-primary-container);
+      flex-shrink: 0;
     }
     .icon.placeholder {
       display: grid;
       place-items: center;
       font-size: var(--easymc-type-title);
+      color: var(--md-sys-color-on-primary-container);
     }
     .title {
       font-weight: var(--easymc-weight-medium);
       margin: 0 0 4px;
+      font-size: var(--easymc-type-body);
     }
     .desc {
       margin: 0;
-      font-size: var(--easymc-type-label);
+      font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .stats {
       margin-top: 6px;
@@ -193,12 +206,12 @@ export class StorePage extends LitElement {
     }
     .actions {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 6px;
-      align-items: stretch;
+      align-items: center;
+      margin-top: auto;
     }
     .versions {
-      grid-column: 1 / -1;
       border-top: 1px solid var(--md-sys-color-outline-variant);
       padding-top: 10px;
       margin-top: 4px;
@@ -558,16 +571,17 @@ export class StorePage extends LitElement {
     const expanded = this.expandedId === p.id;
     return html`
       <div class="card">
-        ${p.icon_url
-          ? html`<img class="icon" src=${p.icon_url} alt="" />`
-          : html`<div class="icon placeholder" aria-hidden="true">M</div>`}
-        <div>
-          <p class="title">${p.name}</p>
-          <p class="desc">${p.description}</p>
-          <div class="stats">
-            ${p.source} · 下载 ${this.formatDl(p.downloads)}
-            ${p.author ? html` · ${p.author}` : null}
-            · <code>${p.slug || p.id}</code>
+        <div class="card-top">
+          ${p.icon_url
+            ? html`<img class="icon" src=${p.icon_url} alt="" loading="lazy" />`
+            : html`<div class="icon placeholder" aria-hidden="true">M</div>`}
+          <div>
+            <p class="title">${p.name}</p>
+            <p class="desc">${p.description}</p>
+            <div class="stats">
+              ${p.source} · ↓ ${this.formatDl(p.downloads)}
+              ${p.author ? html` · ${p.author}` : null}
+            </div>
           </div>
         </div>
         <div class="actions">

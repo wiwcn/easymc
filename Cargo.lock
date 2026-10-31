@@ -787,6 +787,7 @@ dependencies = [
 name = "easymc-app"
 version = "0.1.14"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "easymc-agent",
  "easymc-container",
@@ -843,6 +844,7 @@ dependencies = [
 name = "easymc-core"
 version = "0.1.14"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "dirs 6.0.0",
  "md-5",
@@ -895,6 +897,7 @@ name = "easymc-mods"
 version = "0.1.14"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "easymc-core",
  "easymc-meta",

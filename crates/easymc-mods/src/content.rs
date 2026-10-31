@@ -28,6 +28,9 @@ pub struct LocalEntry {
     pub is_dir: bool,
     pub size: u64,
     pub modified: Option<String>,
+    /// HTTP(S) marketplace icon or `data:` URL from pack.png / jar icon.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
 }
 
 /// Local folder kinds the instance pane manages.
@@ -66,6 +69,82 @@ fn dir_size(p: &Path) -> u64 {
         .sum()
 }
 
+
+fn content_index_path(dir: &Path) -> PathBuf {
+    dir.join(".easymc-content.json")
+}
+
+fn read_cached_icon(dir: &Path, name: &str) -> Option<String> {
+    let path = content_index_path(dir);
+    if !path.is_file() {
+        return None;
+    }
+    let root: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).ok()?).ok()?;
+    let arr = root.get("entries")?.as_array()?;
+    let stem = name.strip_suffix(".disabled").unwrap_or(name);
+    for e in arr {
+        let f = e.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+        let f_stem = f.strip_suffix(".disabled").unwrap_or(f);
+        if f == name || f_stem == stem {
+            if let Some(u) = e.get("icon_url").and_then(|v| v.as_str()) {
+                let t = u.trim();
+                if !t.is_empty() {
+                    return Some(t.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn write_content_index_entry(
+    dir: &Path,
+    filename: &str,
+    source: ModSource,
+    project_id: &str,
+    icon_url: Option<&str>,
+) -> Result<()> {
+    use serde_json::{json, Value};
+    let path = content_index_path(dir);
+    let mut root: Value = if path.is_file() {
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default())
+            .unwrap_or_else(|_| json!({ "entries": [] }))
+    } else {
+        json!({ "entries": [] })
+    };
+    let entry = json!({
+        "filename": filename,
+        "source": source.as_str(),
+        "project_id": project_id,
+        "icon_url": icon_url,
+    });
+    let entries = root
+        .as_object_mut()
+        .map(|o| o.entry("entries".to_string()).or_insert_with(|| json!([])))
+        .ok_or_else(|| EasyMcError::msg("content index corrupt"))?;
+    if let Some(arr) = entries.as_array_mut() {
+        if let Some(slot) = arr
+            .iter_mut()
+            .find(|m| m.get("filename").and_then(|v| v.as_str()) == Some(filename))
+        {
+            *slot = entry;
+        } else {
+            arr.push(entry);
+        }
+    }
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(path, serde_json::to_string_pretty(&root)?)?;
+    Ok(())
+}
+
+fn resolve_entry_icon(dir: &Path, name: &str, path: &Path) -> Option<String> {
+    if let Some(u) = read_cached_icon(dir, name) {
+        return Some(u);
+    }
+    crate::icon::extract_local_icon(path)
+}
+
 pub fn list_local(instance: &Instance, kind: &str) -> Result<Vec<LocalEntry>> {
     let dir = local_dir(instance, kind)?;
     if !dir.is_dir() {
@@ -87,11 +166,14 @@ pub fn list_local(instance: &Instance, kind: &str) -> Result<Vec<LocalEntry>> {
             .modified()
             .ok()
             .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
+        let path = ent.path();
+        let icon_url = resolve_entry_icon(&dir, &name, &path);
         out.push(LocalEntry {
-            size: if is_dir { dir_size(&ent.path()) } else { meta.len() },
+            size: if is_dir { dir_size(&path) } else { meta.len() },
             name,
             is_dir,
             modified,
+            icon_url,
         });
     }
     out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -205,6 +287,13 @@ pub async fn install_content(
     let fname = safe_name(&file.filename)?.to_string();
     let dest = dest_dir.join(&fname);
     let r = download_file(&client, &url, &dest, file.sha1.as_deref(), file.size, |_, _| {}).await?;
+    let _ = write_content_index_entry(
+        &dest_dir,
+        &fname,
+        source,
+        project_id,
+        project.icon_url.as_deref(),
+    );
     Ok(ContentInstallResult {
         project_type: kind,
         project_name: project.name,

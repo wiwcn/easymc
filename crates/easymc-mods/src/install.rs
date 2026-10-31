@@ -32,6 +32,89 @@ pub fn list_installed_mods(instance: &Instance) -> Result<Vec<String>> {
     Ok(names)
 }
 
+/// Rich installed-mod listing for the instance UI (icons + size).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct InstalledModEntry {
+    pub filename: String,
+    pub disabled: bool,
+    pub size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+}
+
+fn read_mod_index(instance: &Instance) -> serde_json::Value {
+    use serde_json::json;
+    let path = mods_dir(instance).join(".easymc-mods.json");
+    if !path.is_file() {
+        return json!({ "mods": [] });
+    }
+    serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default())
+        .unwrap_or_else(|_| json!({ "mods": [] }))
+}
+
+fn index_icon_for(root: &serde_json::Value, filename: &str) -> (Option<String>, Option<String>, Option<String>) {
+    let stem = filename.strip_suffix(".disabled").unwrap_or(filename);
+    let Some(arr) = root.get("mods").and_then(|m| m.as_array()) else {
+        return (None, None, None);
+    };
+    for m in arr {
+        let f = m.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+        let f_stem = f.strip_suffix(".disabled").unwrap_or(f);
+        if f == filename || f_stem == stem {
+            let icon = m
+                .get("icon_url")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string());
+            let source = m
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let project_id = m
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            return (icon, source, project_id);
+        }
+    }
+    (None, None, None)
+}
+
+pub fn list_installed_mod_entries(instance: &Instance) -> Result<Vec<InstalledModEntry>> {
+    let dir = mods_dir(instance);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let index = read_mod_index(instance);
+    let mut out = Vec::new();
+    for ent in std::fs::read_dir(&dir)? {
+        let ent = ent?;
+        let name = ent.file_name().to_string_lossy().into_owned();
+        if !(name.ends_with(".jar") || name.ends_with(".jar.disabled")) {
+            continue;
+        }
+        let meta = ent.metadata()?;
+        let disabled = name.ends_with(".jar.disabled");
+        let (cached_icon, source, project_id) = index_icon_for(&index, &name);
+        let icon_url = cached_icon.or_else(|| crate::icon::extract_local_icon(&ent.path()));
+        out.push(InstalledModEntry {
+            filename: name,
+            disabled,
+            size: meta.len(),
+            icon_url,
+            source,
+            project_id,
+        });
+    }
+    out.sort_by(|a, b| a.filename.to_lowercase().cmp(&b.filename.to_lowercase()));
+    Ok(out)
+}
+
 pub async fn search_mods(source: ModSource, query: &SearchQuery) -> Result<Vec<ModProject>> {
     match source {
         ModSource::Modrinth => modrinth::search(query).await,
@@ -240,6 +323,7 @@ pub async fn install_mod(
         &project.id,
         &version.id,
         file.sha1.as_deref(),
+        project.icon_url.as_deref(),
     );
     Ok(result)
 }
@@ -251,6 +335,7 @@ fn write_mod_index_entry(
     project_id: &str,
     version_id: &str,
     sha1: Option<&str>,
+    icon_url: Option<&str>,
 ) -> Result<()> {
     use serde_json::{json, Value};
     let path = mods_dir(instance).join(".easymc-mods.json");
@@ -267,6 +352,7 @@ fn write_mod_index_entry(
         "source": source.as_str(),
         "project_id": project_id,
         "version_id": version_id,
+        "icon_url": icon_url,
     });
     let mods = root
         .as_object_mut()

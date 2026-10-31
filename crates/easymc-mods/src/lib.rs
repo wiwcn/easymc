@@ -1,6 +1,7 @@
 //! Modrinth + CurseForge search and install into an instance `mods/` folder.
 
 mod content;
+mod icon;
 mod curseforge;
 mod deps;
 mod modpack;
@@ -15,8 +16,9 @@ pub use curseforge::{
     stored_api_key, sync_api_key_from_settings, ApiKeySource, API_KEY_ENV, CONSOLE_URL,
 };
 pub use install::{
-    install_mod, list_installed_mods, list_mod_versions, mods_dir, remove_mod,
+    install_mod, list_installed_mod_entries, list_installed_mods, list_mod_versions, mods_dir, remove_mod,
     sanitize_mod_filename, score_mod_match, search_and_install_best, search_mods, set_mod_disabled,
+    InstalledModEntry,
 };
 pub use types::*;
 pub use content::{
@@ -27,6 +29,7 @@ pub use modpack::{install_modpack, install_mrpack_file, ModpackInstallResult};
 pub use metadata::{
     is_provided_mod_id, read_mod_meta, version_satisfies, DepKind, ModDepReq, ModMeta, ModMetaKind,
 };
+pub use icon::{bytes_to_data_url, extract_local_icon};
 pub use deps::{
     build_dep_graph, fetch_missing_deps, DepGraphReport, DepNode, DepStatus, FetchFail,
     FetchMissingResult,

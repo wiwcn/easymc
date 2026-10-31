@@ -93,6 +93,16 @@ export interface LocalEntryDto {
   is_dir: boolean;
   size: number;
   modified?: string | null;
+  icon_url?: string | null;
+}
+
+export interface InstalledModEntryDto {
+  filename: string;
+  disabled: boolean;
+  size: number;
+  icon_url?: string | null;
+  source?: string | null;
+  project_id?: string | null;
 }
 
 export interface ContentInstallResultDto {
