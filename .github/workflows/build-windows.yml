@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "GitHub Release tag (empty = artifact only)"
         required: false
-        default: "v0.1.18"
+        default: "v0.1.19"
 
 permissions:
   contents: write
