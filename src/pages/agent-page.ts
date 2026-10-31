@@ -334,13 +334,15 @@ export class AgentPage extends LitElement {
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+      border: none;
+      outline: 1px solid transparent;
     }
     .tool-card.running {
-      border-color: color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent);
+      outline-color: color-mix(in oklch, var(--md-sys-color-primary) 45%, transparent);
+      box-shadow: var(--md-sys-elevation-2);
     }
     .tool-card.error {
-      border-color: color-mix(in srgb, var(--md-sys-color-error) 55%, transparent);
+      outline-color: color-mix(in oklch, var(--md-sys-color-error) 55%, transparent);
     }
     .tool-card-head {
       display: flex;
@@ -352,7 +354,7 @@ export class AgentPage extends LitElement {
     .tool-card-head h3 {
       margin: 0;
       font-size: var(--easymc-type-title);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -440,7 +442,7 @@ export class AgentPage extends LitElement {
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
-      border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+      border: none;
     }
     .proposal-head {
       display: flex;
@@ -452,7 +454,7 @@ export class AgentPage extends LitElement {
     .proposal-head h3 {
       margin: 0;
       font-size: var(--easymc-type-title);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -495,7 +497,7 @@ export class AgentPage extends LitElement {
       font-weight: 600;
     }
     .proposal-table .proposed {
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
     }
     .proposal-actions {
       display: flex;
@@ -534,8 +536,8 @@ export class AgentPage extends LitElement {
       gap: var(--easymc-space-2);
       padding: var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-extra-large);
-      background: var(--md-sys-color-surface-container);
-      box-shadow: none;
+      background: var(--md-sys-color-surface-container-low);
+      box-shadow: var(--md-sys-elevation-1);
       border: none;
       align-self: start;
       max-height: 100%;
@@ -544,7 +546,7 @@ export class AgentPage extends LitElement {
     .tools h2 {
       margin: 0 0 var(--easymc-space-2);
       font-size: var(--easymc-type-label);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
       letter-spacing: 0.02em;
       text-transform: none;
@@ -581,7 +583,7 @@ export class AgentPage extends LitElement {
     }
     button.tool strong {
       font-size: var(--easymc-type-label);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface);
     }
     button.tool span {

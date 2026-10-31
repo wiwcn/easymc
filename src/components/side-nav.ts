@@ -140,18 +140,21 @@ export class SideNav extends LitElement {
       width: 100%;
       padding: 12px;
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
       cursor: pointer;
-      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      border: none;
+      box-shadow: var(--md-sys-elevation-1);
       text-align: left;
       font: inherit;
       transition:
         background var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.acct-card:hover {
       background: var(--md-sys-color-surface-container);
+      box-shadow: var(--md-sys-elevation-2);
     }
     button.acct-card:active {
       transform: scale(0.98);
@@ -193,7 +196,7 @@ export class SideNav extends LitElement {
       opacity: var(--md-sys-state-pressed-opacity);
     }
     button.acct-card easymc-skin-avatar {
-      --easymc-skin-avatar-size: 36px;
+      --easymc-skin-avatar-size: 40px;
     }
     .acct-body {
       flex: 1;
@@ -202,7 +205,7 @@ export class SideNav extends LitElement {
     .acct-name {
       display: block;
       font-size: var(--easymc-type-label);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       letter-spacing: -0.01em;
       margin-bottom: 3px;
       white-space: nowrap;

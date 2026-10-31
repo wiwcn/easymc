@@ -48,7 +48,7 @@ export class EmptyState extends LitElement {
     .title {
       margin: 0 0 8px;
       font-size: var(--easymc-type-title);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       letter-spacing: -0.02em;
       color: var(--md-sys-color-on-surface);
       line-height: 1.35;

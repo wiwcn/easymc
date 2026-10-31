@@ -88,7 +88,7 @@ export class InstancePage extends LitElement {
       width: 100%;
       box-sizing: border-box;
     }
-    h1 { font-size: var(--easymc-type-display); font-weight: 650; margin: 0 0 2px; letter-spacing: -0.02em; }
+    h1 { font-size: var(--easymc-type-display); font-weight: var(--easymc-weight-medium); margin: 0 0 2px; letter-spacing: -0.02em; }
     .sub { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-label); margin: 0 0 12px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
     button, select, input {

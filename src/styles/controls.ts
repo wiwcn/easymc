@@ -258,7 +258,7 @@ export const controlStyles = css`
   .md-tabs button.on,
   .md-segmented button.on {
     color: var(--md-sys-color-on-secondary-container);
-    font-weight: 650;
+    font-weight: var(--easymc-weight-medium);
   }
   .md-tabs button:focus-visible,
   .md-segmented button:focus-visible {
@@ -429,7 +429,7 @@ export const controlStyles = css`
     min-width: 4.5rem;
     text-align: right;
     font-variant-numeric: tabular-nums;
-    font-weight: 650;
+    font-weight: var(--easymc-weight-medium);
     font-size: var(--easymc-type-body);
     color: var(--md-sys-color-on-surface);
   }

@@ -141,7 +141,7 @@ export class DownloadPage extends LitElement {
     button.outline-dl {
       border: 1.5px solid var(--md-sys-color-primary);
       background: transparent; color: var(--md-sys-color-primary);
-      border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; cursor: pointer; font-weight: 650; font-size: var(--easymc-type-label);
+      border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; cursor: pointer; font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-label);
     }
     .market-grid {
       display: grid;
@@ -157,11 +157,11 @@ export class DownloadPage extends LitElement {
     }
     .card-top { display: flex; gap: var(--easymc-space-3); align-items: flex-start; }
     .card img, .card .ph {
-      width: 48px; height: 48px; border-radius: var(--md-sys-shape-corner-medium); object-fit: cover;
+      width: 56px; height: 56px; border-radius: var(--md-sys-shape-corner-large); object-fit: cover;
       background: var(--md-sys-color-primary-container); flex-shrink: 0;
     }
     .card .body { flex: 1; min-width: 0; }
-    .card .name { font-weight: 650; font-size: var(--easymc-type-body); letter-spacing: -0.01em; }
+    .card .name { font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-body); letter-spacing: -0.01em; }
     .card .desc {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -228,7 +228,7 @@ export class DownloadPage extends LitElement {
       display: flex; align-items: center; gap: var(--easymc-space-2); flex-wrap: wrap;
       font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); margin-bottom: var(--easymc-space-3);
     }
-    .crumb strong { color: var(--md-sys-color-on-surface); font-weight: 650; }
+    .crumb strong { color: var(--md-sys-color-on-surface); font-weight: var(--easymc-weight-medium); }
     .crumb button {
       border: none; background: transparent; color: var(--md-sys-color-primary);
       cursor: pointer; font: inherit; font-weight: 600; padding: 0;
@@ -243,19 +243,21 @@ export class DownloadPage extends LitElement {
       display: flex; gap: var(--easymc-space-3); align-items: center;
       padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
-      border: 1.5px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
-      /* CF-1: border only (selection affordance) */
-      transition: border-color var(--easymc-dur-press) var(--easymc-ease-out),
+      border: none;
+      box-shadow: var(--md-sys-elevation-1);
+      /* CF-1: elevation idle; selected state uses fill + outline */
+      transition: box-shadow var(--easymc-dur-press) var(--easymc-ease-out),
         background var(--easymc-dur-press) var(--easymc-ease-out),
+        outline-color var(--easymc-dur-press) var(--easymc-ease-out),
         transform var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.ver-card:hover, button.loader-card:hover {
       background: var(--md-sys-color-surface-container);
-      border-color: var(--md-sys-color-primary);
+      box-shadow: var(--md-sys-elevation-2);
     }
     button.ver-card:active, button.loader-card:active { transform: scale(0.985); }
     button.ver-card:focus-visible, button.loader-card:focus-visible {
-      outline: none; border-color: var(--md-sys-color-primary);
+      outline: none;
       box-shadow: var(--easymc-focus-ring);
     }
     button.ver-card .vid {
@@ -265,13 +267,13 @@ export class DownloadPage extends LitElement {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
     }
     .badge-inst {
-      margin-left: auto; font-size: var(--easymc-type-meta); font-weight: 650;
+      margin-left: auto; font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium);
       padding: 3px 8px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
     }
     .badge-stable {
-      font-size: var(--easymc-type-meta); font-weight: 650;
+      font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium);
       padding: 2px 7px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container); flex-shrink: 0;
@@ -279,14 +281,16 @@ export class DownloadPage extends LitElement {
     /* Selected card: the pick needs to be legible at a glance, so the fill (not
        just the border) changes. */
     button.ver-card.on, button.loader-card.on {
-      border-color: var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 0;
+      box-shadow: var(--md-sys-elevation-2);
     }
     button.ver-card.on .vid, button.ver-card.on .meta { color: var(--md-sys-color-on-primary-container); }
     .panel-head {
       display: flex; align-items: baseline; justify-content: space-between;
       gap: var(--easymc-space-2); margin-bottom: var(--easymc-space-3);
-      font-size: var(--easymc-type-label); font-weight: 650;
+      font-size: var(--easymc-type-label); font-weight: var(--easymc-weight-medium);
     }
     /* Loader builds as cards: scrolls instead of stretching the page when a
        loader ships hundreds of builds. */
@@ -301,19 +305,19 @@ export class DownloadPage extends LitElement {
       padding: 10px 12px; gap: var(--easymc-space-2); justify-content: space-between;
     }
     button.ver-card.lv .vid {
-      font-size: var(--easymc-type-label); font-weight: 650; letter-spacing: 0;
+      font-size: var(--easymc-type-label); font-weight: var(--easymc-weight-medium); letter-spacing: 0;
       font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis;
     }
     /* Official loader marks: monochrome paths tinted per loader, sitting on a
        matching wash so the tile still reads as a coloured chip. */
     .loader-ico {
-      width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium); flex-shrink: 0;
+      width: 48px; height: 48px; border-radius: var(--md-sys-shape-corner-large); flex-shrink: 0;
       display: grid; place-items: center;
       background: color-mix(in oklch, currentColor 14%, transparent);
       border: 1px solid color-mix(in oklch, currentColor 28%, transparent);
       transition: background var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    .loader-ico svg { width: 22px; height: 22px; display: block; }
+    .loader-ico svg { width: 26px; height: 26px; display: block; }
     .loader-ico.vanilla { color: oklch(0.55 0.12 148); }
     .loader-ico.fabric { color: oklch(0.62 0.13 78); }
     .loader-ico.quilt { color: oklch(0.6 0.14 305); }
@@ -767,8 +771,8 @@ export class DownloadPage extends LitElement {
       ${!this.loading && this.results.length === 0 && !this.error
         ? html`<div class="results-slot"><easymc-empty-state
             variant="panel"
-            title="暂时没有结果"
-            description="换个关键词，或点搜索查看热门内容"
+            title="咦？好像什么都没搜到…"
+            description="换个关键词试试，或者清空后再搜热门内容"
           >
             <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>清空筛选</button>
           </easymc-empty-state></div>`

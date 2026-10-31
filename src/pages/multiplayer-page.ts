@@ -22,10 +22,11 @@ export class MultiplayerPage extends LitElement {
         text-align: center;
         padding: var(--easymc-space-6) var(--easymc-space-5);
         border-radius: var(--md-sys-shape-corner-extra-large);
-        background: var(--md-sys-color-surface-container-low);
-        /* CF-1: border only (dashed placeholder surface) */
-        border: 1px dashed var(--md-sys-color-outline-variant);
-        box-shadow: none;
+        background: var(--md-sys-color-surface-container-lowest);
+        /* CF-1: soft elev card; optical nudge like EmptyState */
+        border: none;
+        box-shadow: var(--md-sys-elevation-1);
+        transform: translateY(-4%);
       }
       .soon {
         display: inline-block;

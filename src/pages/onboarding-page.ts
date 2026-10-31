@@ -131,30 +131,35 @@ export class OnboardingPage extends LitElement {
       grid-template-columns: 1fr auto;
       gap: 8px;
       align-items: center;
-      padding: 10px 12px;
-      border-radius: var(--md-sys-shape-corner-medium);
-      border: 1px solid var(--md-sys-color-outline-variant);
+      padding: 12px 14px;
+      border-radius: var(--md-sys-shape-corner-large);
+      border: none;
+      box-shadow: var(--md-sys-elevation-1);
       background: var(--md-sys-color-surface-container-lowest);
       cursor: pointer;
       text-align: left;
       font: inherit;
       color: inherit;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
     .mirror-row.on {
-      border-color: var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 0;
+      box-shadow: var(--md-sys-elevation-2);
     }
     .mirror-row .lat { font-size: var(--easymc-type-label); opacity: 0.85; white-space: nowrap; }
     .mirror-row .badge {
       display: inline-block;
       margin-left: 6px;
-      padding: 1px 6px;
+      padding: 2px 8px;
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-tertiary-container);
       color: var(--md-sys-color-on-tertiary-container);
-      font-size: 11px;
-      font-weight: 600;
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-medium);
     }
     .probe-btn { margin-top: 8px; display: inline-flex; align-items: center; gap: 8px; }
     .probe-spin {
@@ -169,12 +174,20 @@ export class OnboardingPage extends LitElement {
     button.opt {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
       padding: 16px 18px; border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      border: 1px solid var(--md-sys-color-outline-variant);
-      transition: background var(--easymc-dur-press) var(--easymc-ease-out), border-color var(--easymc-dur-press) var(--easymc-ease-out);
+      background: var(--md-sys-color-surface-container-lowest);
+      border: none;
+      box-shadow: var(--md-sys-elevation-1);
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    button.opt:hover { background: var(--md-sys-color-surface-container); }
-    button.opt.sel { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+    button.opt:hover { background: var(--md-sys-color-surface-container); box-shadow: var(--md-sys-elevation-2); }
+    button.opt.sel {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 0;
+      box-shadow: var(--md-sys-elevation-2);
+    }
     button.opt strong { display: block; font-size: var(--easymc-type-title); margin-bottom: 4px; }
     button.opt span { font-size: var(--easymc-type-label); opacity: 0.85; line-height: 1.45; }
     button.opt:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }

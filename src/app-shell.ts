@@ -63,7 +63,7 @@ export class EasyMcApp extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       font-size: var(--easymc-type-title);
       letter-spacing: -0.025em;
       color: var(--md-sys-color-on-surface);

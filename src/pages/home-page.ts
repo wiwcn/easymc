@@ -196,7 +196,7 @@ export class HomePage extends LitElement {
       gap: var(--easymc-space-5);
       padding: var(--easymc-space-6) var(--easymc-space-6) var(--easymc-space-5);
       align-items: stretch;
-      min-height: 196px;
+      min-height: 228px;
       transition:
         padding var(--easymc-dur-med) var(--easymc-ease-out),
         min-height var(--easymc-dur-med) var(--easymc-ease-out),
@@ -209,8 +209,8 @@ export class HomePage extends LitElement {
       align-items: center;
     }
     .art {
-      width: 152px;
-      height: 168px;
+      width: 176px;
+      height: 196px;
       border-radius: var(--md-sys-shape-corner-extra-large);
       flex-shrink: 0;
       align-self: center;
@@ -300,6 +300,21 @@ export class HomePage extends LitElement {
       color: var(--md-sys-color-on-primary);
       border: 1.5px solid transparent;
     }
+    .chip.container {
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      border: 1.5px solid transparent;
+      gap: 5px;
+    }
+    .chip.container::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
+      flex-shrink: 0;
+    }
     .feat-desc {
       margin: 0;
       font-size: var(--easymc-type-body);
@@ -312,7 +327,7 @@ export class HomePage extends LitElement {
       justify-content: space-between;
       gap: var(--easymc-space-3);
       flex-wrap: wrap;
-      padding: var(--easymc-space-4) var(--easymc-space-5);
+      padding: var(--easymc-space-5) var(--easymc-space-6);
       border-top: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       background: color-mix(in oklch, var(--md-sys-color-surface-container-low) 55%, transparent);
     }
@@ -422,7 +437,7 @@ export class HomePage extends LitElement {
       padding: 6px 12px;
       font: inherit;
       font-size: var(--easymc-type-meta);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       cursor: pointer;
     }
     .status-agent:hover { filter: brightness(1.05); }
@@ -457,7 +472,7 @@ export class HomePage extends LitElement {
     /* Only the hero art needs an explicit narrow rule: everything else in the
        featured card is already fluid. */
     @container easymc-page (max-width: 560px) {
-      .art { width: 120px; height: 132px; }
+      .art { width: 128px; height: 144px; }
       .featured-top { min-height: 0; }
     }
     button.vcard {
@@ -514,7 +529,7 @@ export class HomePage extends LitElement {
     .tile svg { width: 26px; height: 26px; }
     .vcard .title {
       font-size: var(--easymc-type-body);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
       letter-spacing: -0.02em;
       line-height: 1.25;
       overflow: hidden;
@@ -536,11 +551,15 @@ export class HomePage extends LitElement {
     }
     .vchip {
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       padding: 3px 9px;
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
+    }
+    .vchip.container {
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
     }
     .ready {
       display: inline-flex;
@@ -842,7 +861,7 @@ export class HomePage extends LitElement {
               <span class="chip outline">${ver}</span>
               <span class="chip solid">${loader}</span>
               ${f.container
-                ? html`<span class="chip outline" title="容器隔离版本">容器</span>`
+                ? html`<span class="chip container" title="模组与配置已隔离，互不干扰">容器</span>`
                 : nothing}
               ${ready
                 ? html`<span class="chip outline">已就绪</span>`
@@ -1008,7 +1027,7 @@ export class HomePage extends LitElement {
           <span class="meta">${label}</span>
           <div class="vcard-foot">
             <span class="ready ${ready ? "" : "not"}"><i></i>${ready ? "已就绪" : "未安装"}</span>
-            ${i.container ? html`<span class="vchip" title="容器隔离版本">容器</span>` : nothing}
+            ${i.container ? html`<span class="vchip container" title="模组与配置已隔离，互不干扰">容器</span>` : nothing}
           </div>
         </span>
       </button>

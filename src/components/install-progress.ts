@@ -89,7 +89,7 @@ export class InstallProgress extends LitElement {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       font-size: var(--easymc-type-meta);
-      font-weight: 650;
+      font-weight: var(--easymc-weight-medium);
     }
     .dot {
       width: 7px;
