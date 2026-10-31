@@ -6,6 +6,8 @@ mod error;
 mod instance;
 mod paths;
 mod store;
+mod skin;
+mod wardrobe;
 
 pub mod msa;
 pub use account::*;
@@ -14,3 +16,5 @@ pub use error::*;
 pub use instance::*;
 pub use paths::*;
 pub use store::*;
+pub use skin::*;
+pub use wardrobe::*;

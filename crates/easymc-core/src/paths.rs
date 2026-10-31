@@ -34,6 +34,8 @@ impl Paths {
             self.instances_dir(),
             self.runtimes_dir(),
             self.natives_dir(),
+            self.skins_dir(),
+            self.skins_files_dir(),
         ] {
             std::fs::create_dir_all(p)?;
         }
@@ -94,5 +96,15 @@ impl Paths {
 
     pub fn library_path(&self, relative: impl AsRef<Path>) -> PathBuf {
         self.libraries_dir().join(relative)
+    }
+
+    pub fn skins_dir(&self) -> PathBuf {
+        self.root.join("skins")
+    }
+    pub fn skins_files_dir(&self) -> PathBuf {
+        self.skins_dir().join("files")
+    }
+    pub fn wardrobe_file(&self) -> PathBuf {
+        self.skins_dir().join("wardrobe.json")
     }
 }
