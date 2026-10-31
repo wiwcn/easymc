@@ -283,6 +283,8 @@ struct UpdateSettingsPatch {
     mode: Option<String>,
     onboarding_complete: Option<bool>,
     preferred_login: Option<String>,
+    /// Absolute path to `java` binary; empty string clears (auto-pick highest).
+    preferred_java: Option<String>,
     memory_mb: Option<u32>,
     msa_client_id: Option<String>,
     clear_msa_client_id: Option<bool>,
@@ -312,6 +314,10 @@ fn update_settings_cmd(
     if let Some(login) = patch.preferred_login {
         let t = login.trim().to_string();
         settings.preferred_login = if t.is_empty() { None } else { Some(t) };
+    }
+    if let Some(java) = patch.preferred_java {
+        let t = java.trim().to_string();
+        settings.preferred_java = if t.is_empty() { None } else { Some(t) };
     }
     if let Some(mb) = patch.memory_mb {
         settings.memory_mb = mb.clamp(512, 32768);

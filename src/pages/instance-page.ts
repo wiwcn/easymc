@@ -450,7 +450,7 @@ export class InstancePage extends LitElement {
           <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
           ${d.container
             ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
-                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">隔离层改动</h2>
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">隔离改动</h2>
                 <p class="muted" style="margin:0 0 10px">助手改模组或配置后，可在这里「应用」保留，或「丢弃」恢复原样（存档不会动）。</p>
                 <p class="muted" style="margin:0 0 10px">${this.layerState?.message_zh || this.workspaceHint || "加载层状态…"}</p>
                 <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -474,22 +474,22 @@ export class InstancePage extends LitElement {
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: false });
                     showToast(r.message_zh);
-                  })}>导出环境包</button>
+                  })}>分享环境说明</button>
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerExportEnv(d.id, { pack: true });
                     showToast(r.message_zh);
-                  })}>导出完整环境包</button>
+                  })}>分享完整环境</button>
                 </div>
               </div>`
             : html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
-                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">容器隔离</h2>
-                <p class="muted" style="margin:0 0 10px">可选。开启后，这个版本的模组与配置会单独存放，不影响其它版本。请先在设置里完成一键配置。</p>
+                <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">版本隔离</h2>
+                <p class="muted" style="margin:0 0 10px">可选。开启后，这个版本的模组与配置单独存放，不影响其它版本。请先在设置「启动」里开好隔离环境。</p>
                 <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                   await containerAttach(d.id);
-                  showToast("已为这个版本开启容器隔离");
+                  showToast("已为这个版本开启隔离");
                   await this.load();
                   await this.refreshLayer(d.id);
-                })}>开启容器隔离</button>
+                })}>开启版本隔离</button>
               </div>`}
         </div>`;
       case "installers":
@@ -542,18 +542,18 @@ export class InstancePage extends LitElement {
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
             <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
           </div>
-          <h2 style="margin-top:20px">分享环境包</h2>
-          <p class="muted">把模组、配置和加速源偏好打成环境包（不含存档），发给好友导入后会得到一个新的隔离版本。</p>
+          <h2 style="margin-top:20px">分享隔离环境</h2>
+          <p class="muted">把模组、配置和加速偏好打包发给好友（不含存档）。对方导入后会得到一个新的隔离版本。</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="tonal" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
               showToast((await containerExportEnv(d.id, { pack: false })).message_zh);
-            })}>导出环境元数据</button>
+            })}>分享环境说明（轻量）</button>
             <button class="ghost" type="button" ?disabled=${this.busy || !d.container} @click=${() => this.act(async () => {
               showToast((await containerExportEnv(d.id, { pack: true })).message_zh);
-            })}>导出完整环境包</button>
-            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入环境包…</button>
+            })}>分享完整环境（含模组）</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImportEnv()}>导入好友环境…</button>
           </div>
-          ${!d.container ? html`<p class="muted" style="margin-top:8px">这个版本还没开隔离。可先去「设置」开启，或直接导入环境包新建一个。</p>` : nothing}
+          ${!d.container ? html`<p class="muted" style="margin-top:8px">这个版本还没开隔离。可先去「设置 → 启动」开启，或直接导入好友环境新建一个。</p>` : nothing}
         </div>`;
     }
   }

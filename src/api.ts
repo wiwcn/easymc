@@ -657,6 +657,8 @@ export async function updateSettings(patch: {
   mode?: AppMode | string;
   onboarding_complete?: boolean;
   preferred_login?: PreferredLogin | string | null;
+  /** Absolute path to java; empty/null clears → auto-pick. */
+  preferred_java?: string | null;
   memory_mb?: number;
   msa_client_id?: string | null;
   clear_msa_client_id?: boolean;
@@ -688,6 +690,9 @@ export async function updateSettings(patch: {
       ...(patch.container_auto_preheat != null ? { container_auto_preheat: !!patch.container_auto_preheat } : {}),
       ...(patch.container_mirror_profile != null ? { container_mirror_profile: patch.container_mirror_profile } : {}),
       ...(patch.preferred_login !== undefined ? { preferred_login: patch.preferred_login as never } : {}),
+      ...(patch.preferred_java !== undefined
+        ? { preferred_java: (patch.preferred_java ?? "").trim() || null }
+        : {}),
     };
     writePreviewSettings(next);
     return next;

@@ -379,3 +379,42 @@ fn platform_adoptium() -> (&'static str, &'static str, &'static str, &'static st
     };
     (os, arch, ext, pack)
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_major_modern() {
+        assert_eq!(
+            parse_java_major(r#"openjdk version "21.0.1" 2023-10-17"#),
+            Some(21)
+        );
+        assert_eq!(
+            parse_java_major(r#"openjdk version "17.0.9" 2023-10-17"#),
+            Some(17)
+        );
+    }
+
+    #[test]
+    fn parse_major_legacy_8() {
+        assert_eq!(
+            parse_java_major(r#"java version "1.8.0_402""#),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn select_java_honors_preferred_when_present() {
+        let found = detect_java();
+        if found.is_empty() {
+            // CI / boxes without any JDK — skip rather than fail the suite.
+            return;
+        }
+        let want = &found[0];
+        let picked = select_java(1, Some(&want.path)).expect("preferred java");
+        assert_eq!(picked.path, want.path);
+        assert_eq!(picked.source, "preferred");
+    }
+}

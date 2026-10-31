@@ -190,6 +190,66 @@ export class SettingsPage extends LitElement {
         color: var(--md-sys-color-on-surface-variant);
         font-size: var(--easymc-type-meta);
       }
+      .java-list {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+      .java-list li {
+        margin: 0;
+        padding: 0;
+      }
+      button.java-pick {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        text-align: left;
+        padding: 10px 12px;
+        border-radius: var(--md-sys-shape-corner-medium);
+        border: 1px solid var(--md-sys-color-outline-variant);
+        background: var(--md-sys-color-surface-container-lowest);
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+      }
+      button.java-pick:hover {
+        border-color: color-mix(in oklch, var(--md-sys-color-primary) 40%, var(--md-sys-color-outline-variant));
+      }
+      button.java-pick:focus-visible {
+        outline: 2px solid var(--md-sys-color-primary);
+        outline-offset: 2px;
+      }
+      button.java-pick.on {
+        border-color: var(--md-sys-color-primary);
+        background: color-mix(in oklch, var(--md-sys-color-primary) 12%, var(--md-sys-color-surface-container-lowest));
+      }
+      button.java-pick .java-pick-title {
+        font-weight: var(--easymc-weight-medium);
+        font-size: var(--easymc-type-label);
+      }
+      button.java-pick .java-pick-meta {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: var(--easymc-type-meta);
+      }
+      button.java-pick .java-pick-path {
+        font-size: var(--easymc-type-meta);
+        word-break: break-all;
+        opacity: 0.9;
+      }
+      button.java-pick .java-pick-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: var(--easymc-type-meta);
+        background: color-mix(in oklch, var(--md-sys-color-primary) 18%, transparent);
+        color: var(--md-sys-color-primary);
+        font-weight: var(--easymc-weight-medium);
+      }
     `,
   ];
 
@@ -243,10 +303,18 @@ export class SettingsPage extends LitElement {
     this.mcDirs = mcDirs;
     void this.refreshPreheatStatus();
     if (!this.javaBusy) {
+      const pref = (this.settings?.preferred_java ?? "").trim();
+      const chosen = pref ? javas.find((j) => j.path === pref) : undefined;
       const best = javas.find((j) => j.major >= 21) ?? javas[0];
-      this.javaStatus = best
-        ? `已就绪：Java ${best.major}（${best.source}）`
-        : "尚未检测到可用的 Java。点下方按钮即可自动下载并配置。";
+      if (chosen) {
+        this.javaStatus = `已选用：Java ${chosen.major}（${this.javaSourceLabel(chosen.source)}）`;
+      } else if (pref) {
+        this.javaStatus = `已选用自定义路径（检测列表里暂未匹配）`;
+      } else if (best) {
+        this.javaStatus = `自动选择：Java ${best.major}（${this.javaSourceLabel(best.source)}）`;
+      } else {
+        this.javaStatus = "尚未检测到可用的 Java。点下方按钮即可自动下载并配置。";
+      }
     }
   }
 
@@ -282,6 +350,58 @@ export class SettingsPage extends LitElement {
     } finally {
       this.unlistenJavaLog?.();
       this.unlistenJavaLog = null;
+      this.javaBusy = false;
+    }
+  }
+
+  private javaSourceLabel(source: string): string {
+    const s = (source || "").trim();
+    if (!s) return "未知来源";
+    if (s === "JAVA_HOME") return "环境变量 JAVA_HOME";
+    if (s === "PATH") return "系统 PATH";
+    if (s.startsWith("easymc-runtime:") || s.startsWith("downloaded-temurin")) return "EasyMC 已下载";
+    if (s.startsWith("system:")) {
+      const kind = s.slice("system:".length);
+      if (kind === "linux" || kind === "windows" || kind === "macos") return "系统安装";
+      if (kind === "homebrew") return "Homebrew";
+      if (kind === "sdkman") return "SDKMAN";
+      return `系统（${kind}）`;
+    }
+    if (s === "preferred") return "已选用";
+    return s;
+  }
+
+  private preferredJavaPath(): string {
+    return (this.settings?.preferred_java ?? "").trim();
+  }
+
+  private isPreferredJava(path: string): boolean {
+    const pref = this.preferredJavaPath();
+    if (!pref) return false;
+    return pref === path;
+  }
+
+  private async setPreferredJava(path: string | null) {
+    if (this.javaBusy) return;
+    this.javaBusy = true;
+    try {
+      this.settings = await updateSettings({ preferred_java: path ?? "" });
+      if (path) {
+        const hit = this.javaList.find((j) => j.path === path);
+        showToast(hit ? `已选用 Java ${hit.major}` : "已选用此 Java");
+        this.javaStatus = hit
+          ? `已选用：Java ${hit.major}（${this.javaSourceLabel(hit.source)}）`
+          : `已选用：${path}`;
+      } else {
+        showToast("已改回自动选择");
+        const best = this.javaList.find((j) => j.major >= 21) ?? this.javaList[0];
+        this.javaStatus = best
+          ? `自动选择：Java ${best.major}（${this.javaSourceLabel(best.source)}）`
+          : "尚未检测到可用的 Java。点下方按钮即可自动下载并配置。";
+      }
+    } catch (e) {
+      showToast(`保存失败：${friendlyError(e)}`);
+    } finally {
       this.javaBusy = false;
     }
   }
@@ -410,17 +530,63 @@ export class SettingsPage extends LitElement {
           </button>
         </div>
       </div>
-      <div class="card">
+<div class="card">
         <h2>Java 运行环境</h2>
         <p>
-          开玩 Minecraft 需要 Java。首次启动的「准备开玩环境」也会配置它；这里可随时再检查或重新下载。本机没有也没关系——点一次即可自动下载合适版本并交给 EasyMC 使用。
+          开玩 Minecraft 需要 Java。下面列出本机已检测到的版本；点一行即可设为全局首选（单个版本仍可在版本管理里单独指定）。没有合适版本时，点一次即可自动下载并交给 EasyMC 使用。
         </p>
         <div class=${ready ? "java-ok" : "java-warn"}>${this.javaStatus || (ready && best ? `已就绪：Java ${best.major}` : "尚未检测到可用的 Java")}</div>
-        ${best
-          ? html`<p class="muted" style="margin-top:6px">
-              <code class="path">${best.path}</code>
-            </p>`
-          : nothing}
+        ${this.javaList.length
+          ? html`<ul class="java-list" role="listbox" aria-label="已检测到的 Java">
+              <li>
+                <button
+                  type="button"
+                  class="java-pick ${!this.preferredJavaPath() ? "on" : ""}"
+                  role="option"
+                  aria-selected=${!this.preferredJavaPath()}
+                  ?disabled=${this.javaBusy}
+                  @click=${() => void this.setPreferredJava(null)}
+                >
+                  <span class="java-pick-title"
+                    >自动选择最高版本${!this.preferredJavaPath()
+                      ? html`<span class="java-pick-badge">当前</span>`
+                      : nothing}</span
+                  >
+                  <span class="java-pick-meta"
+                    >${best
+                      ? `当前会用 Java ${best.major}（${this.javaSourceLabel(best.source)}）`
+                      : "还没有可用 Java"}</span
+                  >
+                </button>
+              </li>
+              ${this.javaList.map((j) => {
+                const on = this.isPreferredJava(j.path);
+                const low = j.major < 21;
+                return html`<li>
+                  <button
+                    type="button"
+                    class="java-pick ${on ? "on" : ""}"
+                    role="option"
+                    aria-selected=${on}
+                    ?disabled=${this.javaBusy}
+                    @click=${() => void this.setPreferredJava(j.path)}
+                  >
+                    <span class="java-pick-title"
+                      >Java ${j.major}${on
+                        ? html`<span class="java-pick-badge">已选用</span>`
+                        : nothing}${low
+                        ? html`<span class="java-pick-badge" style="background:color-mix(in oklch, var(--md-sys-color-error) 16%, transparent);color:var(--md-sys-color-error)">偏旧</span>`
+                        : nothing}</span
+                    >
+                    <span class="java-pick-meta"
+                      >${this.javaSourceLabel(j.source)} · ${j.version_string}</span
+                    >
+                    <span class="java-pick-path"><code class="path">${j.path}</code></span>
+                  </button>
+                </li>`;
+              })}
+            </ul>`
+          : html`<p class="muted" style="margin-top:8px">还没找到本机 Java。可一键下载，或先安装后再点「刷新检测」。</p>`}
         <div class="row" style="margin-top:12px">
           <button
             class="primary"
@@ -438,9 +604,20 @@ export class SettingsPage extends LitElement {
           >
             刷新检测
           </button>
+          ${this.preferredJavaPath()
+            ? html`<button
+                class="ghost"
+                type="button"
+                ?disabled=${this.javaBusy}
+                @click=${() => void this.setPreferredJava(null)}
+              >
+                清除选用
+              </button>`
+            : nothing}
         </div>
         ${this.javaLog ? html`<div class="java-log" aria-live="polite">${this.javaLog}</div>` : nothing}
       </div>
+      
       <div class="card">
         <h2>已有 Minecraft 文件夹</h2>
         <p>

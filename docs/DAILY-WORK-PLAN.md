@@ -5,6 +5,13 @@
 
 <!-- CONTAINER-MODE-A-B -->
 
+## 已完成 · Java 管理可视列表 + 首选选用（2026-10-31）
+
+- 缺口 #28：设置 → 启动「Java 运行环境」列出本机检测结果，点选设为全局 `preferred_java`（可清除回自动最高版本）
+- 版本管理「本版本 Java」下拉：跟随全局 / 检测列表；后端 `update_settings_cmd` 接通 `preferred_java`
+- 玩家中文来源标签；`select_java` 单测覆盖 preferred 路径
+
+
 ## 已完成 · 镜像测速改为真实 HTTPS RTT（v0.1.12 · 2026-10-30）
 
 - 根因：Clash/sing-box fake-ip（DNS→`198.18.0.0/15`）下 TCP `:443` 只连本地 TUN，显示 ~0ms
