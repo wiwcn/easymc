@@ -81,6 +81,16 @@ export class MultiplayerPage extends LitElement {
         </ul>
         <div class="actions">
           <button
+            class="primary"
+            type="button"
+            @click=${() =>
+              this.dispatchEvent(
+                new CustomEvent("nav-change", { detail: "home", bubbles: true, composed: true }),
+              )}
+          >
+            先回启动页开单人
+          </button>
+          <button
             class="ghost"
             type="button"
             @click=${() =>

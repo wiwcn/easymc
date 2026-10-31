@@ -34,7 +34,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
 
 const MEM_PRESETS = [2048, 4096, 8192] as const;
 
-/** First-run gate: mode → container → env → login → account → Home. */
+/** First-run gate: mode → (container if 助手) → env → login → account → Home. */
 @customElement("easymc-onboarding")
 export class OnboardingPage extends LitElement {
   @state() private step: Step = 1;
@@ -62,7 +62,7 @@ export class OnboardingPage extends LitElement {
   @state() private dirsReady = false;
   private unlistenJavaLog: (() => void) | null = null;
 
-  /** Step 2 — optional container mode (after Agent/mode ask) */
+  /** Step 2 — optional container (ONLY after 助手模式; standard skips to env) */
   @state() private containerWanted: boolean | null = null;
   @state() private containerChina = true;
   @state() private containerProbe: ContainerRuntimeProbeDto | null = null;
@@ -344,6 +344,26 @@ export class OnboardingPage extends LitElement {
     }
   }
 
+  /** Container ask only after 助手模式; 标准模式 jumps straight to env. */
+  private async afterModeNext() {
+    if (this.mode === "agent") {
+      await this.enterContainerStep();
+      return;
+    }
+    // Standard: never surface container in onboarding (可稍后在设置里开).
+    this.containerWanted = false;
+    try {
+      await updateSettings({
+        mode: "standard",
+        container_mode_enabled: false,
+        container_setup_done: true,
+      });
+    } catch {
+      /* preview / browser */
+    }
+    await this.enterEnvStep();
+  }
+
   private async enterContainerStep() {
     this.step = 2;
     this.containerLog = "";
@@ -380,7 +400,7 @@ export class OnboardingPage extends LitElement {
         if (best) this.pickContainerMirror(best.id, !!best.prefer_china);
       }
     } catch (e) {
-      showToast(`镜像源测速失败：${this.friendly(e)}`);
+      showToast(`加速源测速失败：${this.friendly(e)}`);
     } finally {
       this.registryProbeBusy = false;
     }
@@ -415,6 +435,15 @@ export class OnboardingPage extends LitElement {
     if (ok && ms != null) return `${ms} ms`;
     if (err) return err;
     return "未测速";
+  }
+
+  /** From env: 助手 → back to container; 标准 → back to mode. */
+  private async backFromEnv() {
+    if (this.mode === "agent") {
+      await this.enterContainerStep();
+      return;
+    }
+    this.step = 1;
   }
 
   private async enterEnvStep() {
@@ -462,10 +491,10 @@ export class OnboardingPage extends LitElement {
         container_mirror_profile: this.containerMirrorId,
         container_setup_done: ready || (result.pending?.length ?? 0) > 0,
       });
-      showToast(ready ? "容器环境已就绪" : "已记下配置，可稍后继续完成安装");
+      showToast(ready ? "隔离环境已就绪" : "已记下配置，可稍后继续完成安装");
     } catch (e) {
       this.containerLog = this.friendly(e);
-      showToast(`容器配置：${this.friendly(e)}`);
+      showToast(`隔离环境：${this.friendly(e)}`);
     } finally {
       this.containerBusy = false;
     }
@@ -593,8 +622,10 @@ export class OnboardingPage extends LitElement {
       <div class="wrap">
         <div class="chrome-top">
           <div class="brand">EasyMC</div>
-          <div class="steps" aria-label="第 ${this.step} 步，共 5 步">
-            ${[1, 2, 3, 4, 5].map((i) => html`<i class=${i <= this.step ? "on" : ""}></i>`)}
+          <div class="steps" aria-label=${`第 ${this.progressIndex()} 步，共 ${this.progressTotal()} 步`}>
+            ${Array.from({ length: this.progressTotal() }, (_, i) => i + 1).map(
+              (i) => html`<i class=${i <= this.progressIndex() ? "on" : ""}></i>`,
+            )}
           </div>
           <h1>${title}</h1>
           <p class="sub">${sub}</p>
@@ -606,6 +637,21 @@ export class OnboardingPage extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /** Visible progress depends on mode: standard skips container. */
+  private progressTotal(): number {
+    return this.mode === "agent" ? 5 : 4;
+  }
+
+  private progressIndex(): number {
+    // Logical order: mode(1) → [container(2)] → env(3) → login(4) → account(5)
+    if (this.mode === "agent") return this.step;
+    // standard: 1→1, 3→2, 4→3, 5→4 (step 2 unused)
+    if (this.step <= 1) return 1;
+    if (this.step === 3) return 2;
+    if (this.step === 4) return 3;
+    return 4;
   }
 
   private stepChrome(): {
@@ -646,7 +692,7 @@ export class OnboardingPage extends LitElement {
         </div>
       `,
       footLeft: html`<span></span>`,
-      footRight: html`<button class="btn primary" ?disabled=${!this.mode} @click=${() => void this.enterContainerStep()}>下一步</button>`,
+      footRight: html`<button class="btn primary" ?disabled=${!this.mode} @click=${() => void this.afterModeNext()}>下一步</button>`,
     };
   }
 
@@ -832,7 +878,7 @@ export class OnboardingPage extends LitElement {
           ${this.javaLog ? html`<div class="java-log" aria-live="polite">${this.javaLog}</div>` : nothing}
         </div>
       `,
-      footLeft: html`<button class="btn ghost" ?disabled=${this.envBusy} @click=${() => (this.step = 2)}>上一步</button>`,
+      footLeft: html`<button class="btn ghost" ?disabled=${this.envBusy} @click=${() => void this.backFromEnv()}>上一步</button>`,
       footRight: html`
         <button class="btn ghost" ?disabled=${this.envBusy} @click=${() => { this.step = 4; showToast("可稍后在「设置 → 启动」里配置 Java"); }}>先跳过</button>
         <button class="btn primary" ?disabled=${this.envBusy || !this.javaReady} @click=${() => (this.step = 4)}>下一步</button>

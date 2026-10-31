@@ -512,7 +512,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>容器隔离（可选）</h2>
         <p>
-          把每个版本的模组、配置分开存放，互不打架。适合爱折腾多版本的玩家；不装也完全能玩。Windows 首次启用时会引导安装配套运行环境。
+          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」玩家；标准模式一般不用开。不装也完全能玩。
         </p>
         <p class="muted" style="margin:0 0 12px">
           ${this.preheatStatus
@@ -747,9 +747,11 @@ export class SettingsPage extends LitElement {
             清除
           </button>
         </div>
-        <h2 style="margin-top:16px">云端助手接口</h2>
+      </details>
+      <div class="card">
+        <h2>云端助手接口</h2>
         <p>
-          填好接口后，助手页就能云端聊天帮忙查崩溃。密钥只保存在本机，不会上传。
+          想让「助手」页真的会聊天、查崩溃，先在这里填好。密钥只保存在本机，不会上传。标准模式也能配，随时切助手模式即可用。
         </p>
         <div class="muted" style="margin-bottom:8px">
           状态：${
@@ -813,7 +815,8 @@ export class SettingsPage extends LitElement {
             刷新
           </button>
         </div>
-      </details>
+      </div>
+
     `;
   }
 
@@ -867,7 +870,7 @@ export class SettingsPage extends LitElement {
   private renderPersonal() {
     return html`<div class="card">
         <h2>使用模式</h2>
-        <p>助手模式把侧栏「助手」放得更显眼；标准模式是经典启动器布局。</p>
+        <p>助手模式：侧栏有「助手」，适合爱折腾；标准模式：经典启动器，安静好上手。容器隔离只在需要时再开。</p>
         <div class="md-segmented" role="radiogroup" aria-label="使用模式">
           <span class="md-tab-ind" aria-hidden="true"></span>
           <button
@@ -899,7 +902,7 @@ export class SettingsPage extends LitElement {
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到助手模式" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式（可选：下方开容器隔离）" : "已切换到标准模式");
   }
 
   private renderOther() {

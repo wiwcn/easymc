@@ -943,6 +943,15 @@ export class AgentPage extends LitElement {
     );
   }
 
+  /** Plain jump to download hub (no search query). */
+  private goDownloadCenter() {
+    this.pendingStoreQuery = null;
+    sessionStorage.removeItem("easymc-download-query");
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
+    );
+  }
+
   private async applyAction(action: AgentActionDto) {
     if (action.action === "install_mod") {
       this.pendingStoreQuery = null;
@@ -1671,7 +1680,7 @@ ${extraContent}` : t.content,
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="说说启动不了、崩了，或点右侧 / 下方快捷工具"
+                  description="还没版本的话先去下载中心装一个；有版本可以说说启动不了、崩了，或点下方快捷工具"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
@@ -1711,6 +1720,7 @@ ${extraContent}` : t.content,
             : null}
 
           <div class="quick-chips" role="group" aria-label="快捷工具">
+            <button class="chip primary" type="button" ?disabled=${this.busy} @click=${() => this.goDownloadCenter()}>去下载中心</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>一键查崩溃</button>
             <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>

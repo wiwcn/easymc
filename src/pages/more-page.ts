@@ -41,10 +41,14 @@ export class MorePage extends LitElement {
   render() {
     return html`
       <h1>更多</h1>
-      <p class="sub">分享、帮助与关于 EasyMC。助手在左侧边栏。</p>
+      <p class="sub">分享、帮助与关于。日常启动、下载、助手都在左边栏。</p>
       <div class="grid">
+        <button class="tile surf-outline" type="button" @click=${() => this.go("home")}>
+          <strong>回启动页</strong>
+          <span>选版本、开游戏——最常用的入口</span>
+        </button>
         <button class="tile surf-outline" type="button" @click=${() => this.go("instances")}>
-          <strong>分享</strong>
+          <strong>分享版本</strong>
           <span>在版本管理的「导出」里发给好友，或导入好友的分享包</span>
         </button>
         <button class="tile surf-outline" type="button" @click=${() => window.open("https://github.com/wiwcn/easymc/issues", "_blank")}>
@@ -58,7 +62,7 @@ export class MorePage extends LitElement {
       </div>
       <div class="about surf-outline" id="about">
         <strong style="color:var(--md-sys-color-on-surface)">关于 EasyMC</strong><br />
-        版本 0.1.2 · MIT 许可<br />
+        版本 0.1.12 · MIT 许可<br />
         开源 Minecraft Java Edition 启动器。<br />
         源码：<a href="https://github.com/wiwcn/easymc" target="_blank" rel="noreferrer">github.com/wiwcn/easymc</a>
       </div>
