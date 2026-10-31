@@ -27,7 +27,22 @@ use crate::tool::{tool_call_from_action, tool_call_from_diagnose, ToolCall, Tool
 use crate::{ActionResult, ChatMessage};
 
 /// Default max model turns (each complete_raw counts as one).
-pub const DEFAULT_MAX_TURNS: u32 = 8;
+///
+/// Kept deliberately high so dependency / diagnose multi-step work is not cut
+/// off by a demo-sized budget. Override with `EASYMC_AGENT_MAX_TURNS` (>0).
+pub const DEFAULT_MAX_TURNS: u32 = 64;
+
+/// Env override for [`DEFAULT_MAX_TURNS`] (positive integer).
+pub const ENV_MAX_TURNS: &str = "EASYMC_AGENT_MAX_TURNS";
+
+/// Resolve max turns: `EASYMC_AGENT_MAX_TURNS` if set and >0, else default.
+pub fn resolve_max_turns() -> u32 {
+    std::env::var(ENV_MAX_TURNS)
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(DEFAULT_MAX_TURNS)
+}
 
 /// Abstraction over chat completions so the agent loop can be unit-tested
 /// without a live OpenAI-compatible endpoint.
@@ -490,6 +505,13 @@ mod tests {
                 let _ = std::fs::remove_dir_all(&self.0);
             }
         }
+    }
+
+    #[test]
+    fn resolve_max_turns_defaults_high() {
+        // Do not assert against a polluted process env; only the constant + parse path.
+        assert!(DEFAULT_MAX_TURNS >= 32, "default must not be a tight demo cap");
+        assert_eq!(ENV_MAX_TURNS, "EASYMC_AGENT_MAX_TURNS");
     }
 
     #[test]

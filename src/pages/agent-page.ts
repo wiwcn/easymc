@@ -183,6 +183,8 @@ export class AgentPage extends LitElement {
   @state() private llmModel = "";
   @state() private llmBusy = false;
   @state() private booting = true;
+  /** Explicit open/closed overrides for tool step bodies (`turnIndex:toolId` → open). */
+  @state() private toolDetailOpen: Record<string, boolean> = {};
 
   static styles = [
     controlStyles,
@@ -414,7 +416,7 @@ export class AgentPage extends LitElement {
       align-items: flex-start;
       justify-content: space-between;
       gap: var(--easymc-space-3);
-      margin-bottom: var(--easymc-space-3);
+      margin-bottom: 0;
     }
     .tool-card-head h3 {
       margin: 0;
@@ -423,6 +425,91 @@ export class AgentPage extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    /* Collapsible step/result body — title + status stay visible */
+    .tool-card-toggle {
+      display: flex;
+      width: 100%;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--easymc-space-3);
+      margin: 0 0 var(--easymc-space-2);
+      padding: 6px 8px;
+      margin-left: -8px;
+      margin-right: -8px;
+      width: calc(100% + 16px);
+      border: none;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      min-height: 40px;
+      box-sizing: border-box;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .tool-card-toggle:hover {
+      background: color-mix(in oklch, var(--md-sys-color-on-surface) 6%, transparent);
+    }
+    .tool-card-toggle:focus-visible {
+      outline: none;
+      box-shadow: var(--easymc-focus-ring);
+    }
+    .tool-card-toggle-main {
+      min-width: 0;
+      flex: 1;
+    }
+    .tool-card-toggle-end {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .tool-card-chevron {
+      display: inline-flex;
+      width: 20px;
+      height: 20px;
+      align-items: center;
+      justify-content: center;
+      color: var(--md-sys-color-on-surface-variant);
+      transition: transform var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    .tool-card-chevron svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    .tool-card-chevron.open {
+      transform: rotate(180deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tool-card-chevron { transition: none; }
+    }
+    .tool-card-preview {
+      margin: 0 0 var(--easymc-space-3);
+      padding: 8px 10px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .tool-card-body {
+      margin-top: var(--easymc-space-1);
+    }
+    .tool-card-expand-hint {
+      margin: 0 0 var(--easymc-space-3);
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
     }
     .tool-chip {
       flex-shrink: 0;
@@ -1343,6 +1430,29 @@ ${extraContent}` : t.content,
     }
   }
 
+  private toolExpandKey(turnIndex: number, tool: ToolCallDto): string {
+    const raw = `${turnIndex}:${tool.id || tool.name}`;
+    return raw.replace(/[^a-zA-Z0-9_-]+/g, "-");
+  }
+
+  private isToolDetailOpen(key: string, defaultOpen: boolean): boolean {
+    if (Object.prototype.hasOwnProperty.call(this.toolDetailOpen, key)) {
+      return this.toolDetailOpen[key]!;
+    }
+    return defaultOpen;
+  }
+
+  private toggleToolDetail(key: string, defaultOpen: boolean) {
+    const next = !this.isToolDetailOpen(key, defaultOpen);
+    this.toolDetailOpen = { ...this.toolDetailOpen, [key]: next };
+  }
+
+  private toolResultPreview(text: string | null | undefined, max = 120): string {
+    const t = (text ?? "").replace(/\s+/g, " ").trim();
+    if (!t) return "点击展开查看步骤详情";
+    return t.length > max ? `${t.slice(0, max)}…` : t;
+  }
+
   private renderToolCard(turn: ChatTurn, index: number) {
     const tool = turn.tool;
     if (!tool) return nothing;
@@ -1363,22 +1473,18 @@ ${extraContent}` : t.content,
             ? "需要你确认后才会改动。"
             : "完成。";
     const resultText = (tool.result_zh && tool.result_zh.trim()) || resultFallback;
-    return html`
-      <div
-        class="tool-card ${st === "error" ? "error" : ""} ${st === "running" ? "running" : ""} ${st === "pending" ? "pending" : ""}"
-        data-tool-id=${tool.id}
-        data-tool-name=${tool.name}
-      >
-        <div class="tool-card-head">
-          <div>
-            <h3>${tool.title_zh}</h3>
-            ${tool.tag_zh ? html`<p class="proposal-sub">${tool.tag_zh}</p>` : nothing}
-          </div>
-          <span class="tool-chip ${chipClass}">${statusLabel(st)}</span>
-        </div>
-        ${st === "running"
-          ? html`<div class="tool-progress"><span class="dot" aria-hidden="true"></span>进行中…</div>`
-          : nothing}
+    const hasDetail =
+      isPropose ||
+      (!isPropose && args.length > 0) ||
+      !!(resultText && st !== "running");
+    const expandKey = this.toolExpandKey(index, tool);
+    // Pending cards stay open by default so confirm actions stay one click away.
+    const defaultOpen = st === "pending";
+    const expanded = !hasDetail || this.isToolDetailOpen(expandKey, defaultOpen);
+    const previewSource = tool.result_zh?.trim() || (isPropose ? turn.proposal?.subtitle_zh : null) || resultText;
+
+    const detailBody = html`
+      <div class="tool-card-body">
         ${!isPropose && args.length
           ? html`<dl class="tool-args">
               ${args.map(
@@ -1390,6 +1496,63 @@ ${extraContent}` : t.content,
           ? this.renderProposalBody(turn, index)
           : resultText
             ? html`<p class="tool-result ${tool.result_zh ? "" : "muted-fallback"}">${resultText}</p>`
+            : nothing}
+      </div>
+    `;
+
+    return html`
+      <div
+        class="tool-card ${st === "error" ? "error" : ""} ${st === "running" ? "running" : ""} ${st === "pending" ? "pending" : ""}"
+        data-tool-id=${tool.id}
+        data-tool-name=${tool.name}
+      >
+        ${hasDetail
+          ? html`
+              <button
+                type="button"
+                class="tool-card-toggle"
+                aria-expanded=${expanded ? "true" : "false"}
+                aria-controls=${`tool-detail-${expandKey}`}
+                @click=${() => this.toggleToolDetail(expandKey, defaultOpen)}
+              >
+                <div class="tool-card-toggle-main">
+                  <div class="tool-card-head">
+                    <div>
+                      <h3>${tool.title_zh}</h3>
+                      ${tool.tag_zh ? html`<p class="proposal-sub">${tool.tag_zh}</p>` : nothing}
+                    </div>
+                  </div>
+                </div>
+                <div class="tool-card-toggle-end">
+                  <span class="tool-chip ${chipClass}">${statusLabel(st)}</span>
+                  <span class="tool-card-chevron ${expanded ? "open" : ""}" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </span>
+                </div>
+              </button>
+            `
+          : html`
+              <div class="tool-card-head">
+                <div>
+                  <h3>${tool.title_zh}</h3>
+                  ${tool.tag_zh ? html`<p class="proposal-sub">${tool.tag_zh}</p>` : nothing}
+                </div>
+                <span class="tool-chip ${chipClass}">${statusLabel(st)}</span>
+              </div>
+            `}
+        ${st === "running"
+          ? html`<div class="tool-progress"><span class="dot" aria-hidden="true"></span>进行中…</div>`
+          : nothing}
+        ${hasDetail && !expanded
+          ? html`<p class="tool-card-preview">${this.toolResultPreview(previewSource)}</p>
+              <p class="tool-card-expand-hint">点击标题展开具体步骤</p>`
+          : nothing}
+        ${hasDetail && expanded
+          ? html`<div id=${`tool-detail-${expandKey}`}>${detailBody}</div>`
+          : !hasDetail
+            ? detailBody
             : nothing}
         ${!isPropose && tool.ui_actions?.length
           ? html`<div class="tool-card-actions">

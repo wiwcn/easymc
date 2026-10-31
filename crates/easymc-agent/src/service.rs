@@ -10,7 +10,7 @@ use crate::actions::{
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
-use crate::agent_loop::{run_agent_loop, AgentLoopConfig, DEFAULT_MAX_TURNS};
+use crate::agent_loop::{resolve_max_turns, run_agent_loop, AgentLoopConfig};
 use crate::llm::{llm_status, LlmStatus, OpenAiCompatibleProvider};
 use crate::skills::skill_augmented_system_prompt;
 use crate::propose::{
@@ -547,7 +547,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 req.process_logs.clone(),
                 req.instance_id.clone(),
                 AgentLoopConfig {
-                    max_turns: DEFAULT_MAX_TURNS,
+                    max_turns: resolve_max_turns(),
                 },
             )
             .await

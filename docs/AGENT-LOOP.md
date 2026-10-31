@@ -3,7 +3,7 @@
 ## Goal
 
 Upgrade the optional LLM path from **single tool_call** to a **pi-style AgentLoop**:
-the model may call several tools across up to `max_turns` (default **8**, range 6–8),
+the model may call several tools across up to `max_turns` (default **64**, override with `EASYMC_AGENT_MAX_TURNS`),
 the host executes **all** `tool_calls` in a turn, refeeds `role=tool` messages, and
 stops on no tools / final text / `max_turns` / error.
 
@@ -30,8 +30,8 @@ Source inspiration: `https://github.com/earendil-works/pi` → `packages/agent/s
 
 ## max_turns (OpenAI Agents SDK concept, MIT)
 
-`AgentLoopConfig.max_turns` / `DEFAULT_MAX_TURNS = 8` mirrors the OpenAI Agents
-“run until done or hit max_turns” budget. `AskResponse.mode` becomes `llm+agent`
+`AgentLoopConfig.max_turns` / `DEFAULT_MAX_TURNS = 64` (env `EASYMC_AGENT_MAX_TURNS`) mirrors the OpenAI Agents
+“run until done or hit max_turns” budget, raised so dependency chains are not demo-capped. `AskResponse.mode` becomes `llm+agent`
 when any tool card was produced.
 
 Stop reasons returned on `AgentLoopResult.stop_reason`:
