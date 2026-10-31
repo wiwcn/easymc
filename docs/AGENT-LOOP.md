@@ -65,6 +65,11 @@ model the player must confirm in Chinese so the rule path can execute.
 `AskResponse.tools: ToolCall[]` — Lit Agent page renders every card from a multi-step run;
 `tool` remains the last/primary card for older clients.
 
+`AskResponse.steps: AgentStepEvent[]` — short Chinese step abstracts (look → do → verify).
+While `agent_ask` runs, the host also emits Tauri event `agent-step` with the same payload so
+the chat can append lines live (`1. 正在检查模组依赖…`). Tool cards stay collapsible detail;
+the step list leads.
+
 ## Mod dependency tools
 
 Fuzzy player asks like 「缺依赖」「能不能补上」「缺啥」route to `CheckModDeps` (rules) or, on the LLM path, should call:

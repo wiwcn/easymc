@@ -11,7 +11,7 @@ use crate::actions::{
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
-use crate::agent_loop::{resolve_max_turns, run_agent_loop, AgentLoopConfig};
+use crate::agent_loop::{resolve_max_turns, run_agent_loop_with_progress, AgentLoopConfig, AgentStepEvent};
 use crate::llm::{llm_status, LlmStatus, OpenAiCompatibleProvider};
 use crate::skills::skill_augmented_system_prompt;
 use crate::propose::{
@@ -42,6 +42,9 @@ pub struct AskResponse {
     /// All tool cards from a multi-step agent loop (Lit can render multiple).
     #[serde(default)]
     pub tools: Vec<crate::tool::ToolCall>,
+    /// Progressive Chinese step abstracts (live via `agent-step` + final payload).
+    #[serde(default)]
+    pub steps: Vec<AgentStepEvent>,
     pub llm: LlmStatus,
 }
 
@@ -398,6 +401,18 @@ pub async fn execute_intent(
 }
 
 
+
+fn emit_response_steps(
+    on_step: Option<&(dyn Fn(AgentStepEvent) + Send + Sync)>,
+    resp: &AskResponse,
+) {
+    if let Some(cb) = on_step {
+        for step in &resp.steps {
+            cb(step.clone());
+        }
+    }
+}
+
 fn make_ask_response(
     mode: impl Into<String>,
     intent: Option<IntentResult>,
@@ -406,7 +421,19 @@ fn make_ask_response(
     action: Option<ActionResult>,
     llm: LlmStatus,
 ) -> AskResponse {
-    make_ask_response_with_tools(mode, intent, reply_zh, report, action, Vec::new(), llm)
+    make_ask_response_with_tools(mode, intent, reply_zh, report, action, Vec::new(), Vec::new(), llm)
+}
+
+fn steps_from_tools(tools: &[crate::tool::ToolCall]) -> Vec<AgentStepEvent> {
+    let mut steps = Vec::new();
+    let mut idx = 0u32;
+    for card in tools {
+        idx += 1;
+        steps.push(AgentStepEvent::tool_start(idx, &card.name));
+        idx += 1;
+        steps.push(AgentStepEvent::tool_done(idx, &card.name, card));
+    }
+    steps
 }
 
 fn make_ask_response_with_tools(
@@ -416,6 +443,7 @@ fn make_ask_response_with_tools(
     report: Option<DiagnoseReport>,
     action: Option<ActionResult>,
     tools: Vec<crate::tool::ToolCall>,
+    steps: Vec<AgentStepEvent>,
     llm: LlmStatus,
 ) -> AskResponse {
     let tool = tools.last().cloned().or_else(|| {
@@ -426,6 +454,16 @@ fn make_ask_response_with_tools(
     } else {
         tools
     };
+    let steps = if steps.is_empty() && !tools.is_empty() {
+        let mut s = steps_from_tools(&tools);
+        if !reply_zh.trim().is_empty() {
+            let next = s.last().map(|x| x.index).unwrap_or(0) + 1;
+            s.push(AgentStepEvent::reply(next, &reply_zh));
+        }
+        s
+    } else {
+        steps
+    };
     AskResponse {
         mode: mode.into(),
         intent,
@@ -434,11 +472,20 @@ fn make_ask_response_with_tools(
         action,
         tool,
         tools,
+        steps,
         llm,
     }
 }
 
 pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
+    ask_with_progress(paths, req, None).await
+}
+
+pub async fn ask_with_progress(
+    paths: &Paths,
+    req: AskRequest,
+    on_step: Option<&(dyn Fn(AgentStepEvent) + Send + Sync)>,
+) -> Result<AskResponse> {
     let status = llm_status();
     let intent = route(&req.text);
 
@@ -490,14 +537,16 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                                 .map(|r| r.summary_zh.as_str())
                                 .unwrap_or("")
                         );
-                        return Ok(make_ask_response(
+                        let resp = make_ask_response(
                             "rules+llm",
                             Some(intent),
                             reply,
                             report,
                             action,
                             status,
-                        ));
+                        );
+                        emit_response_steps(on_step, &resp);
+                        return Ok(resp);
                     }
                     Err(e) => {
                         reply.push_str(&format!("\n\n（LLM 调用失败，已回退规则结果：{e}）"));
@@ -505,14 +554,16 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 }
             }
         }
-        return Ok(make_ask_response(
+        let resp = make_ask_response(
             "rules",
             Some(intent),
             reply,
             report,
             action,
             status,
-        ));
+        );
+        emit_response_steps(on_step, &resp);
+        return Ok(resp);
     }
 
     // Other concrete intents → local
@@ -524,14 +575,16 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
             req.instance_id,
         )
         .await?;
-        return Ok(make_ask_response(
+        let resp = make_ask_response(
             "rules",
             Some(intent),
             reply,
             report,
             action,
             status,
-        ));
+        );
+        emit_response_steps(on_step, &resp);
+        return Ok(resp);
     }
 
     // Help / Unknown → multi-step LLM agent loop if configured (tool schemas + refeed).
@@ -554,7 +607,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 ));
             }
             let msgs = build_messages(&req.history, &user);
-            match run_agent_loop(
+            match run_agent_loop_with_progress(
                 &provider,
                 paths,
                 msgs,
@@ -563,6 +616,7 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                 AgentLoopConfig {
                     max_turns: resolve_max_turns(),
                 },
+                on_step,
             )
             .await
             {
@@ -579,19 +633,22 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
                         loop_result.report,
                         loop_result.action,
                         loop_result.tools,
+                        loop_result.steps,
                         status,
                     ));
                 }
                 Err(e) => {
                     let fallback = intent.reply_zh.clone();
-                    return Ok(make_ask_response(
+                    let resp = make_ask_response(
                         "rules_fallback",
                         Some(intent),
                         format!("LLM 不可用（{e}）。\n{fallback}"),
                         None,
                         None,
                         status,
-                    ));
+                    );
+                    emit_response_steps(on_step, &resp);
+                    return Ok(resp);
                 }
             }
         }
@@ -599,14 +656,16 @@ pub async fn ask(paths: &Paths, req: AskRequest) -> Result<AskResponse> {
 
     let (reply, report, action) =
         execute_intent(paths, &intent.intent, req.process_logs, req.instance_id).await?;
-    Ok(make_ask_response(
+    let resp = make_ask_response(
         "rules",
         Some(intent),
         reply,
         report,
         action,
         status,
-    ))
+    );
+    emit_response_steps(on_step, &resp);
+    Ok(resp)
 }
 
 fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {

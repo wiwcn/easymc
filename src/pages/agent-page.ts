@@ -12,6 +12,7 @@ import {
   agentLlmConfigSave,
   agentLlmStatus,
   agentUndoProposal,
+  listenAgentStep,
   listInstancesState,
   openInstanceFolder,
 } from "../api";
@@ -22,6 +23,7 @@ import type {
   AgentActionDto,
   AgentAskResponse,
   AgentFinding,
+  AgentStepDto,
   ChangeProposalDto,
   DiagnoseReportDto,
   InstanceDto,
@@ -42,6 +44,8 @@ type ChatTurn = {
   tool?: ToolCallDto | null;
   /** All tool cards from a multi-step agent loop. */
   tools?: ToolCallDto[];
+  /** Live / final look→do→verify step abstracts. */
+  steps?: AgentStepDto[];
 };
 
 
@@ -398,6 +402,45 @@ export class AgentPage extends LitElement {
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
       margin-top: 4px;
+    }
+    /* Progressive step abstracts (look → do → verify) */
+    .step-abstracts {
+      list-style: none;
+      margin: var(--easymc-space-2) 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .step-abstracts li {
+      margin: 0;
+      padding: 4px 10px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      font-size: var(--easymc-type-meta);
+      line-height: 1.35;
+      color: var(--md-sys-color-on-surface-variant);
+      background: color-mix(in oklch, var(--md-sys-color-surface-container) 80%, transparent);
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .step-abstracts li .step-idx {
+      font-variant-numeric: tabular-nums;
+      font-weight: var(--easymc-weight-medium);
+      color: var(--md-sys-color-primary);
+      flex-shrink: 0;
+      min-width: 1.25em;
+    }
+    .step-abstracts li.tool_start,
+    .step-abstracts li.thinking {
+      color: var(--md-sys-color-on-surface);
+    }
+    .step-abstracts li.tool_done {
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .step-abstracts li.reply {
+      color: var(--md-sys-color-on-surface);
+      font-weight: var(--easymc-weight-medium);
     }
 
     /* Normalized tool card */
@@ -947,20 +990,43 @@ export class AgentPage extends LitElement {
     this.busy = true;
     this.error = "";
     this.turns = [...this.turns, { role: "user", content: q }];
-    // Optimistic running card so every tool path shows a complete card immediately.
-    if (runningHint) {
-      this.turns = [
-        ...this.turns,
-        {
-          role: "assistant",
-          content: "好的，我来处理。",
-          mode: "running",
-          tool: runningHint,
-          tools: [runningHint],
-        },
-      ];
-    }
+
+    // Always open a progressive assistant turn so step abstracts appear live.
+    const runningToolCard = runningHint ?? null;
+    const progressTurn: ChatTurn = {
+      role: "assistant",
+      content: "好的，我来处理。",
+      mode: "running",
+      tool: runningToolCard,
+      tools: runningToolCard ? [runningToolCard] : [],
+      steps: [],
+    };
+    this.turns = [...this.turns, progressTurn];
+    const progressIndex = this.turns.length - 1;
+
+    const appendStep = (step: AgentStepDto) => {
+      const cur = this.turns[progressIndex];
+      if (!cur || cur.role !== "assistant") return;
+      const steps = [...(cur.steps ?? [])];
+      const existing = steps.findIndex((s) => s.index === step.index && s.phase === step.phase);
+      if (existing >= 0) steps[existing] = step;
+      else steps.push(step);
+      steps.sort((a, b) => a.index - b.index);
+      const latest = steps[steps.length - 1];
+      this.turns = this.turns.map((t, i) =>
+        i === progressIndex
+          ? {
+              ...t,
+              steps,
+              content: latest ? `${latest.index}. ${latest.summary_zh}` : t.content,
+            }
+          : t,
+      );
+    };
+
+    let unlistenStep: (() => void) | undefined;
     try {
+      unlistenStep = await listenAgentStep(appendStep);
       const history = this.turns
         .filter((t) => t.role === "user" || t.role === "assistant")
         .filter((t) => t.mode !== "running")
@@ -1028,6 +1094,11 @@ export class AgentPage extends LitElement {
         content = tool.status === "error" ? "这次没做成。" : "好了。";
       }
       if (tools.length === 0 && tool) tools = [tool];
+
+      const liveSteps = this.turns[progressIndex]?.steps ?? [];
+      const respSteps = Array.isArray(resp.steps) ? resp.steps : [];
+      const steps = (respSteps.length ? respSteps : liveSteps).slice().sort((a, b) => a.index - b.index);
+
       const assistantTurn: ChatTurn = {
         role: "assistant",
         content,
@@ -1036,15 +1107,9 @@ export class AgentPage extends LitElement {
         proposalStatus,
         tool,
         tools,
+        steps,
       };
-      if (runningHint) {
-        // Replace the optimistic running turn.
-        this.turns = this.turns.map((t, i) =>
-          i === this.turns.length - 1 && t.tool?.status === "running" ? assistantTurn : t,
-        );
-      } else {
-        this.turns = [...this.turns, assistantTurn];
-      }
+      this.turns = this.turns.map((t, i) => (i === progressIndex ? assistantTurn : t));
     } catch (e) {
       this.error = friendlyError(e);
       const errTurn: ChatTurn = {
@@ -1053,15 +1118,11 @@ export class AgentPage extends LitElement {
         tool: runningHint
           ? { ...runningHint, status: "error", result_zh: friendlyError(e) }
           : null,
+        steps: this.turns[progressIndex]?.steps ?? [],
       };
-      if (runningHint) {
-        this.turns = this.turns.map((t, i) =>
-          i === this.turns.length - 1 && t.tool?.status === "running" ? errTurn : t,
-        );
-      } else {
-        this.turns = [...this.turns, errTurn];
-      }
+      this.turns = this.turns.map((t, i) => (i === progressIndex ? errTurn : t));
     } finally {
+      unlistenStep?.();
       this.busy = false;
     }
   }
@@ -1467,6 +1528,18 @@ ${extraContent}` : t.content,
     const t = (text ?? "").replace(/\s+/g, " ").trim();
     if (!t) return "点击展开查看步骤详情";
     return t.length > max ? `${t.slice(0, max)}…` : t;
+  }
+
+  private renderStepAbstracts(steps?: AgentStepDto[]) {
+    if (!steps?.length) return nothing;
+    return html`<ol class="step-abstracts" aria-label="执行步骤">
+      ${steps.map(
+        (s) => html`<li class="${s.phase}">
+          <span class="step-idx">${s.index}.</span>
+          <span>${s.summary_zh}</span>
+        </li>`,
+      )}
+    </ol>`;
   }
 
   private renderToolCard(turn: ChatTurn, index: number) {
@@ -1995,6 +2068,7 @@ ${extraContent}` : t.content,
                       <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
                       <div>
                         <div class="bubble">${t.content}</div>
+                        ${t.role === "assistant" ? this.renderStepAbstracts(t.steps) : nothing}
                         ${t.role === "assistant"
                           ? (t.tools?.length
                               ? html`<div class="tool-stack">${t.tools.map((tc) => this.renderToolCard({ ...t, tool: tc }, idx))}</div>`

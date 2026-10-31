@@ -37,10 +37,10 @@ use easymc_share::{
     ShareMode,
 };
 use easymc_agent::{
-    apply_proposal, ask, bump_memory, clear_llm_config, llm_status, parse_proposal, read_llm_config,
+    apply_proposal, ask_with_progress, bump_memory, clear_llm_config, llm_status, parse_proposal, read_llm_config,
     run_diagnose, save_llm_config, show_data_dir, try_load_dotenv_llm, undo_proposal,
     write_diagnostic_bundle, refresh_ask_tool, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
-    LlmConfigView, LlmStatus,
+    AgentStepEvent, LlmConfigView, LlmStatus,
 };
 use easymc_container::{
     apply_game_layer, apply_one_click_setup, attach_container_to_instance,
@@ -1366,7 +1366,11 @@ async fn agent_ask(
     try_load_dotenv_llm();
     let logs = state.procs.logs_snapshot().await;
     let process_logs = if logs.is_empty() { None } else { Some(logs) };
-    let mut resp = ask(
+    let app_for_steps = app.clone();
+    let on_step = move |ev: AgentStepEvent| {
+        let _ = app_for_steps.emit("agent-step", &ev);
+    };
+    let mut resp = ask_with_progress(
         &state.paths,
         AskRequest {
             text,
@@ -1375,6 +1379,7 @@ async fn agent_ask(
             rules_only: rules_only.unwrap_or(false),
             history: history.unwrap_or_default(),
         },
+        Some(&on_step),
     )
     .await
     .map_err(|e| e.to_string())?;

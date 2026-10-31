@@ -44,6 +44,203 @@ pub fn resolve_max_turns() -> u32 {
         .unwrap_or(DEFAULT_MAX_TURNS)
 }
 
+/// One progressive step the Agent chat UI shows while the loop runs.
+///
+/// Emitted live via Tauri `agent-step` (and also returned on [`AgentLoopResult::steps`] /
+/// [`crate::AskResponse::steps`]) so players see look → do → verify, not only a final「好了。」.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentStepEvent {
+    /// 1-based index in the current ask.
+    pub index: u32,
+    /// `thinking` | `tool_start` | `tool_done` | `reply`
+    pub phase: String,
+    /// One short Chinese line, e.g. 「正在检查模组依赖…」.
+    pub summary_zh: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_status: Option<String>,
+}
+
+impl AgentStepEvent {
+    pub fn thinking(index: u32) -> Self {
+        Self {
+            index,
+            phase: "thinking".into(),
+            summary_zh: "正在思考下一步…".into(),
+            tool_name: None,
+            tool_status: None,
+        }
+    }
+
+    pub fn tool_start(index: u32, tool_name: &str) -> Self {
+        Self {
+            index,
+            phase: "tool_start".into(),
+            summary_zh: tool_start_summary_zh(tool_name),
+            tool_name: Some(tool_name.into()),
+            tool_status: Some("running".into()),
+        }
+    }
+
+    pub fn tool_done(index: u32, tool_name: &str, card: &ToolCall) -> Self {
+        let status = match card.status {
+            ToolStatus::Ok => "ok",
+            ToolStatus::Error => "error",
+            ToolStatus::Pending => "pending",
+            ToolStatus::Running => "running",
+        };
+        Self {
+            index,
+            phase: "tool_done".into(),
+            summary_zh: tool_done_summary_zh(tool_name, card),
+            tool_name: Some(tool_name.into()),
+            tool_status: Some(status.into()),
+        }
+    }
+
+    pub fn reply(index: u32, reply_zh: &str) -> Self {
+        let line = first_line_trimmed(reply_zh, 48);
+        let summary_zh = if line.is_empty() || line == "(空回复)" {
+            "整理好了答复。".into()
+        } else {
+            line
+        };
+        Self {
+            index,
+            phase: "reply".into(),
+            summary_zh,
+            tool_name: None,
+            tool_status: None,
+        }
+    }
+}
+
+fn first_line_trimmed(s: &str, max_chars: usize) -> String {
+    let line = s
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .to_string();
+    truncate(&line, max_chars)
+}
+
+/// Player-facing one-liner when a tool begins.
+pub fn tool_start_summary_zh(name: &str) -> String {
+    match name {
+        "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => "正在检查模组依赖…".into(),
+        "fetch_missing_mod_deps" | "install_missing_deps" => "正在补全缺失依赖…".into(),
+        "list_installed_mods" | "check_mods" => "正在查看已装模组…".into(),
+        "install_mod" => "正在安装模组…".into(),
+        "search_mods" => "正在搜索模组…".into(),
+        "suggest_mods" => "正在推荐模组…".into(),
+        "list_instances" | "list_versions" => "正在列出版本…".into(),
+        "diagnose" | "analyze_crash_log" | "analyze_launch_log" => "正在查看崩溃日志…".into(),
+        "ensure_java" => "正在准备 Java…".into(),
+        "setup_env" => "正在一键准备环境…".into(),
+        "propose_changes" | "bump_memory" | "suggest_memory" => "正在生成配置建议…".into(),
+        "build_pack" | "create_modpack" | "export_modpack" => "正在制作整合包…".into(),
+        "import_mrpack" | "import_modpack" => "正在导入整合包…".into(),
+        "diagnostics" => "正在导出问题报告…".into(),
+        "delete_instance" | "delete_version" | "remove_instance" => "准备删除版本（需确认）…".into(),
+        "delete_mod" | "remove_mod" | "uninstall_mod" => "准备删除模组（需确认）…".into(),
+        "toggle_mod" | "enable_mod" | "disable_mod" => "准备启用/禁用模组（需确认）…".into(),
+        other => {
+            let (title, _) = crate::tool::tool_meta(other);
+            format!("正在{title}…")
+        }
+    }
+}
+
+/// Player-facing one-liner when a tool finishes (ok / pending / error).
+pub fn tool_done_summary_zh(name: &str, card: &ToolCall) -> String {
+    let result = card.result_zh.as_deref().unwrap_or("").trim();
+    let first = first_line_trimmed(result, 56);
+
+    match card.status {
+        ToolStatus::Error => {
+            if first.is_empty() {
+                let (title, _) = crate::tool::tool_meta(name);
+                format!("{title}没成功。")
+            } else {
+                first
+            }
+        }
+        ToolStatus::Pending => {
+            if first.contains("需确认") || !first.is_empty() {
+                if first.is_empty() {
+                    "需要你确认后才会改动。".into()
+                } else {
+                    truncate(&first, 56)
+                }
+            } else {
+                let (title, _) = crate::tool::tool_meta(name);
+                format!("{title}需你确认。")
+            }
+        }
+        ToolStatus::Ok | ToolStatus::Running => {
+            // Prefer structured payload for deps / install counts.
+            if let Some(summary) = deps_done_summary(name, card) {
+                return summary;
+            }
+            if !first.is_empty()
+                && !first.starts_with("（")
+                && first != "(空回复)"
+            {
+                return first;
+            }
+            let (title, _) = crate::tool::tool_meta(name);
+            format!("已完成：{title}")
+        }
+    }
+}
+
+fn deps_done_summary(name: &str, card: &ToolCall) -> Option<String> {
+    let payload = card.payload.as_ref()?;
+    match name {
+        "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => {
+            if let Some(n) = payload
+                .get("missing_ids")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+            {
+                return Some(if n == 0 {
+                    "依赖齐全，没有缺失。".into()
+                } else {
+                    format!("发现缺失 {n} 个，准备补全…")
+                });
+            }
+            if let Some(s) = payload.get("summary_zh").and_then(|v| v.as_str()) {
+                return Some(truncate(s.trim(), 56));
+            }
+            None
+        }
+        "fetch_missing_mod_deps" | "install_missing_deps" | "install_mod" => {
+            if let Some(installed) = payload
+                .get("installed")
+                .and_then(|v| v.as_array())
+                .or_else(|| payload.get("installed_ids").and_then(|v| v.as_array()))
+            {
+                if let Some(first) = installed.first().and_then(|x| x.as_str()) {
+                    if installed.len() == 1 {
+                        return Some(format!("已安装 {first}…"));
+                    }
+                    return Some(format!("已安装 {first} 等 {} 个…", installed.len()));
+                }
+            }
+            if let Some(n) = payload.get("installed_count").and_then(|v| v.as_u64()) {
+                return Some(format!("已补全 {n} 个依赖…"));
+            }
+            if let Some(s) = payload.get("summary_zh").and_then(|v| v.as_str()) {
+                return Some(truncate(s.trim(), 56));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 /// Abstraction over chat completions so the agent loop can be unit-tested
 /// without a live OpenAI-compatible endpoint.
 #[async_trait]
@@ -132,6 +329,9 @@ pub struct AgentLoopResult {
     pub turns_used: u32,
     /// `final_text` | `no_tools` | `max_turns` | `error`
     pub stop_reason: String,
+    /// Ordered short Chinese step abstracts for the chat UI.
+    #[serde(default)]
+    pub steps: Vec<AgentStepEvent>,
 }
 
 fn new_tool_call_id(turn: u32, idx: usize) -> String {
@@ -316,24 +516,53 @@ async fn run_one_tool(
     }
 }
 
+fn emit_step(
+    steps: &mut Vec<AgentStepEvent>,
+    on_step: Option<&(dyn Fn(AgentStepEvent) + Send + Sync)>,
+    step: AgentStepEvent,
+) {
+    if let Some(cb) = on_step {
+        cb(step.clone());
+    }
+    steps.push(step);
+}
+
 /// Run the multi-step agent loop (pi-style inner tool loop + max_turns).
 pub async fn run_agent_loop(
+    provider: &impl AgentCompleter,
+    paths: &Paths,
+    messages: Vec<ChatMessage>,
+    process_logs: Option<Vec<String>>,
+    instance_id: Option<String>,
+    config: AgentLoopConfig,
+) -> Result<AgentLoopResult> {
+    run_agent_loop_with_progress(provider, paths, messages, process_logs, instance_id, config, None).await
+}
+
+/// Same as [`run_agent_loop`], with optional live step callbacks for the UI.
+pub async fn run_agent_loop_with_progress(
     provider: &impl AgentCompleter,
     paths: &Paths,
     mut messages: Vec<ChatMessage>,
     process_logs: Option<Vec<String>>,
     instance_id: Option<String>,
     config: AgentLoopConfig,
+    on_step: Option<&(dyn Fn(AgentStepEvent) + Send + Sync)>,
 ) -> Result<AgentLoopResult> {
     let mut tools_out: Vec<ToolCall> = Vec::new();
+    let mut steps_out: Vec<AgentStepEvent> = Vec::new();
     let mut last_action: Option<ActionResult> = None;
     let mut last_report: Option<DiagnoseReport> = None;
     let mut last_content = String::new();
     let mut turns_used = 0u32;
     let mut stop_reason = "final_text".to_string();
+    let mut step_index = 0u32;
 
     for turn in 1..=config.max_turns {
         turns_used = turn;
+        step_index += 1;
+        emit_step(&mut steps_out, on_step, AgentStepEvent::thinking(step_index));
+
         let completion: LlmCompletion = match provider.complete_raw(&messages, true).await {
             Ok(c) => c,
             Err(e) => {
@@ -368,6 +597,12 @@ pub async fn run_agent_loop(
 
         // Execute ALL tool_calls this turn (pi: batch then refeed).
         for tc in &normalized {
+            step_index += 1;
+            emit_step(
+                &mut steps_out,
+                on_step,
+                AgentStepEvent::tool_start(step_index, &tc.name),
+            );
             let (result_text, card, action, report) = run_one_tool(
                 paths,
                 tc,
@@ -381,6 +616,12 @@ pub async fn run_agent_loop(
             if report.is_some() {
                 last_report = report;
             }
+            step_index += 1;
+            emit_step(
+                &mut steps_out,
+                on_step,
+                AgentStepEvent::tool_done(step_index, &tc.name, &card),
+            );
             tools_out.push(card);
             messages.push(tool_result_message(&tc.id, &tc.name, &result_text));
         }
@@ -411,8 +652,17 @@ pub async fn run_agent_loop(
 
     if last_content.trim().is_empty() || last_content.trim() == "(空回复)" {
         if !tools_out.is_empty() {
-            last_content = "好了，步骤都跑完了。详情见上方工具卡。".into();
+            last_content = "好了，步骤都跑完了。详情见上方步骤摘要。".into();
         }
+    }
+
+    if !last_content.trim().is_empty() {
+        step_index += 1;
+        emit_step(
+            &mut steps_out,
+            on_step,
+            AgentStepEvent::reply(step_index, &last_content),
+        );
     }
 
     Ok(AgentLoopResult {
@@ -422,6 +672,7 @@ pub async fn run_agent_loop(
         action: last_action,
         turns_used,
         stop_reason,
+        steps: steps_out,
     })
 }
 
@@ -692,4 +943,79 @@ mod tests {
             .count();
         assert_eq!(tool_on_t2, 1);
     }
+
+    #[test]
+    fn tool_summaries_are_short_chinese() {
+        let start = tool_start_summary_zh("check_mod_deps");
+        assert!(start.contains("依赖"), "{start}");
+        assert!(start.chars().count() <= 24, "{start}");
+
+        let card = ToolCall {
+            id: "t1".into(),
+            name: "check_mod_deps".into(),
+            title_zh: "模组依赖".into(),
+            status: ToolStatus::Ok,
+            args: vec![],
+            result_zh: Some("缺 15 个".into()),
+            path: None,
+            payload: Some(json!({ "missing_ids": ["a","b","c"], "summary_zh": "缺 3 个" })),
+            ui_actions: vec![],
+            tag_zh: Some("依赖".into()),
+        };
+        let done = tool_done_summary_zh("check_mod_deps", &card);
+        assert!(done.contains("3") || done.contains("缺失"), "{done}");
+        assert!(done.chars().count() <= 40, "{done}");
+    }
+
+    #[tokio::test]
+    async fn agent_loop_emits_progressive_steps() {
+        let (_tmp, paths) = temp_paths();
+        let script = ScriptedCompleter::new(vec![
+            LlmCompletion {
+                content: "".into(),
+                tool_calls: vec![tc("c1", "list_instances", json!({}))],
+            },
+            LlmCompletion {
+                content: "版本列好了。".into(),
+                tool_calls: vec![],
+            },
+        ]);
+        let recorded: std::sync::Mutex<Vec<AgentStepEvent>> = std::sync::Mutex::new(Vec::new());
+        let result = run_agent_loop_with_progress(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "版本列表".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig { max_turns: 8 },
+            Some(&|ev| {
+                recorded.lock().unwrap().push(ev);
+            }),
+        )
+        .await
+        .expect("loop ok");
+
+        assert!(!result.steps.is_empty(), "steps on result");
+        let live = recorded.lock().unwrap().clone();
+        assert_eq!(live.len(), result.steps.len());
+        assert!(live.iter().any(|s| s.phase == "thinking"));
+        assert!(live.iter().any(|s| s.phase == "tool_start" && s.tool_name.as_deref() == Some("list_instances")));
+        assert!(live.iter().any(|s| s.phase == "tool_done"));
+        assert!(live.iter().any(|s| s.phase == "reply"));
+        // Indices are 1-based and strictly increasing.
+        let mut prev = 0u32;
+        for s in &live {
+            assert!(s.index > prev, "index order {:?}", live);
+            prev = s.index;
+            assert!(!s.summary_zh.is_empty());
+            assert!(s.summary_zh.chars().count() <= 64, "{}", s.summary_zh);
+        }
+    }
+
 }

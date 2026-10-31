@@ -404,6 +404,16 @@ export interface ToolCallDto {
   tag_zh?: string | null;
 }
 
+/** Progressive AgentLoop step abstract (Tauri `agent-step` + AskResponse.steps). */
+export interface AgentStepDto {
+  index: number;
+  /** thinking | tool_start | tool_done | reply */
+  phase: string;
+  summary_zh: string;
+  tool_name?: string | null;
+  tool_status?: string | null;
+}
+
 export interface AgentAskResponse {
   mode: string;
   reply_zh: string;
@@ -413,6 +423,8 @@ export interface AgentAskResponse {
   tool?: ToolCallDto | null;
   /** All tool cards from a multi-step agent loop. */
   tools?: ToolCallDto[];
+  /** Short Chinese step abstracts (look → do → verify). */
+  steps?: AgentStepDto[];
   llm: LlmStatusDto;
 }
 

@@ -383,6 +383,20 @@ export async function listenInstallProgress(
 }
 
 
+export async function listenAgentStep(
+  handler: (step: import("./types").AgentStepDto) => void,
+): Promise<() => void> {
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    const un = await listen<import("./types").AgentStepDto>("agent-step", (e) => handler(e.payload));
+    return () => un();
+  } catch {
+    return () => undefined;
+  }
+}
+
+
+
 export async function curseforgeConfigured(): Promise<CurseForgeStatusDto> {
   return (
     (await invokeSafe<CurseForgeStatusDto>("curseforge_configured")) ?? {
