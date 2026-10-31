@@ -25,7 +25,7 @@ export class MsaLogin extends LitElement {
     }
     @keyframes pop { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: none; } }
     .step { font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
-    a { color: var(--md-sys-color-primary); font-weight: 600; }
+    a { color: var(--md-sys-color-primary); font-weight: var(--easymc-weight-medium); }
     .code {
       font: 700 2rem/1.2 ui-monospace, "SFMono-Regular", Menlo, monospace; letter-spacing: 0.18em;
       color: var(--md-sys-color-on-primary-container); background: var(--md-sys-color-primary-container);
@@ -36,7 +36,7 @@ export class MsaLogin extends LitElement {
     @keyframes spin { to { transform: rotate(360deg); } }
     .err { padding: 12px 14px; border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); font-size: 0.9rem; line-height: 1.5; margin-bottom: 12px; }
     .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-    button { padding: 10px 20px; border: none; border-radius: var(--md-sys-shape-corner-full, 999px); font: inherit; font-weight: 600; cursor: pointer; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+    button { padding: 10px 20px; border: none; border-radius: var(--md-sys-shape-corner-full, 999px); font: inherit; font-weight: var(--easymc-weight-medium); cursor: pointer; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
     /* ghost → controlStyles; tonal surface override if needed */
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }

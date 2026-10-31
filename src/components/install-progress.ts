@@ -118,7 +118,7 @@ export class InstallProgress extends LitElement {
       min-width: 3.2ch;
       text-align: right;
       font-size: var(--easymc-type-label);
-      font-weight: 700;
+      font-weight: var(--easymc-weight-bold);
       color: var(--md-sys-color-on-surface);
       font-variant-numeric: tabular-nums;
     }

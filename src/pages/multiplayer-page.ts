@@ -34,7 +34,7 @@ export class MultiplayerPage extends LitElement {
         padding: var(--easymc-space-1) var(--easymc-space-3);
         border-radius: var(--md-sys-shape-corner-full);
         font-size: var(--easymc-type-meta);
-        font-weight: 600;
+        font-weight: var(--easymc-weight-medium);
         background: var(--md-sys-color-tertiary-container);
         color: var(--md-sys-color-on-tertiary-container);
       }

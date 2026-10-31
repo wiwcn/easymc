@@ -76,7 +76,7 @@ export class LibraryPage extends LitElement {
     h1 {
       margin: 0;
       font-size: var(--easymc-type-display);
-      font-weight: 700;
+      font-weight: var(--easymc-weight-bold);
     }
     .sub {
       margin: 4px 0 0;
@@ -92,7 +92,7 @@ export class LibraryPage extends LitElement {
       border: none;
       border-radius: var(--md-sys-shape-corner-full);
       font-size: var(--easymc-type-label);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       cursor: pointer;
     }
     .btn:disabled {
@@ -143,7 +143,7 @@ export class LibraryPage extends LitElement {
       padding: 2px 10px;
       border-radius: var(--md-sys-shape-corner-full);
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       background: var(--md-sys-color-surface-container-highest);
     }
     .badge.ok {
@@ -190,7 +190,7 @@ export class LibraryPage extends LitElement {
       flex-direction: column;
       gap: 6px;
       font-size: var(--easymc-type-label);
-      font-weight: 500;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
     }
     input[type="text"],
@@ -213,7 +213,7 @@ export class LibraryPage extends LitElement {
       align-items: center;
       gap: 8px;
       font-size: var(--easymc-type-label);
-      font-weight: 500;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
       cursor: pointer;
       flex-direction: row;
@@ -280,10 +280,10 @@ export class LibraryPage extends LitElement {
       align-items: baseline;
       margin-bottom: 8px;
       font-size: var(--easymc-type-label);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     .progress-head .muted {
-      font-weight: 500;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
       font-size: var(--easymc-type-meta);
     }

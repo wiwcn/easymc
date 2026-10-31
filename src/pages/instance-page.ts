@@ -121,10 +121,10 @@ export class InstancePage extends LitElement {
       width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
-      display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
+      display: grid; place-items: center; font-weight: var(--easymc-weight-bold); flex-shrink: 0;
     }
     .meta { flex: 1; min-width: 0; }
-    .meta .name { font-weight: 600; }
+    .meta .name { font-weight: var(--easymc-weight-medium); }
     .meta .info { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); }
     .menu-wrap { position: relative; }
     .menu-panel {

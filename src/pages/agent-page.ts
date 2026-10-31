@@ -221,7 +221,7 @@ export class AgentPage extends LitElement {
       padding: 4px 10px;
       border-radius: var(--md-sys-shape-corner-full);
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
     }
@@ -295,7 +295,7 @@ export class AgentPage extends LitElement {
       display: grid;
       place-items: center;
       font-size: var(--easymc-type-meta);
-      font-weight: 700;
+      font-weight: var(--easymc-weight-bold);
     }
     .msg.assistant .avatar {
       background: var(--md-sys-color-primary-container);
@@ -365,7 +365,7 @@ export class AgentPage extends LitElement {
       padding: 3px 10px;
       border-radius: var(--md-sys-shape-corner-full);
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
     }
@@ -395,7 +395,7 @@ export class AgentPage extends LitElement {
     .tool-args dt {
       margin: 0;
       color: var(--md-sys-color-on-surface-variant);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       font-size: var(--easymc-type-meta);
     }
     .tool-args dd {
@@ -471,7 +471,7 @@ export class AgentPage extends LitElement {
       padding: 3px 10px;
       border-radius: var(--md-sys-shape-corner-full);
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
@@ -489,13 +489,13 @@ export class AgentPage extends LitElement {
       vertical-align: top;
     }
     .proposal-table th {
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
       font-size: var(--easymc-type-meta);
     }
     .proposal-table .delta {
       color: var(--md-sys-color-primary);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     .proposal-table .proposed {
       font-weight: var(--easymc-weight-medium);
@@ -516,7 +516,7 @@ export class AgentPage extends LitElement {
     }
     .proposal-status.ok {
       color: var(--md-sys-color-primary);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     .composer {
       display: flex;

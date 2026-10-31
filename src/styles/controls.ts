@@ -14,7 +14,7 @@ export const controlStyles = css`
   button.danger,
   button.launch {
     font-family: inherit;
-    font-weight: 600;
+    font-weight: var(--easymc-weight-medium);
     font-size: var(--easymc-type-label);
     line-height: 1.25;
     letter-spacing: -0.01em;
@@ -84,7 +84,7 @@ export const controlStyles = css`
     background: var(--easymc-launch-gradient);
     color: var(--md-sys-color-on-primary);
     font-size: var(--easymc-type-title);
-    font-weight: 700;
+    font-weight: var(--easymc-weight-bold);
     padding: 15px 28px;
     box-shadow:
       var(--md-sys-elevation-2),
@@ -252,7 +252,7 @@ export const controlStyles = css`
     color: var(--md-sys-color-on-surface-variant);
     font-family: inherit;
     font-size: var(--easymc-type-label);
-    font-weight: 500;
+    font-weight: var(--easymc-weight-medium);
     transition: color var(--easymc-dur-press) var(--easymc-ease-out);
   }
   .md-tabs button.on,
@@ -283,7 +283,7 @@ export const controlStyles = css`
     color: var(--md-sys-color-on-surface-variant);
     font-family: inherit;
     font-size: var(--easymc-type-label);
-    font-weight: 600;
+    font-weight: var(--easymc-weight-medium);
     cursor: pointer;
     transition:
       background var(--easymc-dur-press) var(--easymc-ease-out),
@@ -435,7 +435,7 @@ export const controlStyles = css`
   }
   .slider-value .unit {
     margin-left: 2px;
-    font-weight: 500;
+    font-weight: var(--easymc-weight-medium);
     font-size: var(--easymc-type-meta);
     color: var(--md-sys-color-on-surface-variant);
   }

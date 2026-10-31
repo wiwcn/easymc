@@ -133,7 +133,7 @@ export class SettingsPage extends LitElement {
       }
       details.card summary {
         cursor: pointer;
-        font-weight: 600;
+        font-weight: var(--easymc-weight-medium);
       }
       .muted {
         color: var(--md-sys-color-on-surface-variant);
@@ -148,7 +148,7 @@ export class SettingsPage extends LitElement {
       }
       .java-ok {
         color: var(--md-sys-color-primary);
-        font-weight: 600;
+        font-weight: var(--easymc-weight-medium);
         font-size: var(--easymc-type-label);
       }
       .java-warn {

@@ -149,7 +149,7 @@ export class HomePage extends LitElement {
       padding: 7px 14px 7px 16px;
       cursor: pointer;
       font-size: var(--easymc-type-label);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       transition:
         background var(--easymc-dur-press) var(--easymc-ease-out),
         color var(--easymc-dur-press) var(--easymc-ease-out);
@@ -263,7 +263,7 @@ export class HomePage extends LitElement {
     .feat-title {
       margin: 0 0 12px;
       font-size: var(--easymc-type-display);
-      font-weight: 700;
+      font-weight: var(--easymc-weight-bold);
       letter-spacing: -0.03em;
       color: var(--md-sys-color-on-surface);
       line-height: 1.2;
@@ -296,7 +296,7 @@ export class HomePage extends LitElement {
       align-items: center;
       min-height: 24px; /* A11Y-4 decorative chip floor */
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       padding: var(--easymc-space-1) var(--easymc-space-3);
       border-radius: var(--md-sys-shape-corner-full);
       letter-spacing: -0.01em;
@@ -465,7 +465,8 @@ export class HomePage extends LitElement {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin: var(--easymc-space-1) 0 var(--easymc-space-3);
+      margin: var(--easymc-space-2) 0 var(--easymc-space-3);
+      gap: var(--easymc-space-3);
     }
     /* section-head h2 → pageChromeStyles */
     .instances-area {
@@ -584,7 +585,7 @@ export class HomePage extends LitElement {
       align-items: center;
       gap: 5px;
       font-size: var(--easymc-type-meta);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-success);
     }
     .ready.not {
@@ -595,6 +596,18 @@ export class HomePage extends LitElement {
       height: 7px;
       border-radius: 50%;
       background: currentColor;
+    }
+    /* Soft empty / not-installed: keep elev, mute the tile so ready cards lead */
+    button.vcard.not-ready {
+      background: var(--md-sys-color-surface-container-low);
+      opacity: 0.92;
+    }
+    button.vcard.not-ready .tile {
+      filter: grayscale(0.35);
+      opacity: 0.85;
+    }
+    button.vcard.not-ready .title {
+      color: var(--md-sys-color-on-surface-variant);
     }
     .vcard .more {
       position: absolute;
@@ -1007,7 +1020,7 @@ export class HomePage extends LitElement {
     const tint = `color-mix(in oklch, ${tile.bg} 70%, var(--md-sys-color-surface-container-lowest))`;
     return html`
       <button
-        class="vcard ${selected ? "selected" : ""}"
+        class="vcard ${selected ? "selected" : ""} ${ready ? "" : "not-ready"}"
         type="button"
         aria-pressed=${selected ? "true" : "false"}
         style=${`background:${tint}`}

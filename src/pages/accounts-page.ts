@@ -156,7 +156,7 @@ export class AccountsPage extends LitElement {
       }
       .badge {
         font-size: var(--easymc-type-meta);
-        font-weight: 700;
+        font-weight: var(--easymc-weight-bold);
         padding: 2px 8px;
         border-radius: var(--md-sys-shape-corner-full);
         background: var(--md-sys-color-secondary-container);

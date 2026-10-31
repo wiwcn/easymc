@@ -163,7 +163,7 @@ export class StorePage extends LitElement {
       font-size: var(--easymc-type-title);
     }
     .title {
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       margin: 0 0 4px;
     }
     .desc {
@@ -259,7 +259,7 @@ export class StorePage extends LitElement {
       background: none;
       color: var(--md-sys-color-primary);
       font: inherit;
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
       cursor: pointer;
       text-decoration: underline;
       text-underline-offset: 2px;

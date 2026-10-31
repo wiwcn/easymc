@@ -169,7 +169,7 @@ export class DownloadPage extends LitElement {
     }
     .tags { display: flex; flex-wrap: wrap; gap: var(--easymc-space-2); margin-top: var(--easymc-space-2); }
     .tag {
-      font-size: var(--easymc-type-meta); font-weight: 600; padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
+      font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium); padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
@@ -232,7 +232,7 @@ export class DownloadPage extends LitElement {
     .crumb strong { color: var(--md-sys-color-on-surface); font-weight: var(--easymc-weight-medium); }
     .crumb button {
       border: none; background: transparent; color: var(--md-sys-color-primary);
-      cursor: pointer; font: inherit; font-weight: 600; padding: 0;
+      cursor: pointer; font: inherit; font-weight: var(--easymc-weight-medium); padding: 0;
     }
     .ver-grid, .loader-grid {
       display: grid;
@@ -241,8 +241,9 @@ export class DownloadPage extends LitElement {
     }
     button.ver-card, button.loader-card {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
-      display: flex; gap: var(--easymc-space-3); align-items: center;
+      display: flex; gap: var(--easymc-space-3); align-items: flex-start;
       padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large);
+      min-height: 84px;
       background: var(--md-sys-color-surface-container-lowest);
       border: none;
       box-shadow: var(--md-sys-elevation-1);
@@ -261,8 +262,10 @@ export class DownloadPage extends LitElement {
       outline: none;
       box-shadow: var(--easymc-focus-ring);
     }
+    button.ver-card { align-items: center; } /* version tiles stay vertically centered */
+    button.loader-card { align-items: flex-start; } /* multi-line loader copy */
     button.ver-card .vid {
-      font-weight: 700; font-size: var(--easymc-type-title); letter-spacing: -0.02em;
+      font-weight: var(--easymc-weight-bold); font-size: var(--easymc-type-title); letter-spacing: -0.02em;
     }
     button.ver-card .meta {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
@@ -282,10 +285,11 @@ export class DownloadPage extends LitElement {
     /* Selected card: the pick needs to be legible at a glance, so the fill (not
        just the border) changes. */
     button.ver-card.on, button.loader-card.on {
+      /* CF-1 XOR: selected uses fill + outline, drop elevation */
       background: var(--md-sys-color-primary-container);
       outline: 2px solid var(--md-sys-color-primary);
       outline-offset: 0;
-      box-shadow: var(--md-sys-elevation-2);
+      box-shadow: none;
     }
     button.ver-card.on .vid, button.ver-card.on .meta { color: var(--md-sys-color-on-primary-container); }
     .panel-head {
@@ -325,9 +329,11 @@ export class DownloadPage extends LitElement {
     .loader-ico.forge { color: oklch(0.48 0.03 68); }
     .loader-ico.neoforge { color: oklch(0.6 0.14 38); }
     button.loader-card:hover .loader-ico { background: color-mix(in oklch, currentColor 20%, transparent); }
-    button.loader-card .lname { font-weight: 700; font-size: var(--easymc-type-body); }
+    button.loader-card .lname { font-weight: var(--easymc-weight-bold); font-size: var(--easymc-type-body); }
     button.loader-card .ldesc {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px; line-height: 1.35;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      max-width: 100%;
     }
     .loader-panel {
       padding: var(--easymc-space-4); border-radius: var(--md-sys-shape-corner-large); margin-top: var(--easymc-space-4);
@@ -336,7 +342,7 @@ export class DownloadPage extends LitElement {
     .loader-panel .row { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; margin-top: var(--easymc-space-3); }
     button.back {
       border: none; background: transparent; color: var(--md-sys-color-primary);
-      cursor: pointer; font: inherit; font-weight: 600; padding: 8px 4px;
+      cursor: pointer; font: inherit; font-weight: var(--easymc-weight-medium); padding: 8px 4px;
       border-radius: var(--md-sys-shape-corner-small);
     }
     button.back:focus-visible, .crumb button:focus-visible, button.outline-dl:focus-visible {

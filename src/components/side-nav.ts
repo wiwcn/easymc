@@ -89,7 +89,7 @@ export class SideNav extends LitElement {
       border-radius: var(--md-sys-shape-corner-full);
       cursor: pointer;
       font-size: var(--easymc-type-body);
-      font-weight: 500;
+      font-weight: var(--easymc-weight-medium);
       text-align: left;
       transition:
         background var(--easymc-dur-press) var(--easymc-ease-out),
@@ -106,7 +106,7 @@ export class SideNav extends LitElement {
     button.item.active {
       background: transparent;
       color: var(--md-sys-color-on-primary-container);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     button.item:focus-visible {
       box-shadow: var(--easymc-focus-ring);
@@ -130,7 +130,7 @@ export class SideNav extends LitElement {
       border-radius: var(--md-sys-shape-corner-full);
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     button.acct-card {
       margin-top: auto;
@@ -225,8 +225,8 @@ export class SideNav extends LitElement {
       align-items: center;
       padding: 1px 7px;
       border-radius: var(--md-sys-shape-corner-full);
-      font-size: 11px;
-      font-weight: 600;
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-medium);
       letter-spacing: 0.01em;
     }
     .badge.ms {

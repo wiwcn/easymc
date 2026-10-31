@@ -98,7 +98,7 @@ export class OnboardingPage extends LitElement {
       min-height: 0;
     }
     .chrome-top { flex-shrink: 0; }
-    .brand { font-weight: 700; font-size: var(--easymc-type-display); letter-spacing: -0.02em; margin-bottom: 4px; }
+    .brand { font-weight: var(--easymc-weight-bold); font-size: var(--easymc-type-display); letter-spacing: -0.02em; margin-bottom: 4px; }
     .steps { display: flex; gap: 6px; margin: 0 0 16px; }
     .steps i { flex: 1; height: 4px; border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-surface-container-highest); }
     .steps i.on { background: var(--md-sys-color-primary); }
@@ -182,7 +182,7 @@ export class OnboardingPage extends LitElement {
         box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
     button.opt:hover { background: var(--md-sys-color-surface-container); box-shadow: var(--md-sys-elevation-2); }
-    .skip-cta { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+    .skip-cta { font-weight: var(--easymc-weight-medium); text-decoration: underline; text-underline-offset: 3px; }
     button.opt.sel {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
@@ -215,7 +215,7 @@ export class OnboardingPage extends LitElement {
       padding: 11px 22px;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    label { display: flex; flex-direction: column; gap: 6px; font-size: var(--easymc-type-label); font-weight: 500; color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: var(--easymc-type-label); font-weight: var(--easymc-weight-medium); color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
     input, select {
       padding: 11px 14px; border-radius: var(--md-sys-shape-corner-medium);
       border: 1px solid var(--md-sys-color-outline-variant);
@@ -242,7 +242,7 @@ export class OnboardingPage extends LitElement {
     .mark {
       width: 22px; height: 22px; border-radius: 50%;
       display: grid; place-items: center;
-      font-size: 12px; font-weight: 700;
+      font-size: 12px; font-weight: var(--easymc-weight-bold);
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface-variant);
       margin-top: 2px;
@@ -267,7 +267,7 @@ export class OnboardingPage extends LitElement {
       border-color: var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
-      font-weight: 600;
+      font-weight: var(--easymc-weight-medium);
     }
     .java-log {
       margin-top: 10px;
