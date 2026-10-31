@@ -63,7 +63,7 @@ export class MorePage extends LitElement {
       </div>
       <div class="about surf-outline" id="about">
         <strong style="color:var(--md-sys-color-on-surface)">关于 EasyMC</strong><br />
-        版本 0.1.12 · MIT 许可<br />
+        版本 0.1.13 · MIT 许可<br />
         开源 Minecraft Java Edition 启动器。<br />
         源码仓库公开后可在此查看；反馈占位：
         <a href="mailto:feedback@easymc.local?subject=EasyMC%20反馈">feedback@easymc.local</a>

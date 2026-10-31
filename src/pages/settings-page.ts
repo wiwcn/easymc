@@ -947,7 +947,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>关于</h2>
         <p>
-          EasyMC ${this.settings ? "0.1.12" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
+          EasyMC ${this.settings ? "0.1.13" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
         </p>
       </div>
     `;
