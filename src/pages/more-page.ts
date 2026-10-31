@@ -85,7 +85,7 @@ export class MorePage extends LitElement {
       </div>
       <div class="about surf-outline" id="about">
         <strong>关于 EasyMC</strong><br />
-        版本 ${APP_VERSION} · MIT 许可<br />
+        版本 ${APP_VERSION} · LGPL-3.0-or-later<br />
         开源的 Minecraft Java 启动器，面向玩家、好上手。<br />
         意见与建议：
         <a href="mailto:feedback@easymc.local?subject=EasyMC%20反馈">feedback@easymc.local</a>
