@@ -106,6 +106,16 @@ const TOOL_TITLES: Record<string, string> = {
   suggest_memory: "内存建议",
 };
 
+/** Player-facing skill hints (mirror crates/easymc-agent skills index). */
+const SKILL_HINTS: { label: string; prompt: string; tool?: string }[] = [
+  { label: "游戏崩了", prompt: "查看崩溃", tool: "diagnose" },
+  { label: "装个模组", prompt: "搜模组 sodium", tool: "search_mods" },
+  { label: "打开模组文件夹", prompt: "打开模组文件夹", tool: "open_mods" },
+  { label: "看看有哪些版本", prompt: "版本列表", tool: "list_instances" },
+  { label: "内存不够卡", prompt: "优化配置", tool: "propose_changes" },
+  { label: "禁用某个模组", prompt: "已装模组", tool: "check_mods" },
+];
+
 function runningTool(name: string, args: { key: string; label_zh: string; value: string }[] = []): ToolCallDto {
   return {
     id: `local-running-${name}-${Date.now()}`,
@@ -172,6 +182,7 @@ export class AgentPage extends LitElement {
   @state() private llmKey = "";
   @state() private llmModel = "";
   @state() private llmBusy = false;
+  @state() private booting = true;
 
   static styles = [
     controlStyles,
@@ -258,6 +269,30 @@ export class AgentPage extends LitElement {
       background: var(--md-sys-color-surface-container-lowest);
       font: inherit;
     }
+
+    .gate-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+    .gate-shell > .head {
+      flex-shrink: 0;
+    }
+    .gate-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      padding: var(--easymc-space-3) 0 var(--easymc-space-5);
+    }
+    .boot-muted {
+      margin: 48px auto;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-body);
+    }
     .chat-empty {
       flex: 1;
       display: flex;
@@ -265,6 +300,35 @@ export class AgentPage extends LitElement {
       justify-content: center;
       min-height: 240px;
       margin-bottom: var(--easymc-space-3);
+      padding: var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-lowest);
+      box-shadow: var(--md-sys-elevation-1);
+      box-sizing: border-box;
+    }
+    .skills-hints {
+      display: flex;
+      flex-direction: column;
+      gap: var(--easymc-space-2);
+      margin-bottom: var(--easymc-space-3);
+    }
+    .skills-hints .hint-label {
+      margin: 0;
+      font-size: var(--easymc-type-meta);
+      font-weight: var(--easymc-weight-medium);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .skills-hints .hint-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--easymc-space-2);
+    }
+    .tool-card.pending {
+      outline-color: color-mix(in oklch, var(--md-sys-color-tertiary, var(--md-sys-color-secondary)) 45%, transparent);
+    }
+    .tool-result.muted-fallback {
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-meta);
     }
     .chat {
       flex: 1;
@@ -713,36 +777,38 @@ export class AgentPage extends LitElement {
   }
 
   private async boot() {
-    const [st, cfg, inst] = await Promise.all([
-      agentLlmStatus(),
-      agentLlmConfigGet(),
-      listInstancesState(),
-    ]);
-    this.llm = st;
-    this.llmCfg = cfg;
-    this.llmBase = cfg.base_url || "";
-    this.llmModel = cfg.model || "deepseek-chat";
-    this.llmKey = "";
-    // Cloud-first: unconfigured → blocking gate (no local chat by default).
-    this.showLlmForm = !st.configured;
-    this.instances = inst.instances;
-    this.instanceId = inst.active_id;
-    if (st.configured) {
-      this.turns = [
-        {
-          role: "assistant",
-          content: "云端助手已就绪。点右侧工具，或直接提问。",
-          mode: st.mode,
-        },
-      ];
-      if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
+    this.booting = true;
+    try {
+      const [st, cfg, inst] = await Promise.all([
+        agentLlmStatus(),
+        agentLlmConfigGet(),
+        listInstancesState(),
+      ]);
+      this.llm = st;
+      this.llmCfg = cfg;
+      this.llmBase = cfg.base_url || "";
+      this.llmModel = cfg.model || "deepseek-chat";
+      this.llmKey = "";
+      // Cloud-first: unconfigured → blocking gate (no local chat by default).
+      this.showLlmForm = !st.configured;
+      this.instances = inst.instances;
+      this.instanceId = inst.active_id;
+      if (st.configured) {
+        // Structured empty chat teaches next steps (Impeccable onboard / Extremes).
+        this.turns = [];
+        if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
+          sessionStorage.removeItem("easymc-agent-autodiagnose");
+          void this.onDiagnose();
+        }
+      } else {
         sessionStorage.removeItem("easymc-agent-autodiagnose");
-        void this.onDiagnose();
+        this.turns = [];
+        this.report = null;
       }
-    } else {
-      sessionStorage.removeItem("easymc-agent-autodiagnose");
-      this.turns = [];
-      this.report = null;
+    } catch (e) {
+      this.error = friendlyError(e);
+    } finally {
+      this.booting = false;
     }
   }
 
@@ -1012,29 +1078,45 @@ export class AgentPage extends LitElement {
   private patchTurnProposal(turnIndex: number, status: ChatTurn["proposalStatus"], extraContent?: string) {
     this.turns = this.turns.map((t, i) => {
       if (i !== turnIndex) return t;
-      const toolStatus: ToolStatus | undefined =
+      const toolStatus: ToolStatus =
         status === "applied" || status === "undone"
           ? "ok"
           : status === "pending"
             ? "pending"
-            : t.tool?.status;
+            : (t.tool?.status ?? "ok");
+      const patchOne = (tool: ToolCallDto): ToolCallDto => {
+        let actions = tool.ui_actions || [];
+        if (status === "applied") {
+          actions = actions.filter((a) => a.id !== "apply_proposal");
+          if (!actions.some((a) => a.id === "undo_proposal")) {
+            actions = [...actions, { id: "undo_proposal", label_zh: "撤销" }];
+          }
+        } else if (status === "undone") {
+          actions = actions.filter(
+            (a) => a.id !== "apply_proposal" && a.id !== "undo_proposal",
+          );
+        }
+        return {
+          ...tool,
+          status: toolStatus,
+          result_zh: extraContent || tool.result_zh,
+          ui_actions: actions,
+        };
+      };
+      const tool = t.tool ? patchOne(t.tool) : t.tool;
+      const tools = t.tools?.map((tc) =>
+        tc.name === "propose_changes" || (t.tool && tc.id === t.tool.id)
+          ? patchOne(tc)
+          : tc,
+      );
       return {
         ...t,
         proposalStatus: status,
         content: extraContent ? `${t.content}
 
 ${extraContent}` : t.content,
-        tool: t.tool
-          ? {
-              ...t.tool,
-              status: toolStatus || t.tool.status,
-              result_zh: extraContent || t.tool.result_zh,
-              ui_actions:
-                status === "pending"
-                  ? t.tool.ui_actions
-                  : (t.tool.ui_actions || []).filter((a) => a.id !== "apply_proposal"),
-            }
-          : t.tool,
+        tool,
+        tools,
       };
     });
   }
@@ -1267,15 +1349,28 @@ ${extraContent}` : t.content,
     const chipClass =
       st === "ok" ? "ok" : st === "error" ? "error" : st === "running" ? "running" : "pending";
     const isPropose = tool.name === "propose_changes" && turn.proposal;
+    const args = [...(tool.args ?? [])];
+    if (tool.path && !args.some((a) => a.value === tool.path)) {
+      args.push({ key: "path", label_zh: "路径", value: String(tool.path) });
+    }
+    const resultFallback =
+      st === "running"
+        ? null
+        : st === "error"
+          ? "这次没做成，可以换个说法再试，或点快捷工具。"
+          : st === "pending"
+            ? "需要你确认后才会改动。"
+            : "完成。";
+    const resultText = (tool.result_zh && tool.result_zh.trim()) || resultFallback;
     return html`
       <div
-        class="tool-card ${st === "error" ? "error" : ""} ${st === "running" ? "running" : ""}"
+        class="tool-card ${st === "error" ? "error" : ""} ${st === "running" ? "running" : ""} ${st === "pending" ? "pending" : ""}"
         data-tool-id=${tool.id}
         data-tool-name=${tool.name}
       >
         <div class="tool-card-head">
           <div>
-            <h3>${isPropose ? "✨ " : ""}${tool.title_zh}</h3>
+            <h3>${tool.title_zh}</h3>
             ${tool.tag_zh ? html`<p class="proposal-sub">${tool.tag_zh}</p>` : nothing}
           </div>
           <span class="tool-chip ${chipClass}">${statusLabel(st)}</span>
@@ -1283,17 +1378,17 @@ ${extraContent}` : t.content,
         ${st === "running"
           ? html`<div class="tool-progress"><span class="dot" aria-hidden="true"></span>进行中…</div>`
           : nothing}
-        ${!isPropose && tool.args?.length
+        ${!isPropose && args.length
           ? html`<dl class="tool-args">
-              ${tool.args.map(
+              ${args.map(
                 (a) => html`<dt>${a.label_zh}</dt><dd>${a.value}</dd>`,
               )}
             </dl>`
           : nothing}
         ${isPropose
           ? this.renderProposalBody(turn, index)
-          : tool.result_zh
-            ? html`<p class="tool-result">${tool.result_zh}</p>`
+          : resultText
+            ? html`<p class="tool-result ${tool.result_zh ? "" : "muted-fallback"}">${resultText}</p>`
             : nothing}
         ${!isPropose && tool.ui_actions?.length
           ? html`<div class="tool-card-actions">
@@ -1302,7 +1397,7 @@ ${extraContent}` : t.content,
                   <button
                     class=${a.id === "apply_proposal" || a.id === "open_download" ? "primary" : "ghost"}
                     type="button"
-                    ?disabled=${this.busy || st === "running"}
+                    ?disabled=${this.busy || st === "running" || (a.id === "undo_proposal" && turn.proposalStatus !== "applied") || (a.id === "apply_proposal" && turn.proposalStatus === "applied")}
                     @click=${() => void this.onToolUiAction(index, a.id, tool)}
                   >
                     ${a.label_zh}
@@ -1352,15 +1447,15 @@ ${extraContent}` : t.content,
           ?disabled=${this.busy || !pending}
           @click=${() => void this.onAcceptProposal(index, p)}
         >
-          ✓ 应用更改
+          应用更改
         </button>
         <button
           class="ghost"
           type="button"
-          ?disabled=${this.busy || (!applied && !pending)}
+          ?disabled=${this.busy || !applied}
           @click=${() => void this.onUndoProposal(index, p)}
         >
-          ↺ 撤销
+          撤销
         </button>
       </div>
       ${applied
@@ -1381,7 +1476,7 @@ ${extraContent}` : t.content,
       <div class="proposal" data-proposal-id=${p.id}>
         <div class="proposal-head">
           <div>
-            <h3>✨ ${p.title_zh || "建议更改"}</h3>
+            <h3>${p.title_zh || "建议更改"}</h3>
             ${p.subtitle_zh
               ? html`<p class="proposal-sub">${p.subtitle_zh}</p>`
               : nothing}
@@ -1417,15 +1512,15 @@ ${extraContent}` : t.content,
             ?disabled=${this.busy || !pending}
             @click=${() => void this.onAcceptProposal(index, p)}
           >
-            ✓ 应用更改
+            应用更改
           </button>
           <button
             class="ghost"
             type="button"
-            ?disabled=${this.busy || (!applied && !pending)}
+            ?disabled=${this.busy || !applied}
             @click=${() => void this.onUndoProposal(index, p)}
           >
-            ↺ 撤销
+            撤销
           </button>
         </div>
         ${applied
@@ -1445,22 +1540,28 @@ ${extraContent}` : t.content,
   }
 
   private async saveLlm() {
-    this.llmBusy = true;
     this.error = "";
+    if (!this.llmBase.trim()) {
+      this.error = "请填写服务地址，例如 https://api.deepseek.com/v1";
+      return;
+    }
+    if (!this.llmKey.trim() && !this.llmCfg?.api_key_set) {
+      this.error = "请粘贴服务商给你的密钥";
+      return;
+    }
+    if (!this.llmModel.trim()) {
+      this.error = "请填写模型名称，例如 deepseek-chat";
+      return;
+    }
+    this.llmBusy = true;
     try {
       this.llm = await agentLlmConfigSave(this.llmBase, this.llmKey, this.llmModel);
       this.llmCfg = await agentLlmConfigGet();
       this.llmKey = "";
       if (this.llm.configured) {
         this.showLlmForm = false;
-        this.turns = [
-          {
-            role: "assistant",
-            content: "云端助手已就绪。点右侧工具，或直接提问。",
-            mode: this.llm.mode,
-          },
-        ];
-        showToast("云端助手已启用");
+        this.turns = [];
+        showToast("助手已连上");
       } else {
         showToast("已保存，但仍未就绪");
       }
@@ -1490,6 +1591,21 @@ ${extraContent}` : t.content,
     }
   }
 
+  private onSkillHint(hint: { label: string; prompt: string; tool?: string }) {
+    if (hint.tool === "search_mods") {
+      void this.onSearchModsPrompt();
+      return;
+    }
+    const running = hint.tool ? runningTool(hint.tool) : undefined;
+    void this.onAsk(hint.prompt, running);
+  }
+
+  private modeMeta(mode?: string) {
+    if (!mode || mode === "running") return nothing;
+    if (mode.startsWith("llm")) return html`<div class="meta">云端助手</div>`;
+    return html`<div class="meta">本地助手</div>`;
+  }
+
   private renderCloudGate() {
     return html`
       <div class="gate" role="dialog" aria-labelledby="llm-gate-title">
@@ -1497,12 +1613,12 @@ ${extraContent}` : t.content,
         <p class="muted">
           填好下面三项就能开聊。密钥只保存在本机，不会上传到别处。
           ${this.llmCfg?.api_key_set
-            ? html`已保存密钥提示：${this.llmCfg.api_key_hint}`
+            ? html` · 已保存密钥：${this.llmCfg.api_key_hint}`
             : nothing}
         </p>
         ${this.error ? html`<p class="err">${this.error}</p>` : nothing}
         <label class="row">
-          <span>接口地址</span>
+          <span>服务地址</span>
           <input
             placeholder="例如 https://api.deepseek.com/v1"
             .value=${this.llmBase}
@@ -1520,7 +1636,7 @@ ${extraContent}` : t.content,
           />
         </label>
         <label class="row">
-          <span>模型名称</span>
+          <span>模型</span>
           <input
             placeholder="例如 deepseek-chat"
             .value=${this.llmModel}
@@ -1545,19 +1661,27 @@ ${extraContent}` : t.content,
   }
 
   render() {
+    if (this.booting) {
+      return html`<p class="boot-muted" role="status">正在检查助手连接…</p>`;
+    }
     const llmOn = this.cloudReady;
     if (!llmOn) {
       return html`
-        <div>
-          <h1>
-            助手
-            <span class="badge">还没连上</span>
-          </h1>
-          <p class="sub">连上之后就能帮你看崩溃和启动问题。</p>
-          ${this.renderCloudGate()}
+        <div class="gate-shell">
+          <div class="head">
+            <div>
+              <h1>
+                助手
+                <span class="badge">还没连上</span>
+              </h1>
+              <p class="sub">连上之后就能帮你看崩溃和启动问题。</p>
+            </div>
+          </div>
+          <div class="gate-body">${this.renderCloudGate()}</div>
         </div>
       `;
     }
+    const chatEmpty = !this.turns.length && !this.report;
     return html`
       <div class="layout">
         <div class="main-col">
@@ -1613,7 +1737,7 @@ ${extraContent}` : t.content,
                     : nothing}
                 </p>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">接口地址</span>
+                  <span style="min-width:5.5em">服务地址</span>
                   <input
                     style="flex:1"
                     placeholder="例如 https://api.deepseek.com/v1"
@@ -1633,7 +1757,7 @@ ${extraContent}` : t.content,
                   />
                 </label>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">模型名称</span>
+                  <span style="min-width:5.5em">模型</span>
                   <input
                     style="flex:1"
                     placeholder="例如 deepseek-chat"
@@ -1676,12 +1800,12 @@ ${extraContent}` : t.content,
               `
             : null}
 
-          ${!this.turns.length && !this.report
+          ${chatEmpty
             ? html`<div class="chat-empty">
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="还没版本的话先去「下载」装一个；有版本可以说说启动不了、崩了，或点下方快捷工具"
+                  description="直接提问，或点下方「可以这样说」。窄屏时右侧工具会收起，快捷芯片仍可用。"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
@@ -1698,9 +1822,7 @@ ${extraContent}` : t.content,
                                 ? this.renderToolCard(t, idx)
                                 : this.renderProposal(t, idx))
                           : nothing}
-                        ${t.mode
-                          ? html`<div class="meta">${t.mode.startsWith("llm") ? "云端助手" : "本地助手"}</div>`
-                          : null}
+                        ${this.modeMeta(t.mode)}
                       </div>
                     </div>
                   `,
@@ -1719,6 +1841,26 @@ ${extraContent}` : t.content,
                 </button>
               </div>`
             : null}
+
+          ${chatEmpty
+            ? html`<div class="skills-hints" role="group" aria-label="可以这样说">
+                <p class="hint-label">可以这样说</p>
+                <div class="hint-row">
+                  ${SKILL_HINTS.map(
+                    (h) => html`
+                      <button
+                        class="chip"
+                        type="button"
+                        ?disabled=${this.busy}
+                        @click=${() => this.onSkillHint(h)}
+                      >
+                        ${h.label}
+                      </button>
+                    `,
+                  )}
+                </div>
+              </div>`
+            : nothing}
 
           <div class="quick-chips" role="group" aria-label="快捷工具">
             <button class="chip primary" type="button" ?disabled=${this.busy} @click=${() => this.goDownloadCenter()}>去下载中心</button>
@@ -1810,7 +1952,7 @@ ${extraContent}` : t.content,
               <span class="chev" aria-hidden="true">›</span>
             </button>
           </div>
-          <p class="note">「优化配置」只给出建议，点「应用更改」后才会真正改动。都在你这台电脑上完成。</p>
+          <p class="note">「优化配置」只给出建议，点「应用更改」后才会改动；「撤销」可恢复。都在你这台电脑上完成。</p>
         </aside>
       </div>
     `;
