@@ -591,12 +591,27 @@ export async function importInstance(
 }
 
 
+function previewOnboardingForced(): boolean {
+  try {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("easymc.previewOnboarding") === "1") {
+      return true;
+    }
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("onboard") === "1") {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
 export async function getSettings(): Promise<SettingsDto> {
   return (
     (await invokeSafe<SettingsDto>("get_settings")) ?? {
       memory_mb: 2048,
       mode: "standard",
-      onboarding_complete: true, // browser preview skips gate
+      // Browser preview skips onboarding unless ?onboard=1 or localStorage easymc.previewOnboarding=1
+      onboarding_complete: !previewOnboardingForced(),
       download_source: "official",
       container_mode_enabled: false,
       container_china_mirrors: true,
@@ -694,10 +709,35 @@ export async function completeOnboarding(
   mode: AppMode | string,
   preferredLogin?: PreferredLogin | string | null,
 ): Promise<SettingsDto> {
-  return invokeOrThrow<SettingsDto>("complete_onboarding_cmd", {
-    mode,
-    preferredLogin: preferredLogin ?? null,
-  });
+  try {
+    return await invokeOrThrow<SettingsDto>("complete_onboarding_cmd", {
+      mode,
+      preferredLogin: preferredLogin ?? null,
+    });
+  } catch {
+    // Browser preview: clear force flag so shell leaves onboarding
+    try {
+      localStorage.removeItem("easymc.previewOnboarding");
+      if (typeof history !== "undefined" && typeof location !== "undefined" && location.search.includes("onboard=1")) {
+        const u = new URL(location.href);
+        u.searchParams.delete("onboard");
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      }
+    } catch {
+      /* ignore */
+    }
+    return {
+      memory_mb: 2048,
+      mode: (mode as AppMode) || "standard",
+      onboarding_complete: true,
+      download_source: "official",
+      container_mode_enabled: false,
+      container_china_mirrors: true,
+      container_setup_done: true,
+      container_saves_require_propose: true,
+      container_auto_preheat: true,
+    };
+  }
 }
 
 export async function msaStatus(): Promise<MsaStatusDto> {
