@@ -899,7 +899,23 @@ export class SettingsPage extends LitElement {
   private renderPersonal() {
     return html`<div class="card">
         <h2>主题与动效</h2>
-        <p>当前为青绿主题。完整主题定制会在后续版本提供。动效已跟随系统「减少动态效果」设置。使用模式请到「启动」分组切换。</p>
+        <p>当前为青绿主题。完整主题定制会在后续版本提供。动效已跟随系统「减少动态效果」设置。</p>
+      </div>
+      <div class="card">
+        <h2>使用模式</h2>
+        <p>想换「助手 / 标准」用法？在「启动」分组最上方就能切。</p>
+        <button
+          class="primary"
+          type="button"
+          @click=${() => (this.section = "launch")}
+        >
+          去「启动」切换模式
+        </button>
+      </div>
+      <div class="card">
+        <h2>欢迎引导</h2>
+        <p>想再走一遍首次设置（模式、账户等），可到「其他」里重新打开。</p>
+        <button class="ghost" type="button" @click=${() => (this.section = "other")}>去「其他」</button>
       </div>`;
   }
 

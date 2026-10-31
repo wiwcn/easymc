@@ -23,7 +23,7 @@ export function friendlyError(e: unknown, fallback = "操作没成功，请稍�
     /null is not an object/i.test(raw) ||
     /is not a function/i.test(raw) && /invoke/i.test(raw)
   ) {
-    return "请在 EasyMC 桌面窗口里操作";
+    return "这项需要在 EasyMC 应用里操作（浏览器预览做不了）";
   }
 
   // Generic JS noise that should never reach players.

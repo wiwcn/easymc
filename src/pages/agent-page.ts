@@ -1493,9 +1493,9 @@ ${extraContent}` : t.content,
   private renderCloudGate() {
     return html`
       <div class="gate" role="dialog" aria-labelledby="llm-gate-title">
-        <h2 id="llm-gate-title">先连上云端助手</h2>
+        <h2 id="llm-gate-title">先连上助手</h2>
         <p class="muted">
-          填好下面三项就能开聊。密钥只保存在本机，不会上传或进版本库。
+          填好下面三项就能开聊。密钥只保存在本机，不会上传到别处。
           ${this.llmCfg?.api_key_set
             ? html`已保存密钥提示：${this.llmCfg.api_key_hint}`
             : nothing}
@@ -1551,9 +1551,9 @@ ${extraContent}` : t.content,
         <div>
           <h1>
             助手
-            <span class="badge">需要配置云端</span>
+            <span class="badge">还没连上</span>
           </h1>
-          <p class="sub">配置完成后即可用云端助手排查崩溃与启动问题。</p>
+          <p class="sub">连上之后就能帮你看崩溃和启动问题。</p>
           ${this.renderCloudGate()}
         </div>
       `;

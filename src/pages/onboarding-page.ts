@@ -215,6 +215,11 @@ export class OnboardingPage extends LitElement {
       padding: 11px 22px;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.primary:disabled {
+      opacity: 0.42;
+      filter: grayscale(0.25);
+      box-shadow: none;
+    }
     label { display: flex; flex-direction: column; gap: 6px; font-size: var(--easymc-type-label); font-weight: var(--easymc-weight-medium); color: var(--md-sys-color-on-surface-variant); margin-bottom: 12px; }
     input, select {
       padding: 11px 14px; border-radius: var(--md-sys-shape-corner-medium);
@@ -726,7 +731,9 @@ export class OnboardingPage extends LitElement {
           </button>
         </div>
       `,
-      footLeft: html`<span></span>`,
+      footLeft: html`${!this.mode
+        ? html`<span class="muted" style="font-size:var(--easymc-type-meta)">先点上面选一个用法</span>`
+        : html`<span></span>`}`,
       footRight: html`<button class="btn primary" ?disabled=${!this.mode} @click=${() => void this.afterModeNext()}>下一步</button>`,
     };
   }
@@ -942,7 +949,7 @@ export class OnboardingPage extends LitElement {
         </div>
       `,
       footLeft: html`<button class="btn ghost" @click=${() => void this.enterEnvStep()}>上一步</button>`,
-      footRight: html`<button class="btn primary" ?disabled=${!this.login} @click=${() => this.goStep(5)}>下一步</button>`,
+      footRight: html`<button class="btn primary" ?disabled=${!this.login} @click=${() => this.goStep(5)}>${this.login ? "下一步" : "先选登录方式"}</button>`,
     };
   }
 

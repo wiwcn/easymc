@@ -710,7 +710,7 @@ export class DownloadPage extends LitElement {
       this.activeId = st.active_id;
       showToast(`已装好「${inst.name}」，可以去启动页开玩`);
     } catch (e) {
-      showToast(friendlyError(e, "安装没成功。请在 EasyMC 桌面窗口重试，或换个下载源后再试"));
+      showToast(friendlyError(e, "安装没成功。请在 EasyMC 应用里重试，或换个下载源后再试"));
     } finally {
       this.busy = false;
     }
