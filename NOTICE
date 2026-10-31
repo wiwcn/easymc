@@ -1,10 +1,15 @@
-EasyMC third-party attributions (MIT / freely reusable agent patterns)
+EasyMC — third-party attributions
 ==============================================================================
 
-This file attributes design ideas and patterns adapted under MIT (or equivalent
-permissive) terms. EasyMC does **not** vendor the full source trees below; it
-reimplements a small subset in Rust for the local Minecraft launcher Agent.
+EasyMC itself is licensed under the GNU Lesser General Public License
+version 3 or later (LGPL-3.0-or-later). See LICENSE (LGPL-3.0) and COPYING
+(GPL-3.0, incorporated by reference by the LGPL).
 
+This NOTICE attributes third-party code, design patterns, and services that
+EasyMC uses or adapts. Their original licenses are **not** changed by EasyMC’s
+project license. Do not treat this file as relicensing those works to LGPL.
+
+------------------------------------------------------------------------------
 1) earendil-works/pi — Agent loop (MIT)
    https://github.com/earendil-works/pi
    Adapted concept: packages/agent/src/agent-loop.ts
@@ -12,6 +17,7 @@ reimplements a small subset in Rust for the local Minecraft launcher Agent.
    - Execute ALL tool_calls in a model turn, append role=tool results, call again
    - Stop when the model returns no tools / final text, or max_turns is reached
    See: crates/easymc-agent/src/agent_loop.rs
+   Remaining under MIT as upstream; EasyMC’s reimplementation is LGPL-3.0-or-later.
 
 2) OpenAI Agents SDK — max_turns / run loop concepts (MIT)
    https://github.com/openai/openai-agents-python
@@ -26,8 +32,6 @@ reimplements a small subset in Rust for the local Minecraft launcher Agent.
    propose/confirm rather than auto-executing in the cloud loop.
    See: crates/easymc-agent/src/skills.rs, is_dangerous_tool in agent_loop.rs,
         skills/*.md, docs/AGENT-LOOP.md
-
-EasyMC itself is MIT — see LICENSE.
 
 4) DaoCloud public-image-mirror — registry prefix map (public service)
    https://github.com/DaoCloud/public-image-mirror
@@ -45,7 +49,9 @@ EasyMC itself is MIT — see LICENSE.
    https://github.com/bs-community/skinview3d
    Vendored as the npm dependency `skinview3d` (Three.js powered).
    EasyMC wraps it in `src/components/skin-viewer.ts` for wardrobe preview.
-   License: MIT — see node_modules/skinview3d/LICENSE
+   License: MIT — remains MIT; see node_modules/skinview3d/LICENSE.
+   Dual-license note: the npm package stays MIT; EasyMC application code that
+   calls it is LGPL-3.0-or-later.
 
 7) LittleSkin CSL public API — China-friendly skin library (service)
    https://littleskin.cn/
@@ -53,3 +59,7 @@ EasyMC itself is MIT — see LICENSE.
    JSON endpoint (`/csl/{name}.json`) and texture hashes for import/preview.
    See: crates/easymc-core/src/skin.rs
 
+8) Other npm / Cargo dependencies
+   Frontend (pnpm) and Rust (Cargo) transitive dependencies keep their own
+   licenses (MIT, Apache-2.0, BSD, etc.). Inspect `pnpm-lock.yaml`,
+   `Cargo.lock`, and each package’s LICENSE for the authoritative terms.

@@ -58,7 +58,7 @@ model the player must confirm in Chinese so the rule path can execute.
 | `crates/easymc-agent/src/llm.rs` | `complete_raw` + role=tool wire format |
 | `crates/easymc-agent/src/service.rs` | `ask()` wires loop for Help/Unknown |
 | `skills/*.md` | Skill bodies |
-| `NOTICE` | MIT attributions |
+| `NOTICE` | Third-party attributions (EasyMC is LGPL-3.0-or-later) |
 
 ## UI
 

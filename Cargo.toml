@@ -13,11 +13,11 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.21"
+version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "LGPL-3.0-or-later"
 authors = ["EasyMC Contributors"]
-repository = "https://github.com/easymc/easymc"
+repository = "https://github.com/wiwcn/easymc"
 
 [workspace.dependencies]
 easymc-core = { path = "crates/easymc-core" }
