@@ -828,8 +828,8 @@ export class OnboardingPage extends LitElement {
     const dl = this.downloadProbes.length
       ? this.downloadProbes
       : [
-          { id: "bmclapi", label_zh: "BMCLAPI 加速", region_zh: "国内", download_source: "bmclapi", ok: false, latency_ms: null, error_zh: null, recommended: false },
-          { id: "bmclapi_alt", label_zh: "BMCLAPI 备用", region_zh: "国内", download_source: "bmclapi", ok: false, latency_ms: null, error_zh: null, recommended: false },
+          { id: "bmclapi", label_zh: "国内加速", region_zh: "国内", download_source: "bmclapi", ok: false, latency_ms: null, error_zh: null, recommended: false },
+          { id: "bmclapi_alt", label_zh: "国内加速 · 备用", region_zh: "国内", download_source: "bmclapi", ok: false, latency_ms: null, error_zh: null, recommended: false },
           { id: "official", label_zh: "官方源", region_zh: "全球", download_source: "official", ok: false, latency_ms: null, error_zh: null, recommended: false },
         ];
     return {

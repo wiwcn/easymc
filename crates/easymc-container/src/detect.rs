@@ -130,9 +130,9 @@ pub fn detect_podman() -> Option<PodmanInfo> {
     let detail_zh = if ready {
         None
     } else if cfg!(target_os = "windows") {
-        Some("已安装 Podman，但 Machine 尚未就绪。Windows 需 Podman Machine（WSL2）+ WSLg。".into())
+        Some("隔离组件已装好，但运行环境还没就绪。Windows 请用官方安装包启用运行环境（含图形支持）。".into())
     } else {
-        Some("已找到 Podman，但当前无法连接（请检查 rootless 用户命名空间 / socket）。".into())
+        Some("已找到隔离组件，但暂时连不上。请重新打开 EasyMC，或到设置里点「修复隔离环境」。".into())
     };
     Some(PodmanInfo {
         path: path.to_string_lossy().into_owned(),
@@ -153,7 +153,7 @@ pub fn probe_container_runtime() -> RuntimeProbe {
         return RuntimeProbe {
             status: ProbeStatus::Unsupported,
             podman: detect_podman(),
-            message_zh: "当前 macOS 不走容器模式（可继续用 Agent / 标准模式直接开玩）。".into(),
+            message_zh: "当前 macOS 不走隔离环境（可继续用助手 / 标准模式直接开玩）。".into(),
             platform,
         };
     }
@@ -163,15 +163,15 @@ pub fn probe_container_runtime() -> RuntimeProbe {
             status: ProbeStatus::NotInstalled,
             podman: None,
             message_zh: if cfg!(target_os = "windows") {
-                "还没装 Podman。一键配置会引导安装 Podman Desktop / Machine（WSL2 + WSLg）。".into()
+                "还没装隔离组件。一键配置会引导安装官方安装包并启用运行环境（含图形支持）。".into()
             } else {
-                "还没装 Podman。一键配置会用系统包管理器或官方脚本安装 rootless Podman。".into()
+                "还没装隔离组件。一键配置会用系统软件源或官方脚本安装。".into()
             },
             platform,
         },
         Some(info) if info.ready => RuntimeProbe {
             status: ProbeStatus::Ready,
-            message_zh: format!("容器环境已就绪（{}）", info.version),
+            message_zh: format!("隔离环境已就绪（{}）", info.version),
             podman: Some(info),
             platform,
         },
@@ -180,7 +180,7 @@ pub fn probe_container_runtime() -> RuntimeProbe {
             message_zh: info
                 .detail_zh
                 .clone()
-                .unwrap_or_else(|| "Podman 已安装但尚未就绪".into()),
+                .unwrap_or_else(|| "隔离组件已装好，但还没准备好".into()),
             podman: Some(info),
             platform,
         },

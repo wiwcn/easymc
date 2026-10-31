@@ -46,7 +46,7 @@ pub fn gui_mount_hints() -> GuiMountHint {
     let xdg = std::env::var("XDG_RUNTIME_DIR").ok().filter(|s| !s.is_empty());
     let has_dri = std::path::Path::new("/dev/dri").exists();
     let note_zh = if cfg!(target_os = "windows") {
-        "Windows 图形界面接受路径：Podman Machine（WSL2）+ WSLg。请在 Machine 内确认 DISPLAY/WAYLAND 可用。"
+        "Windows 开隔离环境需要官方安装包的运行环境（含图形支持）。请确认图形显示可用后再开玩。"
             .into()
     } else if cfg!(target_os = "macos") {
         "macOS 不走容器 GUI 路径。".into()
@@ -134,7 +134,7 @@ pub fn plan_container_launch(
         let ph = preheat_container_runtime(prefer_china, true);
         warnings.extend(ph.messages_zh);
         if !ph.ok {
-            return Err("容器运行时预热失败，无法启动".into());
+            return Err("隔离环境提前准备失败，暂时无法启动".into());
         }
     } else {
         let probe = probe_container_runtime();
@@ -196,7 +196,7 @@ pub fn plan_container_launch(
         container_name: cname,
         image,
         workdir: CTR_MINECRAFT.into(),
-        message_zh: "已生成容器启动计划（Podman run + 容器内 Java）".into(),
+        message_zh: "已生成隔离环境启动计划".into(),
         warnings_zh: warnings,
     })
 }

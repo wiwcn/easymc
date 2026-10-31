@@ -9,7 +9,7 @@ use crate::detect::detect_podman;
 pub fn podman_bin() -> Result<String, String> {
     detect_podman()
         .map(|p| p.path)
-        .ok_or_else(|| "未找到 Podman，请先完成容器一键配置".into())
+        .ok_or_else(|| "还没找到隔离组件，请先在设置里完成一键配置".into())
 }
 
 pub fn podman_cmd(bin: &str, args: &[&str]) -> Result<String, String> {

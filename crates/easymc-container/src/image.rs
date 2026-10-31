@@ -35,7 +35,7 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
     }
     if !matches!(probe.status, ProbeStatus::Ready) {
         return Err(format!(
-            "容器环境未就绪：{}。请先完成一键配置或启动 Podman Machine。",
+            "隔离环境未就绪：{}。请先完成一键配置或启动运行环境。",
             probe.message_zh
         ));
     }
@@ -46,13 +46,13 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
             image,
             pulled: false,
             already_present: true,
-            message_zh: "运行时镜像已在本地".into(),
+            message_zh: "运行环境基础文件已在本地".into(),
         });
     }
     // Fall back: if China mirror fails, try public docker.io tag once.
     match podman_cmd(&bin, &["pull", &image]) {
         Ok(_) => Ok(ImagePullResult {
-            message_zh: format!("已拉取运行时镜像 {image}"),
+            message_zh: format!("已下载运行环境基础文件 {image}"),
             image,
             pulled: true,
             already_present: false,
@@ -60,16 +60,16 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
         Err(e) if prefer_china => {
             let fallback = DEFAULT_BASE_IMAGE.to_string();
             podman_cmd(&bin, &["pull", &fallback]).map_err(|e2| {
-                format!("拉取镜像失败（国内源：{e}；官方源：{e2}）")
+                format!("下载基础文件失败（国内线路：{e}；官方线路：{e2}）")
             })?;
             Ok(ImagePullResult {
                 image: fallback,
                 pulled: true,
                 already_present: false,
-                message_zh: "国内源失败，已改用官方源拉取 Temurin JRE".into(),
+                message_zh: "国内线路失败，已改用官方线路下载 Java 运行环境".into(),
             })
         }
-        Err(e) => Err(format!("拉取镜像失败：{e}")),
+        Err(e) => Err(format!("下载基础文件失败：{e}")),
     }
 }
 

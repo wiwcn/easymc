@@ -118,14 +118,14 @@ pub fn write_china_registries_config() -> Result<ChinaRegistriesResult, String> 
         return Ok(ChinaRegistriesResult {
             path: path.to_string_lossy().into_owned(),
             wrote: false,
-            message_zh: "国内镜像源配置已是最新".into(),
+            message_zh: "国内加速配置已是最新".into(),
         });
     }
     fs::write(&path, body).map_err(|e| e.to_string())?;
     Ok(ChinaRegistriesResult {
         path: path.to_string_lossy().into_owned(),
         wrote: true,
-        message_zh: "已写入国内容器镜像加速配置（DaoCloud 前缀）".into(),
+        message_zh: "已写入国内加速配置（线路 A）".into(),
     })
 }
 
@@ -137,7 +137,7 @@ pub fn write_registries_config_for_profile(
         return Ok(ChinaRegistriesResult {
             path: String::new(),
             wrote: false,
-            message_zh: "已选择官方源；跳过写入国内 registries 配置".into(),
+            message_zh: "已选择官方线路；跳过写入国内加速配置".into(),
         });
     }
     // DaoCloud keeps the richer multi-registry map; other CN proxies only rewrite docker.io.
@@ -149,7 +149,7 @@ pub fn write_registries_config_for_profile(
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let body = registries_toml_for_profile(profile)
-        .ok_or_else(|| "该镜像源无需写入 registries".to_string())?;
+        .ok_or_else(|| "该加速线路无需额外配置".to_string())?;
     let already = fs::read_to_string(&path)
         .ok()
         .map(|s| s == body)
@@ -158,14 +158,14 @@ pub fn write_registries_config_for_profile(
         return Ok(ChinaRegistriesResult {
             path: path.to_string_lossy().into_owned(),
             wrote: false,
-            message_zh: format!("{}配置已是最新", profile.label_zh()),
+            message_zh: format!("{}加速配置已是最新", profile.label_zh()),
         });
     }
     fs::write(&path, body).map_err(|e| e.to_string())?;
     Ok(ChinaRegistriesResult {
         path: path.to_string_lossy().into_owned(),
         wrote: true,
-        message_zh: format!("已写入容器镜像加速配置（{}）", profile.label_zh()),
+        message_zh: format!("已写入下载加速配置（{}）", profile.label_zh()),
     })
 }
 

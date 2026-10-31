@@ -110,15 +110,15 @@ pub fn preheat_status(prefer_china: bool) -> PreheatStatus {
     let message_zh = if matches!(probe.status, ProbeStatus::Unsupported) {
         probe.message_zh
     } else if warm {
-        "容器运行时已预热，开玩更快".into()
+        "隔离环境已准备好，开玩更快".into()
     } else if machine_ready && image_ready {
-        "运行时就绪，但距上次预热较久，建议再点一次预热".into()
+        "隔离环境还在，但距上次准备较久，建议再点一次「现在就准备好」".into()
     } else if machine_ready {
-        "Podman 已就绪，还差拉取运行时镜像".into()
+        "隔离组件已就绪，还差下载运行环境基础文件".into()
     } else if matches!(probe.status, ProbeStatus::NotInstalled) {
-        "尚未安装 Podman，预热暂不可用".into()
+        "还没装隔离组件，提前准备暂不可用".into()
     } else {
-        "容器偏冷：预热可减少第一次开玩的等待".into()
+        "隔离环境还没准备：提前准备可减少第一次开玩的等待".into()
     };
 
     PreheatStatus {
@@ -166,11 +166,11 @@ pub fn preheat_container_runtime_ex(
     ) {
         if let Some(info) = detect_podman() {
             if cfg!(target_os = "windows") {
-                messages.push("正在启动 Podman Machine（冷启动可能需要几十秒）…".into());
+                messages.push("正在启动运行环境（冷启动可能需要几十秒）…".into());
                 match podman_cmd(&info.path, &["machine", "start"]) {
                     Ok(_) => {
                         machine_started = true;
-                        messages.push("Podman Machine 已启动".into());
+                        messages.push("运行环境已启动".into());
                     }
                     Err(e) => {
                         let _ = podman_cmd(&info.path, &["machine", "init", "--now"]);
@@ -179,10 +179,10 @@ pub fn preheat_container_runtime_ex(
                     }
                 }
             } else {
-                messages.push("Podman 已安装但未就绪，请检查 rootless 用户命名空间".into());
+                messages.push("隔离组件已装但未就绪，请到设置里点「修复隔离环境」".into());
             }
         } else {
-            messages.push("尚未安装 Podman".into());
+            messages.push("尚未安装隔离组件".into());
         }
         probe = probe_container_runtime();
     }
@@ -192,10 +192,10 @@ pub fn preheat_container_runtime_ex(
         if let Some(info) = detect_podman() {
             if !cfg!(target_os = "windows") {
                 match podman_cmd(&info.path, &["info", "--format", "{{.Host.RemoteSocket.Path}}"]) {
-                    Ok(_) => messages.push("已唤醒 Podman 用户套接字".into()),
+                    Ok(_) => messages.push("已唤醒隔离组件服务".into()),
                     Err(_) => {
                         let _ = podman_cmd(&info.path, &["info"]);
-                        messages.push("已探测 Podman 服务状态".into());
+                        messages.push("已检查隔离组件服务".into());
                     }
                 }
             }
@@ -240,7 +240,7 @@ pub fn preheat_container_runtime_ex(
             last_ok_at: Some(t),
             last_image: image.as_ref().map(|i| i.image.clone()),
         });
-        messages.push("容器运行时已预热，冷启动等待已缩短".into());
+        messages.push("隔离环境已准备好，下次开玩会更快".into());
         Some(t)
     } else {
         None

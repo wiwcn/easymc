@@ -174,7 +174,7 @@ pub fn provision_container_version(
         instance: inst,
         image_pulled: pull.pulled,
         message_zh: format!(
-            "{}；版本文件在宿主卷中，容器内直接可见。",
+            "{}；版本文件已挂进隔离环境，可直接使用。",
             pull.message_zh
         ),
     })

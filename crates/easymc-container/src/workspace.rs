@@ -66,7 +66,7 @@ pub fn workspace_for_instance(paths: &Paths, inst: &Instance) -> AgentWorkspace 
                 image: c.image.clone(),
                 saves_require_propose: saves_gate,
                 layer,
-                message_zh: "Agent 工作区已绑定到该容器版本的可写层（游戏目录）".into(),
+                message_zh: "助手工作区已绑到这个隔离版本的可写层（游戏目录）".into(),
             }
         }
         None => AgentWorkspace {
@@ -77,7 +77,7 @@ pub fn workspace_for_instance(paths: &Paths, inst: &Instance) -> AgentWorkspace 
             image: None,
             saves_require_propose: false,
             layer: None,
-            message_zh: "原生版本：Agent 工作区为实例游戏目录".into(),
+            message_zh: "普通版本：助手工作区为该版本游戏目录".into(),
         },
     }
 }

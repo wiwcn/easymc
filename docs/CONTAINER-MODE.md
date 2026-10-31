@@ -32,7 +32,7 @@ Crate：`crates/easymc-container/`
 - `container_china_mirrors` — 默认 `true`
 - `container_setup_done` — 一键配置完成或跳过
 
-引导：在 **模式选择（Agent / 标准）之后**插入「要用容器隔离吗？」一步，文案面向玩家；可「暂不使用」。
+引导：在 **模式选择（助手 / 标准）之后**插入「要用隔离环境吗？」一步，文案面向玩家；可「暂不使用」。
 
 Tauri 命令：`container_probe_cmd`、`container_setup_plan_cmd`、`container_one_click_setup_cmd`、`container_write_registries_cmd`、…
 
@@ -73,9 +73,12 @@ C 已接上运行时镜像拉取 + 容器内启动；完整 Mesa/GPU 镜像与 W
 
 ## 玩家文案要点
 
-- 容器 = **内容隔离**（mods/存档按版本分开），不是「更安全的沙箱」承诺。
-- Windows：需要 Podman Machine（WSL2）+ WSLg 才能走 GUI 接受路径。
-- 不装容器也能完整使用 Agent 与标准模式。
+- UI 说「版本隔离 / 隔离环境」，不说 Podman / WSL / registries（安装指引里最多点一次「官方安装包」）。
+- 加速线路用「国内线路 A/B/C」「官方线路（海外）」，不说 DaoCloud / DockerProxy / BMCLAPI。
+- Windows 开隔离环境需要官方安装包内的运行环境（含图形支持）；玩家文案勿堆术语。
+- 「预热」对玩家说「提前准备 / 现在就准备好」。
+- 环境包对玩家说「分享环境说明 / 分享完整环境 / 导入好友环境」。
+
 
 ## 切片 C — 启动路径（v0.1.8）
 
@@ -95,7 +98,7 @@ C 已接上运行时镜像拉取 + 容器内启动；完整 Mesa/GPU 镜像与 W
 游戏 jar / 库 / 资源仍由现有 `install_version`（BMCLAPI 感知）装到宿主卷；容器只消费这些卷。
 
 **Linux**：优先验证 X11/Wayland + `/dev/dri`。  
-**Windows GUI**：设计为 Podman Machine + WSL2 + WSLg；在未确认 WSLg 的机器上可能仍阻塞，属已知限制。
+**Windows 图形**：工程上依赖官方安装包的运行环境（含图形支持）；未确认图形支持的机器上可能仍阻塞，属已知限制。
 
 Tauri：`container_provision_cmd`、`container_preheat_cmd`、`container_pull_image_cmd`。
 
@@ -111,11 +114,14 @@ Tauri：`container_provision_cmd`、`container_preheat_cmd`、`container_pull_im
 `LAYER_DIRS` 不含 `saves/`。AgentLoop（`agent_loop.rs`）仅扩展危险工具名单（`apply_game_layer` / `discard_game_layer` / `modify_saves`），不改循环结构。
 
 Tauri：`container_layer_*`、`container_agent_workspace_cmd`。  
-UI：设置页「容器模式」；版本管理设置里「容器可写层」应用/丢弃。
+UI：设置页「版本隔离」；版本管理设置里「隔离改动」应用/丢弃。
 
 ## 玩家文案（C/D）
 
-- 「预热容器运行时」— 隐藏冷启动等待。
+UI：设置「启动」→「版本隔离（可选）」；版本管理设置里「隔离改动」应用/丢弃。
+
+
+- 「现在就准备好」— 提前准备隔离环境，开玩少等一会儿。
 - 「应用更改 / 丢弃更改」— 像提交 / 回滚模组与配置，存档单独保护。
 - 「存档修改需确认」— 默认开；可在设置关闭。
 
@@ -132,11 +138,14 @@ UI：设置页「容器模式」；版本管理设置里「容器可写层」应
 
 Tauri：`container_export_env_cmd`、`container_import_env_cmd`、`container_preheat_status_cmd`、`container_preheat_ex_cmd`、`container_mirror_profiles_cmd`、`container_repair_cmd`。
 
-UI：设置页「容器镜像源 / 自动预热 / 预热 / 写 registries / 一键修复」；版本「发给好友」与「容器可写层」导出/导入环境包。
+UI：设置「版本隔离」→ 加速线路 / 后台准备 / 现在就准备好 / 应用加速配置 / 修复隔离环境；版本「发给好友」与「分享隔离环境」。
 
 ## 玩家文案（E）
 
-- 「导出环境 / 导入环境包」— 把模组与配置层分享给好友，存档不会被带走。
+UI：设置「版本隔离」→ 加速线路 / 后台准备 / 现在就准备好 / 应用加速配置 / 修复隔离环境；版本「发给好友」与「分享隔离环境」。
+
+
+- 「导出环境 / 导入好友环境」— 把模组与配置层分享给好友，存档不会被带走。
 - 「容器镜像源」— 国内默认 DaoCloud；网络正常可切官方。
 - 「自动预热」— 后台先把运行时准备好，减少第一次启动等待。
 - 「一键修复容器环境」— 出问题先点这个：探测、镜像源、预热一次跑完。

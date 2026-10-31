@@ -114,7 +114,7 @@ impl Default for EnvLayerSpec {
 impl EnvManifest {
     pub fn validate(&self) -> Result<(), String> {
         if self.format != ENV_FORMAT_ID {
-            return Err(format!("未知环境包格式: {}", self.format));
+            return Err(format!("无法识别这份分享环境：{}", self.format));
         }
         if self.format_version == 0 || self.format_version > ENV_FORMAT_VERSION {
             return Err(format!("不支持的 format_version: {}", self.format_version));
@@ -126,7 +126,7 @@ impl EnvManifest {
             return Err("instance.version 为空".into());
         }
         if self.layer.include_saves {
-            return Err("环境包不允许打包存档（include_saves 必须为 false）".into());
+            return Err("分享环境不会包含存档".into());
         }
         Ok(())
     }
@@ -297,7 +297,7 @@ pub fn build_env_manifest(
         .find(|i| i.id == instance_id)
         .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {instance_id}")))?;
     let c = inst.container.as_ref().ok_or_else(|| {
-        easymc_core::EasyMcError::msg("仅容器版本可导出环境包；原生路径请用「发给好友」整合包")
+        easymc_core::EasyMcError::msg("只有开了隔离的版本才能分享环境；普通版本请用「发给好友」")
     })?;
     let settings = load_settings(paths).unwrap_or_default();
     let game = Path::new(&inst.game_dir);
@@ -373,7 +373,7 @@ pub fn export_env_pack(
                 mode: EnvPackMode::Metadata,
                 bytes,
                 message_zh: format!(
-                    "已导出容器环境（元数据）→ {}（{} 字节）。好友导入后会重建容器版本，不含存档。",
+                    "已分享环境说明 → {}（{} 字节）。好友导入后会新建隔离版本，不含存档。",
                     out.display(),
                     bytes
                 ),
@@ -404,7 +404,7 @@ pub fn export_env_pack(
                 mode: EnvPackMode::Pack,
                 bytes,
                 message_zh: format!(
-                    "已导出容器环境包（含模组/配置等 {} 个文件，不含存档）→ {}（{} 字节）",
+                    "已分享完整环境（含模组/配置等 {} 个文件，不含存档）→ {}（{} 字节）",
                     file_count,
                     out.display(),
                     bytes
@@ -415,7 +415,7 @@ pub fn export_env_pack(
 }
 
 fn read_manifest_json(raw: &str) -> Result<EnvManifest, String> {
-    let m: EnvManifest = serde_json::from_str(raw).map_err(|e| format!("环境包解析失败：{e}"))?;
+    let m: EnvManifest = serde_json::from_str(raw).map_err(|e| format!("分享环境解析失败：{e}"))?;
     m.validate()?;
     Ok(m)
 }
@@ -429,7 +429,7 @@ pub fn read_env_manifest_from_path(path: &Path) -> Result<EnvManifest, String> {
         .to_ascii_lowercase();
     if name.ends_with(".zip") || name.ends_with(&format!(".{ENV_EXT}.zip")) {
         let f = File::open(path).map_err(|e| e.to_string())?;
-        let mut zip = ZipArchive::new(f).map_err(|e| format!("无法打开环境包 zip：{e}"))?;
+        let mut zip = ZipArchive::new(f).map_err(|e| format!("无法打开分享环境：{e}"))?;
         let mut entry = zip
             .by_name(ENV_MANIFEST_NAME)
             .map_err(|_| format!("zip 内缺少 {ENV_MANIFEST_NAME}"))?;
@@ -550,12 +550,12 @@ pub fn import_env_pack(
         layer_files,
         message_zh: if layer_files > 0 {
             format!(
-                "已导入容器环境「{}」：挂上容器元数据，并恢复 {} 个层文件（存档未导入）。请再安装游戏文件后开玩。",
+                "已导入好友环境「{}」：挂上隔离说明，并恢复 {} 个文件（存档未导入）。请再安装游戏文件后开玩。",
                 manifest.instance.name, layer_files
             )
         } else {
             format!(
-                "已导入容器环境「{}」：已创建/挂上容器版本（元数据）。模组需自行安装或使用完整环境包。",
+                "已导入好友环境「{}」：已创建隔离版本（说明）。模组需自行安装，或导入完整环境。",
                 manifest.instance.name
             )
         },

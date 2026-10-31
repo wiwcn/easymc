@@ -49,10 +49,10 @@ impl MirrorProfile {
 
     pub fn label_zh(self) -> &'static str {
         match self {
-            Self::Daocloud => "国内源（DaoCloud）",
-            Self::Dockerproxy => "国内源（DockerProxy）",
-            Self::Onems => "国内源（1ms）",
-            Self::Official => "官方源",
+            Self::Daocloud => "国内线路 A",
+            Self::Dockerproxy => "国内线路 B",
+            Self::Onems => "国内线路 C",
+            Self::Official => "官方线路（海外）",
         }
     }
 
@@ -177,10 +177,10 @@ pub fn repair_container_runtime_with_profile(
                 messages.push(r.message_zh.clone());
                 registries = Some(r);
             }
-            Err(e) => messages.push(format!("镜像加速配置失败：{e}")),
+            Err(e) => messages.push(format!("下载加速配置失败：{e}")),
         }
     } else {
-        messages.push("已选择官方源；跳过写入国内 registries 配置".into());
+        messages.push("已选择官方线路；跳过写入国内加速配置".into());
     }
 
     let preheat = preheat_container_runtime(prefer_china, true);
@@ -215,7 +215,7 @@ pub fn repair_container_runtime_with_profile(
     if ok {
         messages.push("一键修复完成：容器运行时可用".into());
     } else if matches!(probe.status, ProbeStatus::NotInstalled) {
-        messages.push("还差安装 Podman，请按一键配置指引完成".into());
+        messages.push("还差安装隔离组件，请按一键配置指引完成".into());
     } else {
         messages.push("修复未完全就绪，请查看上方提示".into());
     }

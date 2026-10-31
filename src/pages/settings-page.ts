@@ -418,6 +418,27 @@ export class SettingsPage extends LitElement {
     }
   }
 
+  /** Newbie-friendly mirror labels (no DaoCloud / DockerProxy / BMCLAPI brand noise). */
+  private softMirrorLabel(id: string, fallback: string): string {
+    const map: Record<string, string> = {
+      daocloud: "国内线路 A",
+      dockerproxy: "国内线路 B",
+      onems: "国内线路 C",
+      official: "官方线路（海外）",
+      bmclapi: "国内加速",
+      bmclapi_alt: "国内加速 · 备用",
+    };
+    return map[id] || fallback.replace(/DaoCloud|DockerProxy|1ms|BMCLAPI/gi, (m) => {
+      const x: Record<string, string> = {
+        DaoCloud: "线路 A",
+        DockerProxy: "线路 B",
+        "1ms": "线路 C",
+        BMCLAPI: "国内加速",
+      };
+      return x[m] || m;
+    });
+  }
+
   private async probeDownloads() {
     if (this.downloadProbeBusy) return;
     this.downloadProbeBusy = true;
@@ -427,7 +448,7 @@ export class SettingsPage extends LitElement {
       const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
       if (best) {
         this.settings = await updateSettings({ download_source: best.download_source });
-        showToast(`已选用最快下载源：${best.label_zh}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
+        showToast(`已选用最快下载源：${this.softMirrorLabel(best.id, best.label_zh)}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
       } else {
         showToast("测速完成，但没有可用的下载源");
       }
@@ -447,10 +468,10 @@ export class SettingsPage extends LitElement {
       const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
       if (best) {
         this.settings = await updateSettings({ container_mirror_profile: best.id });
-        showToast(`已选用最快容器源：${best.label_zh}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
+        showToast(`已选用最快加速：${this.softMirrorLabel(best.id, best.label_zh)}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);
         await this.refreshPreheatStatus();
       } else {
-        showToast("测速完成，但没有可用的容器镜像源");
+        showToast("测速完成，但没有可用的加速线路");
       }
     } catch (e) {
       showToast(friendlyError(e, "加速源测速失败，请稍后重试"));
@@ -507,7 +528,7 @@ export class SettingsPage extends LitElement {
     return html`
       <div class="card">
         <h2>使用模式</h2>
-        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。容器隔离只在需要时再开。</p>
+        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。版本隔离在下方折叠区，需要时再开。</p>
         <div class="md-segmented" role="radiogroup" aria-label="使用模式">
           <span class="md-tab-ind" aria-hidden="true"></span>
           <button
@@ -679,7 +700,7 @@ export class SettingsPage extends LitElement {
       </div>
       <div class="card">
         <h2>下载源</h2>
-        <p>游戏文件与版本列表的下载地址。可测速后选用最快源（国内多为 BMCLAPI）；失败时会自动回退官方源。</p>
+        <p>游戏文件与版本列表的下载地址。可测速后选用最快源（国内加速）；失败时会自动回退官方源。</p>
         <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
           <select
             aria-label="下载源"
@@ -691,7 +712,7 @@ export class SettingsPage extends LitElement {
             }}
           >
             <option value="official">官方源</option>
-            <option value="bmclapi">国内加速（BMCLAPI）</option>
+            <option value="bmclapi">国内加速</option>
           </select>
           <button
             class="btn ghost"
@@ -705,7 +726,7 @@ export class SettingsPage extends LitElement {
           ? html`<ul class="muted" style="margin:0;padding-left:18px;line-height:1.6">
               ${this.downloadProbes.map(
                 (r) => html`<li>
-                  ${r.label_zh}（${r.region_zh}）—
+                  ${this.softMirrorLabel(r.id, r.label_zh)}（${r.region_zh}）—
                   ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
                   ${r.recommended ? " · 推荐" : ""}
                 </li>`,
@@ -853,13 +874,13 @@ export class SettingsPage extends LitElement {
         </div>
       </details>
       <details class="card" ?open=${!!this.settings?.container_mode_enabled}>
-        <summary>容器隔离（可选 · 高级）</summary>
+        <summary>版本隔离（可选）</summary>
         <p>
-          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」玩家；标准模式一般不用开。不装也完全能玩。
+          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」；标准模式一般不用开。不装也完全能玩。
         </p>
         <p class="muted" style="margin:0 0 12px">
           ${this.preheatStatus
-            ? (this.preheatStatus.warm ? "状态：已预热 · " : "状态：偏冷 · ") + this.preheatStatus.message_zh
+            ? (this.preheatStatus.warm ? "状态：已准备好 · " : "状态：还没准备 · ") + this.preheatStatus.message_zh
             : "状态：尚未检测"}
         </p>
         <div class="row" style="margin-bottom:10px">
@@ -870,14 +891,14 @@ export class SettingsPage extends LitElement {
               @change=${async (e: Event) => {
                 const on = (e.target as HTMLInputElement).checked;
                 this.settings = await updateSettings({ container_mode_enabled: on });
-                showToast(on ? "已开启容器隔离" : "已关闭容器隔离");
+                showToast(on ? "已开启版本隔离" : "已关闭版本隔离");
               }}
             />
-            开启容器隔离
+            开启版本隔离
           </label>
         </div>
         <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
-          <label for="ctr-mirror">下载加速源</label>
+          <label for="ctr-mirror">隔离环境下载加速</label>
           <select
             id="ctr-mirror"
             aria-label="容器下载加速源"
@@ -913,7 +934,7 @@ export class SettingsPage extends LitElement {
           ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
               ${this.registryProbes.map(
                 (r) => html`<li>
-                  ${r.label_zh}（${r.region_zh}）—
+                  ${this.softMirrorLabel(r.id, r.label_zh)}（${r.region_zh}）—
                   ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
                   ${r.recommended ? " · 推荐" : ""}
                 </li>`,
@@ -942,10 +963,10 @@ export class SettingsPage extends LitElement {
               @change=${async (e: Event) => {
                 const on = (e.target as HTMLInputElement).checked;
                 this.settings = await updateSettings({ container_auto_preheat: on });
-                showToast(on ? "已开启后台预热" : "已关闭后台预热");
+                showToast(on ? "已开启后台提前准备" : "已关闭后台提前准备");
               }}
             />
-            后台预热，缩短下次启动等待
+            后台先准备好，下次开玩更快
           </label>
         </div>
         <div class="row" style="flex-wrap:wrap;gap:8px">
@@ -973,7 +994,7 @@ export class SettingsPage extends LitElement {
               this.containerBusy = true;
               try {
                 const r = await containerPreheat(true);
-                showToast(r.messages_zh.join("；") || (r.ok ? "预热完成" : "预热未完成"));
+                showToast(r.messages_zh.join("；") || (r.ok ? "准备完成" : "准备未完成"));
                 await this.refreshPreheatStatus();
               } catch (e) {
                 showToast(friendlyError(e));
@@ -982,7 +1003,7 @@ export class SettingsPage extends LitElement {
               }
             }}
           >
-            立刻预热
+            现在就准备好
           </button>
           <button
             class="ghost"
@@ -1003,7 +1024,7 @@ export class SettingsPage extends LitElement {
             class=${this.settings?.container_mode_enabled ? "tonal" : "ghost"}
             type="button"
             ?disabled=${this.containerBusy || !this.settings?.container_mode_enabled}
-            title=${this.settings?.container_mode_enabled ? "修复隔离环境" : "先开启容器隔离后再修复"}
+            title=${this.settings?.container_mode_enabled ? "修复隔离环境" : "先开启版本隔离后再修复"}
             @click=${async () => {
               this.containerBusy = true;
               try {
@@ -1099,7 +1120,7 @@ export class SettingsPage extends LitElement {
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到助手模式（需要时再到下方开容器隔离）" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式（需要时再到下方开版本隔离）" : "已切换到标准模式");
   }
 
   private renderOther() {

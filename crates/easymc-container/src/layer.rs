@@ -64,7 +64,7 @@ fn read_state(instance_id: &str, game_dir: &Path) -> LayerState {
         applied_at: None,
         dirty: false,
         rev: 0,
-        message_zh: "尚未建立基线快照".into(),
+        message_zh: "还没有可回退的干净状态".into(),
     }
 }
 
@@ -123,7 +123,7 @@ pub fn mark_layer_dirty(paths: &Paths, instance_id: &str) -> CoreResult<LayerSta
     let game = PathBuf::from(&inst.game_dir);
     let mut state = read_state(instance_id, &game);
     state.dirty = true;
-    state.message_zh = "可写层有未应用的更改".into();
+    state.message_zh = "有未保存的隔离改动".into();
     let _ = write_state(&game, &state);
     Ok(state)
 }
@@ -148,7 +148,7 @@ pub fn apply_game_layer(paths: &Paths, instance_id: &str) -> Result<LayerOpResul
         .find(|i| i.id == instance_id)
         .ok_or_else(|| format!("找不到版本 {instance_id}"))?;
     if inst.container.is_none() {
-        return Err("仅容器版本支持应用/丢弃可写层".into());
+        return Err("只有隔离版本才能应用或丢弃改动".into());
     }
     let game = PathBuf::from(&inst.game_dir);
     let base = baseline_dir(&game);
@@ -165,7 +165,7 @@ pub fn apply_game_layer(paths: &Paths, instance_id: &str) -> Result<LayerOpResul
     state.baseline_at = Some(now.clone());
     state.applied_at = Some(now);
     state.dirty = false;
-    state.message_zh = "已应用更改（基线已更新；存档未纳入）".into();
+    state.message_zh = "已应用改动（干净状态已更新；存档不动）".into();
     write_state(&game, &state)?;
     Ok(LayerOpResult {
         ok: true,
@@ -184,12 +184,12 @@ pub fn discard_game_layer(paths: &Paths, instance_id: &str) -> Result<LayerOpRes
         .find(|i| i.id == instance_id)
         .ok_or_else(|| format!("找不到版本 {instance_id}"))?;
     if inst.container.is_none() {
-        return Err("仅容器版本支持应用/丢弃可写层".into());
+        return Err("只有隔离版本才能应用或丢弃改动".into());
     }
     let game = PathBuf::from(&inst.game_dir);
     let base = baseline_dir(&game);
     if !base.exists() {
-        return Err("还没有基线快照。请先「应用更改」建立基线，或重新安装内容。".into());
+        return Err("还没有可回退的干净状态。请先「应用」一次改动，或重新安装内容。".into());
     }
     for name in LAYER_DIRS {
         let src = base.join(name);
@@ -201,7 +201,7 @@ pub fn discard_game_layer(paths: &Paths, instance_id: &str) -> Result<LayerOpRes
     }
     let mut state = read_state(instance_id, &game);
     state.dirty = false;
-    state.message_zh = "已丢弃更改，可写层已从基线重建（存档未动）".into();
+    state.message_zh = "已丢弃改动，隔离层已恢复（存档未动）".into();
     write_state(&game, &state)?;
     Ok(LayerOpResult {
         ok: true,

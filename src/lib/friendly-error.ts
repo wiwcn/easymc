@@ -36,9 +36,19 @@ export function friendlyError(e: unknown, fallback = "操作没成功，请稍�
     return fallback;
   }
 
-  // Already Chinese / short product copy — keep.
+  // Already Chinese / short product copy — keep (soften leftover ops jargon).
   if (/[\u4e00-\u9fff]/.test(raw) && !/invoke|__TAURI/i.test(raw)) {
-    return raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
+    const soft = raw
+      .replace(/Podman\s*Desktop/gi, "官方安装包")
+      .replace(/Podman\s*Machine/gi, "运行环境")
+      .replace(/\bPodman\b/gi, "隔离组件")
+      .replace(/\bWSLg?\b/gi, "图形支持")
+      .replace(/rootless/gi, "")
+      .replace(/registries(\.conf)?/gi, "加速配置")
+      .replace(/DaoCloud/gi, "国内线路")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return soft.length > 160 ? `${soft.slice(0, 157)}…` : soft;
   }
 
   // Unknown English / stack-ish → soft fallback.

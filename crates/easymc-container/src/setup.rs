@@ -74,30 +74,30 @@ pub fn install_guidance() -> SetupPlan {
             if cfg!(target_os = "windows") {
                 actions.push(SetupStep {
                     action: SetupAction::InstallPodman,
-                    title_zh: "安装 Podman Desktop".into(),
-                    detail_zh: "Windows 图形界面只接受 Podman Machine（WSL2）+ WSLg。请安装官方 Podman Desktop，并启用 Machine。".into(),
+                    title_zh: "安装官方安装包".into(),
+                    detail_zh: "Windows 开隔离环境需要官方安装包并启用运行环境（含图形支持）。请按指引安装并启用。".into(),
                     command: None,
                     url: Some("https://podman-desktop.io/downloads".into()),
                 });
                 actions.push(SetupStep {
                     action: SetupAction::InitMachine,
-                    title_zh: "初始化 Podman Machine".into(),
-                    detail_zh: "在 Podman Desktop 里创建 Machine，或在终端运行下列命令（需已启用 WSL2）。".into(),
+                    title_zh: "初始化运行环境".into(),
+                    detail_zh: "在官方安装包里创建运行环境，或按下面的命令操作（需已启用图形支持）。".into(),
                     command: Some("podman machine init --now".into()),
                     url: Some("https://podman-desktop.io/docs/podman/creating-a-podman-machine".into()),
                 });
             } else if cfg!(target_os = "linux") {
                 actions.push(SetupStep {
                     action: SetupAction::InstallPodman,
-                    title_zh: "安装 rootless Podman".into(),
-                    detail_zh: "用发行版包装上 Podman（rootless）。装好后重新打开 EasyMC。".into(),
+                    title_zh: "安装隔离组件".into(),
+                    detail_zh: "用系统软件源装上隔离组件。装好后重新打开 EasyMC。".into(),
                     command: Some(linux_install_hint()),
                     url: Some("https://podman.io/docs/installation".into()),
                 });
             } else {
                 actions.push(SetupStep {
                     action: SetupAction::InstallPodman,
-                    title_zh: "安装 Podman".into(),
+                    title_zh: "安装隔离组件".into(),
                     detail_zh: probe.message_zh.clone(),
                     command: None,
                     url: Some("https://podman.io/docs/installation".into()),
@@ -108,16 +108,16 @@ pub fn install_guidance() -> SetupPlan {
             if cfg!(target_os = "windows") {
                 actions.push(SetupStep {
                     action: SetupAction::InitMachine,
-                    title_zh: "启动 Podman Machine".into(),
-                    detail_zh: "Machine 未就绪。请在 Podman Desktop 启动，或运行命令（WSL2 + WSLg）。".into(),
+                    title_zh: "启动运行环境".into(),
+                    detail_zh: "运行环境还没就绪。请在官方安装包里启动，或按下面的命令操作（含图形支持）。".into(),
                     command: Some("podman machine start".into()),
                     url: None,
                 });
             } else {
                 actions.push(SetupStep {
                     action: SetupAction::InitMachine,
-                    title_zh: "检查 Podman 服务".into(),
-                    detail_zh: "二进制在，但连不上。可尝试 `podman info` 查看报错。".into(),
+                    title_zh: "检查隔离组件服务".into(),
+                    detail_zh: "组件在，但连不上。请到设置里点「修复隔离环境」，或重新打开 EasyMC。".into(),
                     command: Some("podman info".into()),
                     url: None,
                 });
@@ -128,8 +128,8 @@ pub fn install_guidance() -> SetupPlan {
 
     actions.push(SetupStep {
         action: SetupAction::WriteRegistries,
-        title_zh: "配置国内镜像加速".into(),
-        detail_zh: "写入 DaoCloud 公共镜像前缀，拉取 docker.io / ghcr 等更快。".into(),
+        title_zh: "配置国内下载加速".into(),
+        detail_zh: "写入国内加速线路，下载隔离环境基础文件会更快。".into(),
         command: None,
         url: Some("https://github.com/DaoCloud/public-image-mirror".into()),
     });
@@ -137,15 +137,15 @@ pub fn install_guidance() -> SetupPlan {
     actions.push(SetupStep {
         action: SetupAction::Reprobe,
         title_zh: "再次检测".into(),
-        detail_zh: "装好或启动 Machine 后点此确认。".into(),
+        detail_zh: "装好或启动运行环境后点此确认。".into(),
         command: None,
         url: None,
     });
 
     let summary_zh = match probe.status {
-        ProbeStatus::Ready => "容器环境已就绪，只需确认国内镜像加速。".into(),
-        ProbeStatus::NotInstalled => "还差安装 Podman，按步骤做完就能用容器版本。".into(),
-        ProbeStatus::InstalledNotReady => "Podman 已装，还差启动 Machine / 服务。".into(),
+        ProbeStatus::Ready => "隔离环境已就绪，只需确认国内下载加速。".into(),
+        ProbeStatus::NotInstalled => "还差安装隔离组件，按步骤做完就能用容器版本。".into(),
+        ProbeStatus::InstalledNotReady => "隔离组件已装，还差启动运行环境 / 服务。".into(),
         ProbeStatus::Unsupported => probe.message_zh.clone(),
     };
 
@@ -167,7 +167,7 @@ fn linux_install_hint() -> String {
     } else if std::path::Path::new("/etc/arch-release").exists() {
         "sudo pacman -S --noconfirm podman".into()
     } else {
-        "podman  # 请用发行版包装安装 rootless Podman".into()
+        "podman  # 请用发行版包装安装隔离组件".into()
     }
 }
 
@@ -185,7 +185,7 @@ pub fn apply_one_click_setup(prefer_china_mirrors: bool) -> SetupResult {
                 messages.push(r.message_zh.clone());
                 registries = Some(r);
             }
-            Err(e) => messages.push(format!("镜像加速配置失败：{e}")),
+            Err(e) => messages.push(format!("下载加速配置失败：{e}")),
         }
     }
 
@@ -199,7 +199,7 @@ pub fn apply_one_click_setup(prefer_china_mirrors: bool) -> SetupResult {
                 let _ = std::process::Command::new(&info.path)
                     .args(["machine", "start"])
                     .output();
-                messages.push("已尝试启动 Podman Machine".into());
+                messages.push("已尝试启动运行环境".into());
             }
         }
     }
