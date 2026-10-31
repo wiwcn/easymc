@@ -1051,6 +1051,22 @@ export async function wardrobeList() {
   );
 }
 
+export async function wardrobeActive() {
+  return (
+    (await invokeSafe<import("./types").WardrobeEntryDto | null>("wardrobe_active_cmd")) ?? null
+  );
+}
+
+export async function wardrobeStageActive(opts?: {
+  gameDir?: string | null;
+  playerName?: string | null;
+}) {
+  return invokeSafe<import("./types").StagedActiveSkinDto | null>("wardrobe_stage_active_cmd", {
+    gameDir: opts?.gameDir ?? null,
+    playerName: opts?.playerName ?? null,
+  });
+}
+
 export async function wardrobeSetActive(id: string | null) {
   return invokeOrThrow<import("./types").WardrobeStateDto>("wardrobe_set_active_cmd", { id });
 }

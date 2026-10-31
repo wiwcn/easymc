@@ -2,7 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import type { AccountDto, AppMode, NavId } from "./types";
-import { getSettings, listAccountsState } from "./api";
+import { getSettings, listAccountsState, wardrobeActive } from "./api";
 import "./pages/onboarding-page";
 import "./components/side-nav";
 import "./components/skin-avatar";
@@ -24,6 +24,8 @@ export class EasyMcApp extends LitElement {
   @state() private onboarded = true;
   @state() private mode: AppMode = "standard";
   @state() private activeAccount: AccountDto | null = null;
+  /** Active wardrobe skin PNG data URL for avatars. */
+  @state() private activeSkinDataUrl: string | null = null;
 
   static styles = css`
     :host {
@@ -152,6 +154,7 @@ export class EasyMcApp extends LitElement {
     this.addEventListener("onboarding-done", this.onOnboarded);
     this.addEventListener("mode-change", this.onModeChange as EventListener);
     this.addEventListener("accounts-changed", this.onAccountsChanged as EventListener);
+    this.addEventListener("wardrobe-changed", this.onWardrobeChanged as EventListener);
     void this.loadSettings();
     void this.loadAccounts();
   }
@@ -177,6 +180,20 @@ export class EasyMcApp extends LitElement {
     } catch {
       this.activeAccount = null;
     }
+    void this.loadActiveSkin();
+  }
+
+  private async loadActiveSkin() {
+    try {
+      const entry = await wardrobeActive();
+      this.activeSkinDataUrl = entry?.skin_data_url ?? null;
+    } catch {
+      this.activeSkinDataUrl = null;
+    }
+  }
+
+  private onWardrobeChanged = () => {
+    void this.loadActiveSkin();
   }
 
   private onOnboarded = () => {
@@ -201,6 +218,7 @@ export class EasyMcApp extends LitElement {
     this.removeEventListener("onboarding-done", this.onOnboarded);
     this.removeEventListener("mode-change", this.onModeChange as EventListener);
     this.removeEventListener("accounts-changed", this.onAccountsChanged as EventListener);
+    this.removeEventListener("wardrobe-changed", this.onWardrobeChanged as EventListener);
     super.disconnectedCallback();
   }
 
@@ -232,6 +250,7 @@ export class EasyMcApp extends LitElement {
         .active=${this.route}
         .mode=${this.mode}
         .account=${this.activeAccount}
+        .skinDataUrl=${this.activeSkinDataUrl}
       ></easymc-side-nav>
       <div class="main">
         <header class="top">
@@ -240,7 +259,7 @@ export class EasyMcApp extends LitElement {
               <span>EasyMC</span>
             </div>
             <button class="account" type="button" title="账户" @click=${() => this.goAccounts()}>
-              <easymc-skin-avatar .account=${this.activeAccount} .size=${64}></easymc-skin-avatar>
+              <easymc-skin-avatar .account=${this.activeAccount} .skinDataUrl=${this.activeSkinDataUrl} .size=${64}></easymc-skin-avatar>
               <span class="chev" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 9l6 6 6-6" />

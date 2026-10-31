@@ -6,6 +6,7 @@ import {
   listAccountsState,
   removeAccount,
   setActiveAccount,
+  wardrobeActive,
 } from "../api";
 import type { AccountDto } from "../types";
 import { showToast } from "../toast";
@@ -25,6 +26,7 @@ export class AccountsPage extends LitElement {
   @state() private activeAccountId: string | null = null;
   @state() private loading = true;
   /** null = list; chooser = add type; offline/microsoft/skin = forms */
+  @state() private wardrobeSkinUrl: string | null = null;
   @state() private panel: null | "chooser" | "offline" | "microsoft" | "skin" = null;
   @state() private name = "";
   @state() private nameError = "";
@@ -310,7 +312,17 @@ export class AccountsPage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    void this.loadWardrobeSkin();
     void this.refresh();
+  }
+
+  private async loadWardrobeSkin() {
+    try {
+      const entry = await wardrobeActive();
+      this.wardrobeSkinUrl = entry?.skin_data_url ?? null;
+    } catch {
+      this.wardrobeSkinUrl = null;
+    }
   }
 
   private revealed = false;
@@ -411,7 +423,7 @@ export class AccountsPage extends LitElement {
               }
             }}
           >
-            <easymc-skin-avatar .account=${a} .size=${44}></easymc-skin-avatar>
+            <easymc-skin-avatar .account=${a} .skinDataUrl=${this.wardrobeSkinUrl} .size=${44}></easymc-skin-avatar>
             <span class="acct-body">
               <div class="acct-name">${a.username}</div>
               <div class="acct-meta">

@@ -256,6 +256,7 @@ export class WardrobePage extends LitElement {
         name: this.uploadName.trim() || null,
         model: this.uploadModel,
       });
+      this.emitWardrobeChanged();
       showToast(`已加入衣柜：${entry.name}`);
       await this.refresh();
       this.selectedId = entry.id;
@@ -284,6 +285,11 @@ export class WardrobePage extends LitElement {
     }
   }
 
+
+  private emitWardrobeChanged() {
+    this.dispatchEvent(new CustomEvent("wardrobe-changed", { bubbles: true, composed: true }));
+  }
+
   private async onSetActive() {
     const cur = this.selected;
     if (!cur) return;
@@ -292,6 +298,7 @@ export class WardrobePage extends LitElement {
       const st = await wardrobeSetActive(cur.id);
       this.entries = st.entries;
       this.activeId = st.active_id;
+      this.emitWardrobeChanged();
       showToast(`已选用「${cur.name}」`);
     } catch (e) {
       showToast(friendlyError(e), { ms: 3200 });
@@ -310,6 +317,7 @@ export class WardrobePage extends LitElement {
       this.entries = st.entries;
       this.activeId = st.active_id;
       this.selectedId = st.active_id ?? st.entries[0]?.id ?? null;
+      this.emitWardrobeChanged();
       showToast("已删除");
     } catch (e) {
       showToast(friendlyError(e), { ms: 3200 });
@@ -346,6 +354,7 @@ export class WardrobePage extends LitElement {
         kind === "official"
           ? await wardrobeImportOfficial(q)
           : await wardrobeImportLittleSkin(q);
+      this.emitWardrobeChanged();
       showToast(`已导入：${entry.name}`);
       await this.refresh();
       this.selectedId = entry.id;

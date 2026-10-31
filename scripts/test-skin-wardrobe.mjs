@@ -26,6 +26,8 @@ for (const cmd of [
   "skin_fetch_official_cmd",
   "skin_fetch_littleskin_cmd",
   "wardrobe_import_littleskin_cmd",
+  "wardrobe_active_cmd",
+  "wardrobe_stage_active_cmd",
 ]) {
   assert.match(api, new RegExp(cmd));
 }
@@ -50,5 +52,20 @@ assert.match(skinRs, /bmclapi2\.bangbang93\.com/);
 const wardRs = fs.readFileSync(path.join(root, "crates/easymc-core/src/wardrobe.rs"), "utf8");
 assert.match(wardRs, /wardrobe_upload/);
 assert.match(wardRs, /skin_data_url/);
+assert.match(wardRs, /stage_active_for_launch/);
+assert.match(wardRs, /active_wardrobe_dto/);
+
+
+const face = fs.readFileSync(path.join(root, "src/lib/skin-face.ts"), "utf8");
+assert.match(face, /skinFaceDataUrl/);
+assert.match(face, /40 \* scale/);
+
+const avatar = fs.readFileSync(path.join(root, "src/components/skin-avatar.ts"), "utf8");
+assert.match(avatar, /skinDataUrl/);
+assert.match(avatar, /skinFaceDataUrl/);
+
+const launch = fs.readFileSync(path.join(root, "crates/easymc-launch-desktop/src/launch.rs"), "utf8");
+assert.match(launch, /stage_active_for_launch/);
+assert.match(launch, /CustomSkinLoader|CSL LocalSkin/);
 
 console.log("ok — skin wardrobe contracts");

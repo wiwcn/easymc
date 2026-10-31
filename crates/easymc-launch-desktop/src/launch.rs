@@ -100,6 +100,27 @@ pub async fn prepare_and_launch(
         .unwrap_or(21);
     std::fs::create_dir_all(&instance.game_dir)?;
 
+    // Active wardrobe → staged PNG + CustomSkinLoader LocalSkin (when CSL is present).
+    match easymc_core::stage_active_for_launch(
+        paths,
+        Some(std::path::Path::new(&instance.game_dir)),
+        Some(account.username.as_str()),
+    ) {
+        Ok(Some(staged)) => {
+            on_log(format!(
+                "已套用衣柜皮肤「{}」{}",
+                staged.name,
+                staged
+                    .csl_skin_path
+                    .as_ref()
+                    .map(|_| "（含 CSL LocalSkin）")
+                    .unwrap_or("")
+            ));
+        }
+        Ok(None) => {}
+        Err(e) => on_log(format!("衣柜皮肤未套用：{e}")),
+    }
+
     // Slice C: container-backed → JRE comes from the runtime image (no host Java required).
     if instance.container.is_some() {
         on_log(format!("容器模式将使用镜像内 Java（目标主版本 {required}）"));

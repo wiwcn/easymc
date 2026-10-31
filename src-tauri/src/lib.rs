@@ -9,6 +9,8 @@ use easymc_core::{
     fetch_littleskin_by_name,
     fetch_official,
     set_active_wardrobe,
+    stage_active_for_launch,
+    active_wardrobe_dto,
     wardrobe_import_resolved,
     wardrobe_remove,
     wardrobe_replace,
@@ -178,6 +180,24 @@ fn wardrobe_replace_cmd(
 #[tauri::command]
 fn wardrobe_remove_cmd(state: State<'_, AppState>, id: String) -> Result<WardrobeStateDto, String> {
     wardrobe_remove(state_paths(&state), &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_active_cmd(
+    state: State<'_, AppState>,
+) -> Result<Option<easymc_core::WardrobeEntryDto>, String> {
+    active_wardrobe_dto(state_paths(&state)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_stage_active_cmd(
+    state: State<'_, AppState>,
+    game_dir: Option<String>,
+    player_name: Option<String>,
+) -> Result<Option<easymc_core::StagedActiveSkin>, String> {
+    let gd = game_dir.as_deref().map(std::path::Path::new);
+    stage_active_for_launch(state_paths(&state), gd, player_name.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[derive(serde::Serialize)]
@@ -2731,6 +2751,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             wardrobe_upload_cmd,
             wardrobe_replace_cmd,
             wardrobe_remove_cmd,
+            wardrobe_active_cmd,
+            wardrobe_stage_active_cmd,
             skin_fetch_official_cmd,
             skin_fetch_littleskin_cmd,
             wardrobe_import_official_cmd,

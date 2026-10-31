@@ -640,6 +640,15 @@ export interface WardrobeStateDto {
   active_id: string | null;
 }
 
+export interface StagedActiveSkinDto {
+  id: string;
+  name: string;
+  model: string;
+  skin_path: string;
+  cape_path?: string | null;
+  csl_skin_path?: string | null;
+}
+
 export interface ResolvedSkinDto {
   name: string;
   uuid?: string | null;

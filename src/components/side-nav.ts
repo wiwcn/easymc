@@ -42,6 +42,8 @@ export class SideNav extends LitElement {
   @property({ type: String }) mode: AppMode = "standard";
   /** Active account from shell (`list_accounts` / active). Null = empty state. */
   @property({ attribute: false }) account: AccountDto | null = null;
+  /** Wardrobe active skin PNG data URL (optional avatar override). */
+  @property({ type: String }) skinDataUrl: string | null = null;
 
   static styles = css`
     :host {
@@ -324,7 +326,7 @@ export class SideNav extends LitElement {
         title=${empty ? "添加账户" : "账户管理"}
         @click=${() => this.select("accounts")}
       >
-        <easymc-skin-avatar .account=${acct} .size=${64}></easymc-skin-avatar>
+        <easymc-skin-avatar .account=${acct} .skinDataUrl=${this.skinDataUrl} .size=${64}></easymc-skin-avatar>
         <span class="acct-body">
           ${empty
             ? html`

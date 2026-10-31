@@ -259,6 +259,115 @@ pub async fn wardrobe_import_resolved(
     entry_to_dto(paths, &entry)
 }
 
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StagedActiveSkin {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    /// Launcher-global staged copy: `{skins}/active.png`
+    pub skin_path: String,
+    pub cape_path: Option<String>,
+    /// CustomSkinLoader LocalSkin path when game_dir + player name are known.
+    pub csl_skin_path: Option<String>,
+}
+
+/// Active wardrobe entry as DTO, if any and the PNG still exists.
+pub fn active_wardrobe_dto(paths: &Paths) -> Result<Option<WardrobeEntryDto>> {
+    let store = load_store(paths)?;
+    let Some(id) = store.active_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(e) = store.entries.iter().find(|e| e.id == id) else {
+        return Ok(None);
+    };
+    Ok(Some(entry_to_dto(paths, e)?))
+}
+
+fn sanitize_player_file_name(name: &str) -> Option<String> {
+    let t = name.trim();
+    if t.is_empty() {
+        return None;
+    }
+    // CSL LocalSkin uses the offline/player name as file stem.
+    let ok: String = t
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect();
+    if ok.is_empty() { None } else { Some(ok) }
+}
+
+/// Copy the active wardrobe skin into launcher + (optional) CSL LocalSkin slots
+/// so launch / offline display can pick it up. No-op when wardrobe has no active skin.
+pub fn stage_active_for_launch(
+    paths: &Paths,
+    game_dir: Option<&std::path::Path>,
+    player_name: Option<&str>,
+) -> Result<Option<StagedActiveSkin>> {
+    paths.ensure()?;
+    let store = load_store(paths)?;
+    let Some(id) = store.active_id.clone() else {
+        return Ok(None);
+    };
+    let Some(entry) = store.entries.iter().find(|e| e.id == id).cloned() else {
+        return Ok(None);
+    };
+    let src = skin_path(paths, &id);
+    if !src.is_file() {
+        return Err(EasyMcError::msg("当前衣柜皮肤文件丢失，请重新导入"));
+    }
+    std::fs::create_dir_all(paths.skins_dir())?;
+    let dest = paths.skins_dir().join("active.png");
+    std::fs::copy(&src, &dest)?;
+    let mut cape_out = None;
+    if entry.has_cape {
+        let csrc = cape_path(paths, &id);
+        if csrc.is_file() {
+            let cdest = paths.skins_dir().join("active_cape.png");
+            std::fs::copy(&csrc, &cdest)?;
+            cape_out = Some(cdest.to_string_lossy().into_owned());
+        }
+    }
+    // Sidecar meta for other tools / future authlib wire-up.
+    let meta = serde_json::json!({
+        "id": entry.id,
+        "name": entry.name,
+        "model": entry.model.as_str(),
+        "has_cape": entry.has_cape,
+        "source": entry.source,
+    });
+    let _ = std::fs::write(
+        paths.skins_dir().join("active.json"),
+        serde_json::to_string_pretty(&meta)?,
+    );
+
+    let mut csl_skin_path = None;
+    if let (Some(gd), Some(pn)) = (game_dir, player_name.and_then(sanitize_player_file_name)) {
+        let skins_dir = gd.join("CustomSkinLoader").join("LocalSkin").join("skins");
+        std::fs::create_dir_all(&skins_dir)?;
+        let csl = skins_dir.join(format!("{pn}.png"));
+        std::fs::copy(&src, &csl)?;
+        csl_skin_path = Some(csl.to_string_lossy().into_owned());
+        if entry.has_cape {
+            let capes_dir = gd.join("CustomSkinLoader").join("LocalSkin").join("capes");
+            std::fs::create_dir_all(&capes_dir)?;
+            let csrc = cape_path(paths, &id);
+            if csrc.is_file() {
+                let _ = std::fs::copy(&csrc, capes_dir.join(format!("{pn}.png")));
+            }
+        }
+    }
+
+    Ok(Some(StagedActiveSkin {
+        id: entry.id,
+        name: entry.name,
+        model: entry.model.as_str().into(),
+        skin_path: dest.to_string_lossy().into_owned(),
+        cape_path: cape_out,
+        csl_skin_path,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,6 +410,44 @@ mod tests {
         let dto2 = wardrobe_replace(&paths, &dto.id, None, None, Some("B"), Some(SkinModel::Slim), false).unwrap();
         assert_eq!(dto2.name, "B");
         assert_eq!(dto2.model, "slim");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stage_active_writes_png_and_csl() {
+        let dir = std::env::temp_dir().join(format!("easymc-wardrobe-stage-{}", Uuid::new_v4()));
+        let paths = Paths::from_root(&dir);
+        paths.ensure().unwrap();
+        let dto = wardrobe_upload(&paths, &png_64(), None, Some("舞台"), Some(SkinModel::Default)).unwrap();
+        set_active_wardrobe(&paths, Some(&dto.id)).unwrap();
+        let game = dir.join("game");
+        std::fs::create_dir_all(&game).unwrap();
+        let staged = stage_active_for_launch(&paths, Some(&game), Some("Steve_Test")).unwrap().unwrap();
+        assert!(std::path::Path::new(&staged.skin_path).is_file());
+        assert_eq!(staged.name, "舞台");
+        let csl = game.join("CustomSkinLoader/LocalSkin/skins/Steve_Test.png");
+        assert!(csl.is_file(), "CSL local skin missing");
+        assert!(paths.skins_dir().join("active.json").is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+    #[test]
+    fn stage_active_real_png_file() {
+        let png = std::fs::read("/tmp/easymc-real-skin-64.png").expect("real png fixture");
+        validate_skin_png(&png).expect("validate real png");
+        let dir = std::env::temp_dir().join(format!("easymc-wardrobe-real-{}", Uuid::new_v4()));
+        let paths = Paths::from_root(&dir);
+        paths.ensure().unwrap();
+        let dto = wardrobe_upload(&paths, &png, None, Some("真实PNG"), Some(SkinModel::Slim)).unwrap();
+        assert!(dto.skin_data_url.contains("base64,"));
+        let game = dir.join("gamedir");
+        let staged = stage_active_for_launch(&paths, Some(&game), Some("Player_一")).unwrap().unwrap();
+        let staged_bytes = std::fs::read(&staged.skin_path).unwrap();
+        assert_eq!(staged_bytes, png);
+        let csl = game.join("CustomSkinLoader/LocalSkin/skins/Player__.png");
+        assert!(csl.is_file());
+        assert_eq!(std::fs::read(&csl).unwrap(), png);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
