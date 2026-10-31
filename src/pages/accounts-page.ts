@@ -10,8 +10,10 @@ import {
 import type { AccountDto } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import { accountKindBadgeClass, accountKindLabel } from "../lib/skin-avatar";
 import "../components/empty-state";
 import "../components/msa-login";
+import "../components/skin-avatar";
 
 /**
  * Standalone accounts page (PCL-aligned): list + add flow.
@@ -110,9 +112,16 @@ export class AccountsPage extends LitElement {
         background: var(--md-sys-color-primary-container);
         color: var(--md-sys-color-on-primary-container);
       }
-      .skin-ph {
+      easymc-skin-avatar {
+        --easymc-skin-avatar-size: 44px;
         width: 44px;
         height: 44px;
+        border-radius: var(--md-sys-shape-corner-medium);
+        box-shadow: var(--md-sys-elevation-1);
+      }
+      .skin-ph {
+        width: 64px;
+        height: 64px;
         border-radius: var(--md-sys-shape-corner-medium);
         flex-shrink: 0;
         background: var(--easymc-skin-ph-base);
@@ -123,15 +132,12 @@ export class AccountsPage extends LitElement {
       .skin-ph::after {
         content: "";
         position: absolute;
-        inset: 8px 14px 10px;
+        inset: 12px 18px 14px;
         border-radius: var(--md-sys-shape-corner-extra-small);
         background: var(--easymc-skin-ph-face);
       }
-      .skin-ph.ms {
-        background: var(--easymc-skin-ph-ms);
-      }
-      .skin-ph.skin {
-        background: var(--easymc-skin-ph-skin);
+      .skin-ph.off {
+        background: var(--easymc-skin-ph-base);
       }
       .acct-body {
         flex: 1;
@@ -196,8 +202,15 @@ export class AccountsPage extends LitElement {
         outline: none;
         box-shadow: var(--easymc-focus-ring);
       }
+      .acct-actions button.switch {
+        color: var(--md-sys-color-primary);
+      }
+      .acct-actions button.danger {
+        color: var(--md-sys-color-on-surface-variant);
+      }
       .acct-actions button.danger:hover {
         color: var(--md-sys-color-error);
+        background: color-mix(in oklch, var(--md-sys-color-error) 10%, transparent);
       }
       .chooser {
         display: grid;
@@ -321,18 +334,6 @@ export class AccountsPage extends LitElement {
     }
   }
 
-  private kindLabel(kind: string): string {
-    if (kind === "microsoft") return "正版";
-    if (kind === "skin_station") return "皮肤站";
-    return "离线";
-  }
-
-  private kindBadgeClass(kind: string): string {
-    if (kind === "microsoft") return "ms";
-    if (kind === "skin_station") return "skin";
-    return "off";
-  }
-
   private validateName(raw: string): string {
     const n = raw.trim();
     const len = [...n].length;
@@ -345,7 +346,7 @@ export class AccountsPage extends LitElement {
   render() {
     return html`
       <h1>账户</h1>
-      <p class="sub">管理登录方式与当前使用的名字。点选切换；正版服请用微软账户。</p>
+      <p class="sub">点选切换当前名字；可添加或删除。进正版服请用微软账户。</p>
       <div class="surf" ?aria-busy=${this.loading}>
         ${this.loading
           ? html`<div class="acct-list" aria-label="正在加载账户">
@@ -364,54 +365,76 @@ export class AccountsPage extends LitElement {
     `;
   }
 
+  private async activate(a: AccountDto) {
+    if (a.id === this.activeAccountId) {
+      showToast(`正在使用 ${a.username}`);
+      return;
+    }
+    const st = await setActiveAccount(a.id);
+    this.accounts = st.accounts;
+    this.activeAccountId = st.active_id;
+    this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
+    showToast(`已切换到 ${a.username}`);
+  }
+
+  private async remove(a: AccountDto) {
+    const tip =
+      a.kind === "microsoft"
+        ? `从本机删除「${a.username}」？微软账户本身不会被注销。`
+        : `从本机删除「${a.username}」？`;
+    if (!confirm(tip)) return;
+    const st = await removeAccount(a.id);
+    this.accounts = st.accounts;
+    this.activeAccountId = st.active_id;
+    this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
+    showToast("已删除");
+  }
+
   private renderList() {
     return html`
       <div class="acct-list" role="listbox" aria-label="账户列表">
         ${this.accounts.map((a) => {
           const active = a.id === this.activeAccountId;
+          const badge = accountKindBadgeClass(a.kind);
           return html`<div
             class="acct ${active ? "active" : ""}"
             role="option"
             tabindex="0"
             aria-selected=${active}
-            @click=${async () => {
-              const st = await setActiveAccount(a.id);
-              this.accounts = st.accounts;
-              this.activeAccountId = st.active_id;
-              this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
-              showToast(`已切换到 ${a.username}`);
-            }}
+            @click=${() => void this.activate(a)}
             @keydown=${(e: KeyboardEvent) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                (e.currentTarget as HTMLElement).click();
+                void this.activate(a);
               }
             }}
           >
-            <span class="skin-ph ${this.kindBadgeClass(a.kind)}" aria-hidden="true"></span>
+            <easymc-skin-avatar .account=${a} .size=${44}></easymc-skin-avatar>
             <span class="acct-body">
               <div class="acct-name">${a.username}</div>
               <div class="acct-meta">
-                <span class="badge ${this.kindBadgeClass(a.kind)}">${this.kindLabel(a.kind)}</span>
+                <span class="badge ${badge}">${accountKindLabel(a.kind)}</span>
                 ${active ? html`<span>当前使用</span>` : nothing}
               </div>
             </span>
             <span class="acct-actions" @click=${(e: Event) => e.stopPropagation()}>
+              ${active
+                ? nothing
+                : html`<button
+                    class="switch"
+                    type="button"
+                    title="切换为当前账户"
+                    @click=${() => void this.activate(a)}
+                  >
+                    切换
+                  </button>`}
               <button
-                class="text"
+                class="danger"
                 type="button"
-                title="从本机移除此账户"
-                style="color:var(--md-sys-color-on-surface-variant)"
-                @click=${async () => {
-                  if (!confirm(`确定移除账户「${a.username}」？此操作不会删除正版账号本身。`)) return;
-                  const st = await removeAccount(a.id);
-                  this.accounts = st.accounts;
-                  this.activeAccountId = st.active_id;
-                  this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
-                  showToast("已移除");
-                }}
+                title="从本机删除此账户"
+                @click=${() => void this.remove(a)}
               >
-                移除…
+                删除
               </button>
             </span>
           </div>`;
@@ -445,8 +468,8 @@ export class AccountsPage extends LitElement {
       <p class="tip" style="margin-top:0">选择登录方式</p>
       <div class="chooser">
         <button class="choice" type="button" @click=${() => (this.panel = "microsoft")}>
-          <strong>正版微软账户</strong>
-          <span>使用微软账户登录，可进入正版服务器。</span>
+          <strong>微软账户（正版）</strong>
+          <span>用微软账户登录，可进正版服务器。</span>
         </button>
         <button
           class="choice"
@@ -461,7 +484,7 @@ export class AccountsPage extends LitElement {
           <span>输入游戏里显示的名字，马上就能玩单人或离线服。</span>
         </button>
         <button class="choice" type="button" @click=${() => (this.panel = "skin")}>
-          <strong>第三方皮肤站</strong>
+          <strong>皮肤站</strong>
           <span>用皮肤站账号显示自定义皮肤（完整登录即将支持）。</span>
         </button>
       </div>
@@ -475,11 +498,7 @@ export class AccountsPage extends LitElement {
       </div>
       <div class="form-card">
         <div style="display:flex;justify-content:center;margin-bottom:12px">
-          <span
-            class="skin-ph off"
-            style="width:64px;height:64px;border-radius:var(--md-sys-shape-corner-medium)"
-            aria-hidden="true"
-          ></span>
+          <span class="skin-ph off" aria-hidden="true"></span>
         </div>
         <label
           >游戏用户名

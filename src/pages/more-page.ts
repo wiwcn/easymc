@@ -3,6 +3,7 @@ import { customElement, property } from "lit/decorators.js";
 import type { AppMode } from "../types";
 import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { showToast } from "../toast";
+import { APP_VERSION } from "../version";
 
 @customElement("easymc-more-page")
 export class MorePage extends LitElement {
@@ -24,6 +25,10 @@ export class MorePage extends LitElement {
         transition: background var(--easymc-dur-press) var(--easymc-ease-out);
       }
       button.tile:hover { background: var(--md-sys-color-surface-container); }
+      button.tile:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
+      }
       button.tile strong { font-size: var(--easymc-type-title); }
       button.tile span { font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant); }
       .about {
@@ -31,12 +36,25 @@ export class MorePage extends LitElement {
         font-size: var(--easymc-type-label); color: var(--md-sys-color-on-surface-variant);
         line-height: 1.5;
       }
+      .about strong { color: var(--md-sys-color-on-surface); font-weight: var(--easymc-weight-medium); }
       a { color: var(--md-sys-color-primary); }
     `,
   ];
 
   private go(id: string) {
     this.dispatchEvent(new CustomEvent("nav-change", { detail: id, bubbles: true, composed: true }));
+  }
+
+  private feedback() {
+    showToast("打开邮件后，把想法发给我们就可以啦", { ms: 2800 });
+    window.setTimeout(() => {
+      window.location.href =
+        "mailto:feedback@easymc.local?subject=" + encodeURIComponent("EasyMC 反馈");
+    }, 180);
+  }
+
+  private help() {
+    showToast("使用说明即将上线，也可以先问问侧栏「助手」", { ms: 3200 });
   }
 
   render() {
@@ -52,20 +70,20 @@ export class MorePage extends LitElement {
           <strong>导出 / 管理版本</strong>
           <span>打开版本管理：导出给好友，或从启动页返回</span>
         </button>
-        <button class="tile surf-outline" type="button" @click=${() => showToast("仓库公开后可在此反馈。也可发邮件到 feedback@easymc.local（占位）", { ms: 3200 })}>
+        <button class="tile surf-outline" type="button" @click=${() => this.feedback()}>
           <strong>反馈</strong>
-          <span>仓库公开后可在此反馈；当前请先记下来，或用下方邮件</span>
+          <span>有想法或遇到问题，写信告诉我们</span>
         </button>
-        <button class="tile surf-outline" type="button" @click=${() => showToast("帮助文档即将上线。日常问题可先问侧栏「助手」。", { ms: 3200 })}>
+        <button class="tile surf-outline" type="button" @click=${() => this.help()}>
           <strong>帮助</strong>
           <span>使用说明即将上线；也可先问问侧栏「助手」</span>
         </button>
       </div>
       <div class="about surf-outline" id="about">
-        <strong style="color:var(--md-sys-color-on-surface)">关于 EasyMC</strong><br />
-        版本 0.1.13 · MIT 许可<br />
-        开源 Minecraft Java Edition 启动器。<br />
-        源码仓库公开后可在此查看；反馈占位：
+        <strong>关于 EasyMC</strong><br />
+        版本 ${APP_VERSION} · MIT 许可<br />
+        开源的 Minecraft Java 启动器，面向玩家、好上手。<br />
+        意见与建议：
         <a href="mailto:feedback@easymc.local?subject=EasyMC%20反馈">feedback@easymc.local</a>
       </div>
     `;

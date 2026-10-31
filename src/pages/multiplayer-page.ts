@@ -1,7 +1,13 @@
 import { LitElement, css, html } from "lit";
 import { customElement } from "lit/decorators.js";
 import { controlStyles, pageChromeStyles } from "../styles/controls";
+import { showToast } from "../toast";
+import { enterUp } from "../styles/motion";
 
+/**
+ * Phase-4 placeholder: honest empty + clear next steps (home / soft feedback).
+ * No issue-tracker URLs — player feedback stays mailto + toast.
+ */
 @customElement("easymc-multiplayer-page")
 export class MultiplayerPage extends LitElement {
   static styles = [
@@ -16,16 +22,18 @@ export class MultiplayerPage extends LitElement {
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
+        padding: var(--easymc-space-5);
       }
       .box {
         max-width: 28em;
+        width: 100%;
         text-align: center;
         padding: var(--easymc-space-6) var(--easymc-space-5);
         border-radius: var(--md-sys-shape-corner-extra-large);
         background: var(--md-sys-color-surface-container-lowest);
-        /* CF-1: soft elev card; optical nudge like EmptyState */
         border: none;
         box-shadow: var(--md-sys-elevation-1);
+        /* Optical nudge — same as EmptyState page */
         transform: translateY(-4%);
       }
       .soon {
@@ -66,13 +74,35 @@ export class MultiplayerPage extends LitElement {
     `,
   ];
 
+  protected firstUpdated() {
+    enterUp(this.renderRoot.querySelector(".box"));
+  }
+
+  private goHome() {
+    this.dispatchEvent(
+      new CustomEvent("nav-change", { detail: "home", bubbles: true, composed: true }),
+    );
+  }
+
+  private feedback() {
+    showToast("写信告诉我们你想怎么联机吧", { ms: 2800 });
+    const href =
+      "mailto:feedback@easymc.local?subject=" +
+      encodeURIComponent("联机想法") +
+      "&body=" +
+      encodeURIComponent("我想要的联机方式：\n");
+    window.setTimeout(() => {
+      window.location.href = href;
+    }, 180);
+  }
+
   render() {
     return html`
       <div class="box">
         <div class="soon">即将推出</div>
         <h1>和朋友一起玩</h1>
         <p>
-          联机大厅还在准备中。上线后你可以开房间、用邀请码加入，并看到延迟与人数——专心玩游戏，不用自己折腾联机设置。
+          联机大厅还在准备中。上线后你可以开房间、用邀请码加入，并看到延迟与人数——专心玩游戏就好。
         </p>
         <ul>
           <li>创建房间，邀请好友加入</li>
@@ -80,26 +110,10 @@ export class MultiplayerPage extends LitElement {
           <li>查看延迟与人数</li>
         </ul>
         <div class="actions">
-          <button
-            class="primary"
-            type="button"
-            @click=${() =>
-              this.dispatchEvent(
-                new CustomEvent("nav-change", { detail: "home", bubbles: true, composed: true }),
-              )}
-          >
+          <button class="primary" type="button" @click=${() => this.goHome()}>
             先回启动页开单人
           </button>
-          <button
-            class="ghost"
-            type="button"
-            @click=${() =>
-              (window.location.href =
-                "mailto:feedback@easymc.local?subject=" +
-                encodeURIComponent("联机需求") +
-                "&body=" +
-                encodeURIComponent("我想要的联机方式：\n"))}
-          >
+          <button class="ghost" type="button" @click=${() => this.feedback()}>
             告诉我你想怎么联机
           </button>
         </div>
