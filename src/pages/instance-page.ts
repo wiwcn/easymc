@@ -38,6 +38,7 @@ import type { ContainerLayerStateDto, InstanceDto, LoaderId, LocalEntryDto, Vers
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import { sortInstancesReadyFirst } from "../lib/download-ux";
 import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import "../components/install-progress";
@@ -117,6 +118,16 @@ export class InstancePage extends LitElement {
     }
     .row-item:hover { background: var(--md-sys-color-surface-container); }
     .row-item.active { border-color: var(--md-sys-color-primary); }
+    .row-item.not-ready {
+      opacity: 0.88;
+      background: var(--md-sys-color-surface-container-low);
+    }
+    .row-item.not-ready .icon {
+      filter: grayscale(0.45);
+      opacity: 0.8;
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-on-surface-variant);
+    }
     .icon {
       width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-primary-container);
@@ -125,7 +136,20 @@ export class InstancePage extends LitElement {
     }
     .meta { flex: 1; min-width: 0; }
     .meta .name { font-weight: var(--easymc-weight-medium); }
-    .meta .info { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); }
+    .meta .info { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .st {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium);
+      padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
+    }
+    .st.ok {
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+    .st.pending {
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+    }
     .menu-wrap { position: relative; }
     .menu-panel {
       position: absolute; right: 0; top: 100%; z-index: 10; min-width: 180px;
@@ -321,11 +345,12 @@ export class InstancePage extends LitElement {
           ? html`<easymc-empty-state
               variant="panel"
               title="咦？似乎什么都没有…"
-              description="点「添加版本」，或去下载整合包逛逛"
+              description="先添加一个版本，或去下载中心装整合包。"
             >
+              <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
               <button class="ghost" type="button" @click=${() => this.goDownload("modpack")}>去下载整合包</button>
             </easymc-empty-state>`
-          : this.instances.map((i) => this.renderRow(i))}
+          : sortInstancesReadyFirst(this.instances).map((i) => this.renderRow(i))}
       </div>
       ${this.showCreate ? this.renderCreate() : nothing}
     `;
@@ -336,12 +361,17 @@ export class InstancePage extends LitElement {
     const label = instancePlayerLabel(i);
     const custom = (i.name || "").trim();
     const showCustom = custom && custom !== label && !custom.startsWith(ver);
+    const ready = !!i.version_ready;
     return html`
-      <div class="row-item ${i.id === this.activeId ? "active" : ""}" @click=${() => this.openDetail(i.id)}>
+      <div class="row-item ${i.id === this.activeId ? "active" : ""} ${ready ? "" : "not-ready"}" @click=${() => this.openDetail(i.id)}>
         <div class="icon" aria-hidden="true">${ver.slice(0, 1) || "?"}</div>
         <div class="meta">
           <div class="name">${label}</div>
-          <div class="info">${showCustom ? `${custom} · ` : ""}${i.version_ready ? "已安装" : "未安装"} · ${i.category ?? "未分类"}</div>
+          <div class="info">
+            <span class="st ${ready ? "ok" : "pending"}">${ready ? "已就绪" : "未安装"}</span>
+            ${showCustom ? html`<span>${custom}</span>` : nothing}
+            <span>${i.category ?? "未分类"}</span>
+          </div>
         </div>
         <div class="menu-wrap" @click=${(e: Event) => e.stopPropagation()}>
           <button type="button" class="ghost" title="操作" @click=${() => (this.menuFor = this.menuFor === i.id ? null : i.id)}>⋮</button>

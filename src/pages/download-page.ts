@@ -34,6 +34,12 @@ import type {
 import { loaderLabel, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import {
+  marketEmptyTitle,
+  marketInstallCta,
+  marketNeedsInstance,
+  type MarketTab,
+} from "../lib/download-ux";
 import { syncIndicator } from "../lib/indicator";
 import { loaderIcon } from "../loader-icons";
 import "../components/install-progress";
@@ -73,6 +79,7 @@ export class DownloadPage extends LitElement {
   @state() private loaderVers: { version: string; stable: boolean }[] = [];
   @state() private loaderVer = "";
   @state() private loaderVerExpanded = false;
+  @state() private loaderVersLoading = false;
   @state() private newName = "";
   @state() private busy = false;
   @state() private vanillaLoading = false;
@@ -138,11 +145,45 @@ export class DownloadPage extends LitElement {
       color: var(--md-sys-color-on-surface);
       border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; font-size: var(--easymc-type-label);
     }
-    /* primary / ghost → controlStyles (CMP-1) */
-    button.outline-dl {
-      border: 1.5px solid var(--md-sys-color-primary);
-      background: transparent; color: var(--md-sys-color-primary);
-      border-radius: var(--md-sys-shape-corner-full); padding: 8px 14px; cursor: pointer; font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-label);
+    /* primary / ghost → controlStyles (CMP-1); card install uses primary */
+    .market-chrome {
+      display: flex; flex-direction: column; gap: var(--easymc-space-3);
+      margin-bottom: var(--easymc-space-3);
+    }
+    .search .clear {
+      border: none; background: transparent; color: var(--md-sys-color-on-surface-variant);
+      cursor: pointer; padding: 4px 6px; border-radius: var(--md-sys-shape-corner-full);
+      font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium);
+      flex-shrink: 0;
+    }
+    .search .clear:hover { color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container); }
+    .results-meta {
+      display: flex; align-items: baseline; justify-content: space-between; gap: var(--easymc-space-2);
+      margin: 0 0 var(--easymc-space-3); font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .need-inst {
+      display: flex; flex-wrap: wrap; align-items: center; gap: var(--easymc-space-3);
+      padding: 12px 16px; margin-bottom: var(--easymc-space-3);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
+      font-size: var(--easymc-type-label); line-height: 1.4;
+    }
+    .need-inst .grow { flex: 1; min-width: 160px; }
+    .card-foot .bar { margin: 0; }
+    .card-foot button.primary { padding: 8px 14px; }
+    .loader-cta-hint {
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant);
+      margin: var(--easymc-space-2) 0 0;
+    }
+    .loader-skel {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
+      gap: var(--easymc-space-2); margin-top: var(--easymc-space-3);
+    }
+    .loader-skel .skel { height: 44px; border-radius: var(--md-sys-shape-corner-large); }
+    .market-body {
+      flex: 1 1 auto; display: flex; flex-direction: column; min-height: 220px;
     }
     .market-grid {
       display: grid;
@@ -345,7 +386,7 @@ export class DownloadPage extends LitElement {
       cursor: pointer; font: inherit; font-weight: var(--easymc-weight-medium); padding: 8px 4px;
       border-radius: var(--md-sys-shape-corner-small);
     }
-    button.back:focus-visible, .crumb button:focus-visible, button.outline-dl:focus-visible {
+    button.back:focus-visible, .crumb button:focus-visible, .search .clear:focus-visible {
       outline: none; box-shadow: var(--easymc-focus-ring);
     }
   `,
@@ -554,7 +595,7 @@ export class DownloadPage extends LitElement {
           <button type="button" @click=${() => { this.vanillaStep = "version"; this.loader = "vanilla"; this.loaderVer = ""; }}>← 重选版本</button>
           <span>/</span>
           <strong>${this.pick}</strong>
-          <span>· 选择加载器</span>
+          <span>· ① 选择加载器</span>
         </div>
         <div class="loader-grid" role="listbox" aria-label="加载器">
           ${loaders.map(
@@ -573,10 +614,27 @@ export class DownloadPage extends LitElement {
             </button>`,
           )}
         </div>
-        ${this.loader !== "vanilla" && this.loaderVers.length
+        ${this.loader === "vanilla"
           ? html`<div class="loader-panel">
+                <div class="muted">将安装原版 ${this.pick} · 不加模组加载器</div>
+                <div class="row">
+                  <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" aria-label="版本名称" />
+                  <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
+                    ${this.busy ? "安装中…" : "安装并添加版本"}
+                  </button>
+                </div>
+              </div>`
+          : this.loaderVersLoading
+            ? html`<div class="loader-panel">
+                <div class="panel-head"><span>正在拉取 ${loaderLabel(this.loader)} 版本…</span></div>
+                <div class="loader-skel" aria-busy="true" aria-label="正在加载加载器版本">
+                  ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block"></div>`)}
+                </div>
+              </div>`
+            : this.loaderVers.length
+              ? html`<div class="loader-panel">
               <div class="panel-head">
-                <span>加载器版本 · ${loaderLabel(this.loader)}</span>
+                <span>② 点选加载器版本 · ${loaderLabel(this.loader)}</span>
                 <span class="muted">共 ${this.loaderVers.length} 个</span>
               </div>
               <div class="ver-cards" role="listbox" aria-label="加载器版本">
@@ -598,28 +656,21 @@ export class DownloadPage extends LitElement {
                     ${this.loaderVerExpanded ? "收起" : `显示全部 ${this.loaderVers.length} 个`}
                   </button>`
                 : nothing}
+              <p class="loader-cta-hint">${this.loaderVer ? `已选 ${this.loaderVer}，可以安装了` : "先点选上方一个版本，再点安装"}</p>
               <div class="row">
-                <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" />
-                <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
+                <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" aria-label="版本名称" />
+                <button class="primary" type="button" ?disabled=${this.busy || !this.loaderVer} @click=${() => this.installVanilla()}>
                   ${this.busy ? "安装中…" : "安装并添加版本"}
                 </button>
               </div>
             </div>`
-          : this.loader === "vanilla"
-            ? html`<div class="loader-panel">
-                <div class="muted">将安装原版 ${this.pick}</div>
-                <div class="row">
-                  <input .value=${this.newName} @input=${(e: Event) => (this.newName = (e.target as HTMLInputElement).value)} placeholder="给这个版本起个名字（可选）" style="flex:1;min-width:140px" />
-                  <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.installVanilla()}>
-                    ${this.busy ? "安装中…" : "安装并添加版本"}
-                  </button>
-                </div>
-              </div>`
-            : html`<div class="results-slot"><easymc-empty-state
+              : html`<div class="results-slot"><easymc-empty-state
                   variant="panel"
                   title="咦？这个加载器好像还没版本…"
                   description="换个游戏版本或加载器再试试"
-                ></easymc-empty-state></div>`}
+                >
+                  <button class="ghost" type="button" @click=${() => { this.vanillaStep = "version"; this.loader = "vanilla"; this.loaderVer = ""; }}>重选游戏版本</button>
+                </easymc-empty-state></div>`}
       `;
     }
 
@@ -635,7 +686,10 @@ export class DownloadPage extends LitElement {
         <div class="toolbar">
           <div class="search grow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input placeholder="筛选版本号…" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
+            <input placeholder="筛选版本号…" .value=${this.filter} aria-label="筛选版本号" @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />
+            ${this.filter.trim()
+              ? html`<button class="clear" type="button" title="清空筛选" @click=${() => { this.filter = ""; }}>清空</button>`
+              : nothing}
           </div>
           <label class="muted" style="display:inline-flex;align-items:center;gap:6px">
             <input type="checkbox" .checked=${this.snapshots} @change=${async (e: Event) => { this.snapshots = (e.target as HTMLInputElement).checked; await this.loadVanilla(); }} />
@@ -691,13 +745,25 @@ export class DownloadPage extends LitElement {
     if (id === "vanilla") {
       this.loaderVers = [];
       this.loaderVer = "";
+      this.loaderVersLoading = false;
       return;
     }
-    this.loaderVers = await listLoaderVersions(id, this.pick);
-    this.loaderVer = this.loaderVers[0]?.version ?? "";
+    this.loaderVersLoading = true;
+    this.loaderVers = [];
+    this.loaderVer = "";
+    try {
+      this.loaderVers = await listLoaderVersions(id, this.pick);
+      this.loaderVer = this.loaderVers[0]?.version ?? "";
+    } finally {
+      this.loaderVersLoading = false;
+    }
   }
 
   private async installVanilla() {
+    if (this.loader !== "vanilla" && !this.loaderVer) {
+      showToast("先点选一个加载器版本");
+      return;
+    }
     this.busy = true;
     try {
       const name = this.newName.trim() || `我的世界 ${this.pick}${this.loader === "vanilla" ? "" : ` (${loaderLabel(this.loader)})`}`;
@@ -727,36 +793,59 @@ export class DownloadPage extends LitElement {
             : this.tab === "shader"
               ? "让画面更好看"
               : "给世界加玩法";
+    const needsInst = marketNeedsInstance(this.tab as MarketTab);
+    const emptyCopy = marketEmptyTitle(this.query);
     return html`
       <p class="muted" style="margin-top:0">${hint}</p>
-      <div class="search-row">
-        <div class="search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input placeholder="搜索…（留空显示热门）" .value=${this.query} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
+      <div class="market-chrome">
+        <div class="search-row">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input
+              placeholder=${this.tab === "modpack" ? "搜索整合包…（留空看热门）" : "搜索…（留空看热门）"}
+              .value=${this.query}
+              aria-label="搜索"
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSearch(); }}
+              @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)}
+            />
+            ${this.query.trim()
+              ? html`<button class="clear" type="button" title="清空" @click=${() => { this.query = ""; void this.onSearch(); }}>清空</button>`
+              : nothing}
+          </div>
+          <button class="primary" type="button" ?disabled=${this.loading} @click=${() => this.onSearch()}>
+            ${this.loading ? "搜索中…" : "搜索"}
+          </button>
+          ${this.instances.length
+            ? html`<select .value=${this.activeId ?? ""} @change=${async (e: Event) => { this.activeId = (e.target as HTMLSelectElement).value; await setActiveInstance(this.activeId); }} title="装进哪个版本" aria-label="装进哪个版本">
+                ${this.instances.map((i) => html`<option value=${i.id}>${i.name}${i.version_ready ? "" : "（未装好）"}</option>`)}
+              </select>`
+            : nothing}
         </div>
-        <button class="primary" type="button" ?disabled=${this.loading} @click=${() => this.onSearch()}>搜索</button>
-        ${this.instances.length
-          ? html`<select .value=${this.activeId ?? ""} @change=${async (e: Event) => { this.activeId = (e.target as HTMLSelectElement).value; await setActiveInstance(this.activeId); }} title="装进哪个版本">
-              ${this.instances.map((i) => html`<option value=${i.id}>${i.name}</option>`)}
-            </select>`
-          : nothing}
+        <div class="sources">
+          <span class="lbl">来源</span>
+          <button class="md-chip ${this.source === "modrinth" ? "on" : ""}" type="button" aria-pressed=${this.source === "modrinth"} @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>
+            <span class="dot mr"></span> Modrinth
+          </button>
+          <button class="md-chip ${this.source === "curseforge" ? "on" : ""}" type="button" aria-pressed=${this.source === "curseforge"} @click=${() => { this.source = "curseforge"; void this.onSearch(); }}>
+            <span class="dot cf"></span> CurseForge
+          </button>
+        </div>
       </div>
-      <div class="sources" style="margin-bottom:14px">
-        <span class="lbl">来源</span>
-        <button class="md-chip ${this.source === "modrinth" ? "on" : ""}" type="button" aria-pressed=${this.source === "modrinth"} @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>
-          <span class="dot mr"></span> Modrinth
-        </button>
-        <button class="md-chip ${this.source === "curseforge" ? "on" : ""}" type="button" aria-pressed=${this.source === "curseforge"} @click=${() => { this.source = "curseforge"; void this.onSearch(); }}>
-          <span class="dot cf"></span> CurseForge
-        </button>
-      </div>
+      ${needsInst && !this.instances.length
+        ? html`<div class="need-inst" role="status">
+            <span class="grow">装模组 / 资源包前，需要先有一个游戏版本。</span>
+            <button class="primary" type="button" @click=${() => this.setTab("vanilla")}>去装原版或加载器</button>
+            <button class="ghost" type="button" @click=${() => this.setTab("modpack")}>或装整合包</button>
+          </div>`
+        : nothing}
       ${this.source === "curseforge" && !this.cf?.configured
         ? html`<div class="panel" style="margin-bottom:12px">
             <p class="muted">浏览 CurseForge 需要密钥（可在
               <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer">CurseForge 控制台</a> 申请）。Modrinth 无需密钥。</p>
             <div class="bar">
-              <input type="password" placeholder="粘贴密钥…" .value=${this.cfKeyDraft} @input=${(e: Event) => (this.cfKeyDraft = (e.target as HTMLInputElement).value)} />
-              <button class="primary" type="button" @click=${async () => { const r = await setCurseforgeKey(this.cfKeyDraft.trim() || null); showToast(r.message); this.cf = await curseforgeConfigured(); }}>保存</button>
+              <input type="password" placeholder="粘贴密钥…" .value=${this.cfKeyDraft} @input=${(e: Event) => (this.cfKeyDraft = (e.target as HTMLInputElement).value)} aria-label="CurseForge 密钥" />
+              <button class="primary" type="button" @click=${async () => { const r = await setCurseforgeKey(this.cfKeyDraft.trim() || null); showToast(r.message); this.cf = await curseforgeConfigured(); }}>保存密钥</button>
+              <button class="ghost" type="button" @click=${() => { this.source = "modrinth"; void this.onSearch(); }}>改用 Modrinth</button>
             </div>
           </div>`
         : nothing}
@@ -766,38 +855,44 @@ export class DownloadPage extends LitElement {
             <datalist id="worlds">${this.worlds.map((w) => html`<option value=${w}></option>`)}</datalist>
           </div>`
         : nothing}
-      ${this.loading
-        ? html`<div class="market-skel" aria-busy="true" aria-label="正在搜索">
-            ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block card-skel"></div>`)}
-          </div>`
-        : nothing}
-      <div class="market-grid">
-        ${this.results.map((p) => this.renderCard(p))}
+      <div class="market-body">
+        ${this.loading
+          ? html`<div class="market-skel" aria-busy="true" aria-label="正在搜索">
+              ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block card-skel"></div>`)}
+            </div>`
+          : this.error
+            ? html`<div class="results-slot"><easymc-empty-state
+                variant="panel"
+                title="模组列表暂时加载不了"
+                description=${this.error}
+              >
+                <button class="primary" type="button" @click=${() => void this.onSearch()}>再试一次</button>
+              </easymc-empty-state></div>`
+            : this.results.length === 0
+              ? html`<div class="results-slot"><easymc-empty-state
+                variant="panel"
+                title=${emptyCopy.title}
+                description=${emptyCopy.description}
+              >
+                <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>重新加载热门</button>
+              </easymc-empty-state></div>`
+              : html`
+                  <div class="results-meta">
+                    <span>${this.query.trim() ? `找到 ${this.results.length} 个结果` : `热门 · ${this.results.length} 个`}</span>
+                    ${this.active && needsInst ? html`<span>将装进：${this.active.name}</span>` : nothing}
+                  </div>
+                  <div class="market-grid">
+                    ${this.results.map((p) => this.renderCard(p))}
+                  </div>`}
       </div>
-      ${!this.loading && this.error
-        ? html`<div class="results-slot"><easymc-empty-state
-            variant="panel"
-            title="模组列表暂时加载不了"
-            description=${this.error}
-          >
-            <button class="primary" type="button" @click=${() => void this.onSearch()}>再试一次</button>
-          </easymc-empty-state></div>`
-        : !this.loading && this.results.length === 0
-          ? html`<div class="results-slot"><easymc-empty-state
-            variant="panel"
-            title=${this.query.trim() ? "咦？好像什么都没搜到…" : "咦？热门列表空空的…"}
-            description=${this.query.trim() ? "换个关键词试试，或者清空后再看热门" : "稍后再试，或换个来源看看"}
-          >
-            <button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>重新加载</button>
-          </easymc-empty-state></div>`
-          : nothing}
     `;
   }
 
   private renderCard(p: ModProjectDto) {
     const busy = this.installingId === p.id;
-    const cta =
-      this.tab === "modpack" ? "安装" : this.tab === "mod" ? "装入" : "下载";
+    const cta = marketInstallCta(this.tab as MarketTab);
+    const needsInst = marketNeedsInstance(this.tab as MarketTab);
+    const blocked = needsInst && !this.active;
     const dl =
       typeof p.downloads === "number"
         ? p.downloads >= 1000
@@ -818,9 +913,15 @@ export class DownloadPage extends LitElement {
       </div>
       <div class="card-foot">
         <span class="dl-stat">${dl ? `↓ ${dl}` : ""}</span>
-        <div class="bar" style="margin:0">
-          <button class="outline-dl" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p)}>${busy ? "…" : cta}</button>
-          <button class="ghost" type="button" @click=${() => this.onExpand(p)}>${this.expandedId === p.id ? "收起" : "版本"}</button>
+        <div class="bar">
+          <button
+            class="primary"
+            type="button"
+            ?disabled=${!!busy || blocked}
+            title=${blocked ? "请先添加一个游戏版本" : ""}
+            @click=${() => this.onInstall(p)}
+          >${busy ? "安装中…" : cta}</button>
+          <button class="ghost" type="button" @click=${() => this.onExpand(p)}>${this.expandedId === p.id ? "收起版本" : "选版本"}</button>
         </div>
       </div>
       ${this.expandedId === p.id
@@ -831,10 +932,12 @@ export class DownloadPage extends LitElement {
                   <div class="skel skel-line w80"></div>
                   <div class="skel skel-line w40"></div>
                 </div>`
-              : this.versions.slice(0, 12).map(
+              : this.versions.length === 0
+                ? html`<p class="muted">暂时没有可装的版本</p>`
+                : this.versions.slice(0, 12).map(
                   (v) => html`<div class="bar">
                     <span class="muted">${v.version_number} · ${v.name}</span>
-                    <button class="ghost" type="button" ?disabled=${!!busy} @click=${() => this.onInstall(p, v.id)}>用此版本</button>
+                    <button class="tonal" type="button" ?disabled=${!!busy || blocked} @click=${() => this.onInstall(p, v.id)}>用此版本</button>
                   </div>`,
                 )}
           </div>`

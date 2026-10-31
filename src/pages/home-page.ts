@@ -29,6 +29,7 @@ import {
 } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import { sortInstancesReadyFirst } from "../lib/download-ux";
 import "../components/install-progress";
 import "../components/empty-state";
 
@@ -306,6 +307,16 @@ export class HomePage extends LitElement {
       border: 1.5px solid var(--md-sys-color-outline-variant);
       color: var(--md-sys-color-on-surface-variant);
       background: transparent;
+    }
+    .chip.ready {
+      border: 1.5px solid transparent;
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+    }
+    .chip.pending {
+      border: 1.5px solid transparent;
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-on-warning-container);
     }
     .chip.solid {
       background: var(--md-sys-color-primary);
@@ -598,17 +609,33 @@ export class HomePage extends LitElement {
       border-radius: 50%;
       background: currentColor;
     }
-    /* Soft empty / not-installed: keep elev, mute the tile so ready cards lead */
+    /* Not-installed: drop pastel tint competition so ready cards lead (quieter). */
     button.vcard.not-ready {
-      background: var(--md-sys-color-surface-container-low);
-      opacity: 0.92;
+      background: var(--md-sys-color-surface-container-low) !important;
+      box-shadow: none;
+      border-color: color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
+      opacity: 0.88;
+    }
+    button.vcard.not-ready:hover {
+      box-shadow: var(--md-sys-elevation-1);
+      opacity: 0.95;
     }
     button.vcard.not-ready .tile {
-      filter: grayscale(0.35);
-      opacity: 0.85;
+      filter: grayscale(0.55);
+      opacity: 0.72;
     }
     button.vcard.not-ready .title {
       color: var(--md-sys-color-on-surface-variant);
+      font-weight: var(--easymc-weight-medium);
+    }
+    button.vcard.not-ready .ready.not {
+      color: var(--md-sys-color-warning);
+    }
+    button.vcard.selected.not-ready {
+      background: var(--md-sys-color-surface-container) !important;
+      border-color: var(--md-sys-color-outline);
+      color: var(--md-sys-color-on-surface);
+      box-shadow: none;
     }
     .vcard .more {
       position: absolute;
@@ -893,11 +920,11 @@ export class HomePage extends LitElement {
               <span class="chip outline">${ver}</span>
               <span class="chip solid">${loader}</span>
               ${f.container
-                ? html`<span class="chip container" title="模组与配置已隔离，互不干扰">容器</span>`
+                ? html`<span class="chip container" title="模组与配置已隔离，互不干扰">隔离</span>`
                 : nothing}
               ${ready
-                ? html`<span class="chip outline">已就绪</span>`
-                : html`<span class="chip outline">未安装</span>`}
+                ? html`<span class="chip ready">已就绪</span>`
+                : html`<span class="chip pending">未安装 · 点启动会先装好</span>`}
             </div>
             <p class="feat-desc">${desc}</p>
           </div>
@@ -1022,13 +1049,17 @@ export class HomePage extends LitElement {
     const selected = i.id === (this.activeId ?? this.current?.id);
     const tile = tileFor(i.id);
     const ready = !!i.version_ready;
-    const tint = `color-mix(in oklch, ${tile.bg} 70%, var(--md-sys-color-surface-container-lowest))`;
+    /* Pastel wash only for ready + unselected; selected/not-ready use CSS hierarchy. */
+    const tint =
+      ready && !selected
+        ? `color-mix(in oklch, ${tile.bg} 70%, var(--md-sys-color-surface-container-lowest))`
+        : "";
     return html`
       <button
         class="vcard ${selected ? "selected" : ""} ${ready ? "" : "not-ready"}"
         type="button"
         aria-pressed=${selected ? "true" : "false"}
-        style=${`background:${tint}`}
+        style=${tint ? `background:${tint}` : nothing}
         @click=${() => this.onSelect(i.id)}
       >
         <span
@@ -1062,7 +1093,7 @@ export class HomePage extends LitElement {
           <span class="meta">${label}</span>
           <div class="vcard-foot">
             <span class="ready ${ready ? "" : "not"}"><i></i>${ready ? "已就绪" : "未安装"}</span>
-            ${i.container ? html`<span class="vchip container" title="模组与配置已隔离，互不干扰">容器</span>` : nothing}
+            ${i.container ? html`<span class="vchip container" title="模组与配置已隔离，互不干扰">隔离</span>` : nothing}
           </div>
         </span>
       </button>
@@ -1089,16 +1120,16 @@ export class HomePage extends LitElement {
           <easymc-empty-state
             variant="page"
             title="咦？似乎什么都没有…"
-            description="还没有可玩的版本。加一个，或者去下载中心逛逛？"
+            description="还没有可玩的版本。去下载中心装一个，或自己添加。"
           >
             <button class="primary" type="button" @click=${() => this.go("download")}>去下载中心</button>
-            <button class="ghost" type="button" @click=${() => this.openCreate()}>添加版本</button>
+            <button class="ghost" type="button" @click=${() => this.openCreate()}>自己添加版本</button>
           </easymc-empty-state>
           ${this.showCreate ? this.renderCreate() : nothing}
         </div>
       `;
     }
-    const others = this.instances;
+    const others = sortInstancesReadyFirst(this.instances);
     const visible = this.instancesExpanded ? others : others.slice(0, 3);
     const canExpand = others.length > 3;
     return html`

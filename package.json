@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:ux": "node scripts/test-download-ux.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
