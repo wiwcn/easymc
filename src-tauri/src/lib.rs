@@ -2096,6 +2096,10 @@ struct InstancePatch {
     jvm_args: Option<String>,
     clear_jvm_args: Option<bool>,
     account_id: Option<String>,
+    /// Quick Play: "world" | "server" | "realms" | clear with clear_quick_play.
+    quick_play_mode: Option<String>,
+    quick_play_target: Option<String>,
+    clear_quick_play: Option<bool>,
 }
 
 #[tauri::command]
@@ -2125,6 +2129,29 @@ fn update_instance_cmd(
         if patch.clear_jvm_args == Some(true) { inst.jvm_args = None; }
         else if let Some(a) = &patch.jvm_args { inst.jvm_args = if a.trim().is_empty() { None } else { Some(a.clone()) }; }
         if let Some(a) = &patch.account_id { inst.account_id = if a.is_empty() { None } else { Some(a.clone()) }; }
+        if patch.clear_quick_play == Some(true) {
+            inst.quick_play = None;
+        } else if let Some(mode) = patch.quick_play_mode.as_deref() {
+            let target = patch
+                .quick_play_target
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            inst.quick_play = match mode.trim().to_ascii_lowercase().as_str() {
+                "" | "none" | "off" => None,
+                "world" | "singleplayer" | "save" => {
+                    if target.is_empty() { None } else { Some(easymc_core::QuickPlay::World { name: target }) }
+                }
+                "server" | "multiplayer" => {
+                    if target.is_empty() { None } else { Some(easymc_core::QuickPlay::Server { address: target }) }
+                }
+                "realms" | "realm" => {
+                    if target.is_empty() { None } else { Some(easymc_core::QuickPlay::Realms { id: target }) }
+                }
+                _ => inst.quick_play.clone(),
+            };
+        }
     }).map_err(|e| e.to_string())
 }
 
@@ -2134,7 +2161,7 @@ fn rename_instance_cmd(state: State<'_, AppState>, instance_id: String, name: St
         name: Some(name), icon: None, category: None, description: None,
         memory_mb: None, clear_memory: None, java_path: None, clear_java: None,
         width: None, height: None, clear_resolution: None, jvm_args: None, clear_jvm_args: None,
-        account_id: None,
+        account_id: None, quick_play_mode: None, quick_play_target: None, clear_quick_play: None,
     })
 }
 
@@ -2175,6 +2202,56 @@ fn write_launch_script_cmd(state: State<'_, AppState>, instance_id: String) -> R
     let path = write_launch_script(paths, inst, acc, &settings, &LaunchRequest { memory_mb: mem, extra_jvm_args: vec![] }).map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "path": path, "message_zh": format!("已生成启动脚本（令牌已脱敏）\\n{}", path.display()) }))
 }
+
+#[tauri::command]
+async fn upload_latest_log_cmd(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<easymc_core::MclogsUploadResult, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .filter(|s| !s.trim().is_empty())
+        .or(store.active_id.clone())
+        .ok_or_else(|| "还没有选版本，请先在启动页选一个".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("找不到版本: {id}"))?;
+    let game = std::path::PathBuf::from(&inst.game_dir);
+    let latest = game.join("logs").join("latest.log");
+    let crash_dir = game.join("crash-reports");
+    let mut newest_crash: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    if let Ok(rd) = std::fs::read_dir(&crash_dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|s| s.to_str()) != Some("txt") {
+                continue;
+            }
+            if let Ok(mt) = e.metadata().and_then(|m| m.modified()) {
+                if newest_crash.as_ref().map(|(t, _)| mt > *t).unwrap_or(true) {
+                    newest_crash = Some((mt, p));
+                }
+            }
+        }
+    }
+    let path = if latest.is_file() {
+        latest
+    } else if let Some((_, p)) = newest_crash {
+        p
+    } else {
+        return Err(format!(
+            "版本「{}」还没有 latest.log 或崩溃报告。先启动一次游戏再分享。",
+            inst.name
+        ));
+    };
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读日志失败: {e}"))?;
+    easymc_core::upload_log_content(&content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 
 #[tauri::command]
 fn list_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String) -> Result<Vec<LocalEntry>, String> {
@@ -2617,6 +2694,7 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             delete_instance_cmd,
             open_instance_folder_cmd,
             write_launch_script_cmd,
+            upload_latest_log_cmd,
             list_local_content_cmd,
             delete_local_content_cmd,
             search_content_cmd,
