@@ -121,18 +121,21 @@ export class LibraryPage extends LitElement {
       flex: 1 1 auto;
       min-height: 200px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
       gap: 14px;
     }
     .card {
-      padding: 16px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+      border-radius: var(--easymc-card-radius);
+      background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: var(--easymc-space-2);
       border: 2px solid transparent;
+      min-width: 0;
+      height: 100%;
+      box-sizing: border-box;
     }
     .card.active {
       border-color: var(--md-sys-color-primary);
@@ -408,7 +411,7 @@ export class LibraryPage extends LitElement {
     }
     .mod-rows {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
       gap: var(--easymc-space-3);
     }
     .mod-row {

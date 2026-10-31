@@ -143,7 +143,7 @@ export class StorePage extends LitElement {
     }
     .list {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
       gap: var(--easymc-space-3);
       flex: 1 1 auto;
       min-height: 220px;
@@ -159,7 +159,7 @@ export class StorePage extends LitElement {
       display: flex;
       flex-direction: column;
       gap: var(--easymc-space-3);
-      padding: var(--easymc-space-4);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
       border-radius: var(--md-sys-shape-corner-large);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1); /* CF-1 */

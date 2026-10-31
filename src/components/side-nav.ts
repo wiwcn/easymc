@@ -15,6 +15,8 @@ const ICONS_OUTLINE: Record<string, unknown> = {
   settings: svg`<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 13a7.8 7.8 0 0 0 .1-2l1.7-1.3-1.7-3-2 .5a7.6 7.6 0 0 0-1.7-1L15.4 3h-3.8l-.4 2.2a7.6 7.6 0 0 0-1.7 1l-2-.5-1.7 3L7.5 11a7.8 7.8 0 0 0 0 2l-1.7 1.3 1.7 3 2-.5c.5.4 1.1.8 1.7 1l.4 2.2h3.8l.4-2.2c.6-.2 1.2-.6 1.7-1l2 .5 1.7-3L19.4 13Z" stroke="currentColor" stroke-width="1.4" fill="none"/>`,
   more: svg`<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>`,
   agent: svg`<path d="M8 10h8M9 14h6M7 7h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H13l-3 3v-3H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  /* Hanger + soft silhouette — wardrobe / skin closet */
+  wardrobe: svg`<path d="M12 4a1.5 1.5 0 0 1 1.5 1.5c0 .8-.7 1.3-1.5 1.3s-1.5-.5-1.5-1.3A1.5 1.5 0 0 1 12 4Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v2.2M5.5 11.5 12 15l6.5-3.5V19a1 1 0 0 1-1 1H6.5a1 1 0 0 1-1-1v-7.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>`,
 };
 
 const ICONS_FILLED: Record<string, unknown> = {
@@ -24,6 +26,7 @@ const ICONS_FILLED: Record<string, unknown> = {
   settings: svg`<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm7.4 4.2a7.8 7.8 0 0 0 .1-1.4l1.8-1.4-1.8-3.1-2.1.5a7.6 7.6 0 0 0-1.8-1L14.9 2h-3.8l-.5 2.3a7.6 7.6 0 0 0-1.8 1l-2.1-.5-1.8 3.1 1.8 1.4a7.8 7.8 0 0 0 0 1.4l-1.8 1.4 1.8 3.1 2.1-.5c.5.4 1.1.8 1.8 1l.5 2.3h3.8l.5-2.3c.6-.2 1.3-.6 1.8-1l2.1.5 1.8-3.1-1.8-1.4Z" fill="currentColor"/>`,
   more: svg`<circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="18" cy="12" r="2" fill="currentColor"/>`,
   agent: svg`<path d="M7 6h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-3.2L10 22v-3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm1 5h8v2H8v-2Zm1 4h6v2H9v-2Z" fill="currentColor"/>`,
+  wardrobe: svg`<path d="M12 3.5a2 2 0 0 1 2 2c0 1.1-1 1.8-2 1.8s-2-.7-2-1.8a2 2 0 0 1 2-2Z" fill="currentColor"/><path d="M11 7.3h2V9.2l7.2 3.9v6.4a1.5 1.5 0 0 1-1.5 1.5H5.3A1.5 1.5 0 0 1 3.8 19.5v-6.4L11 9.2V7.3Z" fill="currentColor"/>`,
 };
 
 const NAV: Item[] = [
@@ -31,7 +34,8 @@ const NAV: Item[] = [
   { id: "download", label: "下载", icon: "download" },
   { id: "agent", label: "助手", icon: "agent" },
   { id: "multiplayer", label: "联机", icon: "multiplayer" },
-  // Accounts: bottom acct-card only (no duplicate nav item).
+  // Wardrobe first-class (account-adjacent); accounts stay bottom card only.
+  { id: "wardrobe", label: "衣柜", icon: "wardrobe" },
   { id: "settings", label: "设置", icon: "settings" },
   { id: "more", label: "更多", icon: "more" },
 ];

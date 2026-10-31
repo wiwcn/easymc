@@ -187,15 +187,15 @@ export class DownloadPage extends LitElement {
     }
     .market-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
-      gap: var(--easymc-space-3);
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
+      gap: var(--easymc-grid-gap);
       align-items: stretch;
     }
     .card {
       container-type: inline-size;
       display: flex; flex-direction: column; gap: var(--easymc-space-3);
-      padding: var(--easymc-space-3) var(--easymc-space-4);
-      border-radius: var(--md-sys-shape-corner-large);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+      border-radius: var(--easymc-card-radius);
       background: var(--easymc-glass-surface);
       backdrop-filter: blur(var(--easymc-glass-blur));
       -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
@@ -262,7 +262,7 @@ export class DownloadPage extends LitElement {
     /* .muted → pageChromeStyles */
     .market-skel {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
       gap: var(--easymc-space-3);
       margin-bottom: var(--easymc-space-3);
     }

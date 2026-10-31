@@ -470,3 +470,54 @@ export const pageChromeStyles = css`
     font-size: var(--easymc-type-meta);
   }
 `;
+
+
+/** Shared paper / glass cards + responsive grids (LD-2 · CF-1).
+ *  Prefer these tokens over per-page one-offs when unifying rhythm. */
+export const cardSurfaceStyles = css`
+  .em-paper {
+    padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+    border-radius: var(--easymc-card-radius);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-1);
+    border: none;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+  .em-glass {
+    padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+    border-radius: var(--easymc-card-radius);
+    background: var(--easymc-glass-surface);
+    backdrop-filter: blur(var(--easymc-glass-blur));
+    -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+    box-shadow: var(--md-sys-elevation-1);
+    border: none;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .em-glass {
+      background: var(--md-sys-color-surface-container-lowest);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+  .em-grid-dense {
+    display: grid;
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(var(--easymc-grid-min-dense), 100%), 1fr)
+    );
+    gap: var(--easymc-grid-gap);
+    align-items: stretch;
+  }
+  .em-grid-tile {
+    display: grid;
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(var(--easymc-grid-min-tile), 100%), 1fr)
+    );
+    gap: var(--easymc-grid-gap);
+    align-items: stretch;
+  }
+`;

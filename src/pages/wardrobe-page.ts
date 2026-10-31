@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { controlStyles, pageChromeStyles } from "../styles/controls";
+import { customElement, property, state } from "lit/decorators.js";
+import { controlStyles, pageChromeStyles, cardSurfaceStyles } from "../styles/controls";
 import {
   wardrobeImportLittleSkin,
   wardrobeImportOfficial,
@@ -23,6 +23,9 @@ type Tab = "mine" | "official" | "littleskin";
 
 @customElement("easymc-wardrobe-page")
 export class WardrobePage extends LitElement {
+  /** When true (entered from accounts), show optional「← 账户」chrome. */
+  @property({ type: Boolean }) fromAccounts = false;
+
   @state() private tab: Tab = "mine";
   @state() private loading = true;
   @state() private busy = false;
@@ -40,6 +43,7 @@ export class WardrobePage extends LitElement {
   static styles = [
     controlStyles,
     pageChromeStyles,
+    cardSurfaceStyles,
     css`
       :host {
         display: flex;
@@ -63,22 +67,25 @@ export class WardrobePage extends LitElement {
       .layout {
         display: grid;
         grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-        gap: var(--easymc-space-4);
+        gap: var(--easymc-grid-gap);
         align-items: start;
       }
-      @media (max-width: 860px) {
+      @container easymc-page (max-width: 720px) {
         .layout {
           grid-template-columns: 1fr;
         }
       }
       .preview-card,
       .panel {
-        padding: var(--easymc-space-4);
+        padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
         border-radius: var(--md-sys-shape-corner-extra-large);
         background: var(--md-sys-color-surface-container-lowest);
         box-shadow: var(--md-sys-elevation-1); /* CF-1: elev XOR border */
         border: none;
         min-width: 0;
+      }
+      .back-row {
+        margin-bottom: var(--easymc-space-2);
       }
       .preview-card {
         display: flex;
@@ -531,16 +538,20 @@ export class WardrobePage extends LitElement {
 
   render() {
     return html`
-      <div class="row" style="margin-bottom:var(--easymc-space-2)">
-        <button
-          class="ghost"
-          type="button"
-          @click=${() =>
-            this.dispatchEvent(new CustomEvent("nav-change", { detail: "accounts", bubbles: true, composed: true }))}
-        >
-          ← 账户
-        </button>
-      </div>
+      ${this.fromAccounts
+        ? html`<div class="row back-row">
+            <button
+              class="ghost"
+              type="button"
+              @click=${() =>
+                this.dispatchEvent(
+                  new CustomEvent("nav-change", { detail: "accounts", bubbles: true, composed: true }),
+                )}
+            >
+              ← 账户
+            </button>
+          </div>`
+        : nothing}
       <h1>皮肤衣柜</h1>
       <p class="sub">三维预览（含披风）、本地上传，以及正版 / LittleSkin 导入。</p>
       <div class="md-tabs" role="tablist" aria-label="衣柜分区">

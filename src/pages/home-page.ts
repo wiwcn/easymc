@@ -497,7 +497,7 @@ export class HomePage extends LitElement {
        so no breakpoint is needed and wide windows get more cards per row. */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(272px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
       gap: var(--easymc-space-3);
     }
     /* Only the hero art needs an explicit narrow rule: everything else in the
@@ -513,10 +513,10 @@ export class HomePage extends LitElement {
       align-items: center;
       gap: var(--easymc-space-4);
       text-align: left;
-      padding: var(--easymc-space-4);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
       min-height: 88px;
       border: 1.5px solid transparent;
-      border-radius: var(--md-sys-shape-corner-large);
+      border-radius: var(--easymc-card-radius);
       background: var(--md-sys-color-surface-container-lowest);
       color: var(--md-sys-color-on-surface);
       cursor: pointer;
@@ -666,7 +666,7 @@ export class HomePage extends LitElement {
     /* Mirrors .grid so the skeleton reserves the same tracks as real content. */
     .skel-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(272px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
       gap: var(--easymc-space-3);
     }
     .vcard-skel { height: 88px; border-radius: var(--md-sys-shape-corner-large); }

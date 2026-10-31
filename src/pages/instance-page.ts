@@ -263,8 +263,8 @@ export class InstancePage extends LitElement {
     .field .muted { font-size: var(--easymc-type-meta); }
     .resource-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
-      gap: var(--easymc-space-3);
+      grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-dense), 100%), 1fr));
+      gap: var(--easymc-grid-gap);
       margin-top: 4px;
       align-items: stretch;
     }
@@ -273,8 +273,8 @@ export class InstancePage extends LitElement {
       display: flex;
       flex-direction: column;
       gap: var(--easymc-space-2);
-      padding: var(--easymc-space-3);
-      border-radius: var(--md-sys-shape-corner-large);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+      border-radius: var(--easymc-card-radius);
       background: var(--md-sys-color-surface);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       box-shadow: none; /* CF-1: outline inside elev panel — no nested elev */

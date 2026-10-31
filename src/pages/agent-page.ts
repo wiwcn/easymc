@@ -698,8 +698,8 @@ export class AgentPage extends LitElement {
       margin: 0 0 12px;
     }
     .card {
-      padding: var(--easymc-space-4);
-      border-radius: var(--md-sys-shape-corner-large);
+      padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+      border-radius: var(--easymc-card-radius);
       background: var(--md-sys-color-surface-container-lowest);
       box-shadow: var(--md-sys-elevation-1);
     }

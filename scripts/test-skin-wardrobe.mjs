@@ -68,4 +68,15 @@ const launch = fs.readFileSync(path.join(root, "crates/easymc-launch-desktop/src
 assert.match(launch, /stage_active_for_launch/);
 assert.match(launch, /CustomSkinLoader|CSL LocalSkin/);
 
+
+const sideNav = fs.readFileSync(path.join(root, "src/components/side-nav.ts"), "utf8");
+assert.match(sideNav, /label: "衣柜"/);
+assert.match(sideNav, /id: "wardrobe"/);
+assert.ok(sideNav.indexOf('id: "wardrobe"') < sideNav.indexOf('id: "settings"'), "衣柜 before 设置");
+assert.ok(!/label: "账户"/.test(sideNav.split("const NAV")[1].split("];")[0]), "账户 not duplicated in NAV list");
+
+const shell = fs.readFileSync(path.join(root, "src/app-shell.ts"), "utf8");
+assert.match(shell, /fromAccounts/);
+assert.match(shell, /wardrobeFromAccounts/);
+
 console.log("ok — skin wardrobe contracts");

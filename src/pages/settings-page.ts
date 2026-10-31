@@ -107,10 +107,11 @@ export class SettingsPage extends LitElement {
       }
       /* .tabs → controlStyles .md-tabs (MC-2, shared vocabulary + sliding indicator) */
       .card {
-        padding: var(--easymc-space-4);
-        margin-bottom: 12px;
-        border-radius: var(--md-sys-shape-corner-large);
-        background: var(--md-sys-color-surface-container-low);
+        padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+        margin-bottom: var(--easymc-grid-gap);
+        border-radius: var(--easymc-card-radius);
+        background: var(--md-sys-color-surface-container-lowest);
+        box-shadow: var(--md-sys-elevation-1);
       }
       .card h2 {
         margin: 0 0 8px;

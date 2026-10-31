@@ -26,6 +26,8 @@ export class EasyMcApp extends LitElement {
   @state() private activeAccount: AccountDto | null = null;
   /** Active wardrobe skin PNG data URL for avatars. */
   @state() private activeSkinDataUrl: string | null = null;
+  /** Show「← 账户」only when wardrobe was opened from accounts. */
+  @state() private wardrobeFromAccounts = false;
 
   static styles = css`
     :host {
@@ -168,6 +170,7 @@ export class EasyMcApp extends LitElement {
     const nav = (navAlias[navParam ?? ""] ?? navParam) as NavId | null;
     if (nav && ["home", "download", "instances", "multiplayer", "accounts", "wardrobe", "settings", "more", "agent"].includes(nav)) {
       this.route = nav;
+      this.wardrobeFromAccounts = nav === "wardrobe" && new URLSearchParams(location.search).get("from") === "accounts";
     }
     this.ready = true;
   }
@@ -230,7 +233,10 @@ export class EasyMcApp extends LitElement {
       store: "download",
       share: "more",
     };
-    this.route = (map[detail] as NavId) || detail;
+    const next = (map[detail] as NavId) || detail;
+    // Breadcrumb back only when entering wardrobe from accounts (not side-nav).
+    this.wardrobeFromAccounts = this.route === "accounts" && next === "wardrobe";
+    this.route = next;
     this.pageKey += 1;
     // Refresh active account when leaving accounts (user may have switched).
     void this.loadAccounts();
@@ -291,7 +297,7 @@ export class EasyMcApp extends LitElement {
       case "accounts":
         return html`<easymc-accounts-page></easymc-accounts-page>`;
       case "wardrobe":
-        return html`<easymc-wardrobe-page></easymc-wardrobe-page>`;
+        return html`<easymc-wardrobe-page .fromAccounts=${this.wardrobeFromAccounts}></easymc-wardrobe-page>`;
       case "settings":
         return html`<easymc-settings-page></easymc-settings-page>`;
       case "more":
