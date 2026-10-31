@@ -141,7 +141,7 @@ function statusLabel(s: ToolStatus): string {
     case "ok":
       return "完成";
     case "error":
-      return "失败";
+      return "没成功";
     default:
       return s;
   }
@@ -1574,7 +1574,7 @@ ${extraContent}` : t.content,
                   type="button"
                   @click=${() => (this.showLlmForm = !this.showLlmForm)}
                 >
-                  ${this.showLlmForm ? "收起接口设置" : "更改接口"}
+                  ${this.showLlmForm ? "收起连接设置" : "更改连接"}
                 </button>
                 <button
                   class="ghost"
@@ -1605,7 +1605,7 @@ ${extraContent}` : t.content,
 
           ${this.showLlmForm
             ? html`<div class="card" style="margin-bottom:12px">
-                <h3 style="margin:0 0 6px">云端助手接口</h3>
+                <h3 style="margin:0 0 6px">助手连接</h3>
                 <p class="muted" style="margin:0 0 10px">
                   改完点保存即可，密钥只留在本机。
                   ${this.llmCfg?.api_key_set

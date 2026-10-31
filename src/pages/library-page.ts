@@ -799,19 +799,19 @@ export class LibraryPage extends LitElement {
   }
 
   render() {
-    if (this.loading) return html`<p>加载中…</p>`;
+    if (this.loading) return html`<p class="sub" aria-busy="true" style="margin:24px 0;color:var(--md-sys-color-on-surface-variant)">正在准备你的库…</p>`;
     return html`
       <div class="head">
         <div>
-          <h1>库</h1>
-          <p class="sub">管理实例与该版本的模组 · 商店负责发现与安装</p>
+          <h1>我的库</h1>
+          <p class="sub">管理你的版本与模组；想找新内容去「下载」页</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>
-            导入分享
+            导入别人的分享
           </button>
           <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
-            ＋ 新建实例
+            ＋ 新建版本
           </button>
         </div>
       </div>
@@ -1022,7 +1022,7 @@ export class LibraryPage extends LitElement {
                       (this.newLoaderVersion = (e.target as HTMLSelectElement).value)}
                   >
                     ${this.loaderVersions.length === 0
-                      ? html`<option value="">加载中 / 无可用版本</option>`
+                      ? html`<option value="">暂无可用版本（或仍在准备）</option>`
                       : this.loaderVersions.map(
                           (l) => html`
                             <option value=${l.version}>
@@ -1054,7 +1054,7 @@ export class LibraryPage extends LitElement {
         <div>
           <div class="meta" style="margin-bottom:6px">
             已选版本：<strong>${this.newVersion}</strong>
-            ${this.versionsLoading ? " · 加载中…" : ` · ${list.length} 项`}
+            ${this.versionsLoading ? " · 正在准备…" : ` · ${list.length} 项`}
           </div>
           <div class="ver-list">
             ${list.length === 0

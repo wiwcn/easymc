@@ -1240,7 +1240,7 @@ export class HomePage extends LitElement {
           }}
         >
           ${this.versionsLoading
-            ? html`<option>加载中…</option>`
+            ? html`<option>正在准备…</option>`
             : filtered
                 .slice(0, 80)
                 .map((v) => html`<option value=${v.id}>${v.id} · ${versionType(v)}</option>`)}

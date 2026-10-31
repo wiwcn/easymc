@@ -242,7 +242,7 @@ export class OnboardingPage extends LitElement {
     .mark {
       width: 22px; height: 22px; border-radius: 50%;
       display: grid; place-items: center;
-      font-size: 12px; font-weight: var(--easymc-weight-bold);
+      font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-bold);
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface-variant);
       margin-top: 2px;
@@ -937,7 +937,7 @@ export class OnboardingPage extends LitElement {
           </button>
           <button class="opt ${this.login === "skin_station" ? "sel" : ""}" role="radio" aria-checked=${this.login === "skin_station"} @click=${() => this.pickLogin("skin_station")}>
             <strong>第三方皮肤站</strong>
-            <span>使用皮肤站账号（Authlib / 统一通行证等），显示自定义皮肤。</span>
+            <span>用皮肤站账号登录，游戏里显示你的自定义皮肤（完整登录即将支持）。</span>
           </button>
         </div>
       `,

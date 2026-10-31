@@ -94,10 +94,11 @@ export class MultiplayerPage extends LitElement {
             class="ghost"
             type="button"
             @click=${() =>
-              window.open(
-                "https://github.com/wiwcn/easymc/issues/new?title=%E8%81%94%E6%9C%BA%E9%9C%80%E6%B1%82&body=%E6%88%91%E6%83%B3%E8%A6%81%E7%9A%84%E8%81%94%E6%9C%BA%E6%96%B9%E5%BC%8F%EF%BC%9A%0A",
-                "_blank",
-              )}
+              (window.location.href =
+                "mailto:feedback@easymc.local?subject=" +
+                encodeURIComponent("联机需求") +
+                "&body=" +
+                encodeURIComponent("我想要的联机方式：\n"))}
           >
             告诉我你想怎么联机
           </button>

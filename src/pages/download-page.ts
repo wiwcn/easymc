@@ -545,7 +545,7 @@ export class DownloadPage extends LitElement {
         { id: "vanilla", name: "原版", desc: "纯净 Minecraft，不加模组加载器" },
         { id: "fabric", name: "Fabric", desc: "轻量模组加载器，更新快" },
         { id: "quilt", name: "Quilt", desc: "Fabric 兼容分支" },
-        { id: "forge", name: "Forge", desc: "经典模组加载器，大整合常用" },
+        { id: "forge", name: "Forge", desc: "经典模组加载器，大型模组包常用" },
         { id: "neoforge", name: "NeoForge", desc: "Forge 后续，适合新版本" },
       ];
       const shown = this.loaderVerExpanded ? this.loaderVers : this.loaderVers.slice(0, LOADER_VER_PREVIEW);

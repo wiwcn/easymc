@@ -512,14 +512,14 @@ export class SettingsPage extends LitElement {
           : nothing}
       </div>
       <div class="card">
-        <h2>云端助手接口</h2>
+        <h2>助手连接</h2>
         <p>
           想让「助手」页真的会聊天、查崩溃，先在这里填好。密钥只保存在本机，不会上传。标准模式也能配，随时切助手模式即可用。
         </p>
         <div class="muted" style="margin-bottom:8px">
           状态：${
             this.llm?.configured
-              ? `已连接 · ${this.llm.model ?? "模型未知"} · ${this.llm.base_url_host ?? ""}`
+              ? `已连接 · ${this.llm.model ?? "还没检测到模型"} · ${this.llm.base_url_host ?? ""}`
               : "还没配置（只能用本地规则提示）"
           }
         </div>
@@ -581,7 +581,7 @@ export class SettingsPage extends LitElement {
       </div>
       <details class="card">
         <summary>高级</summary>
-        <p style="margin-top:12px">数据目录：<code>${this.dataDir || "（未知）"}</code></p>
+        <p style="margin-top:12px">数据目录：<code>${this.dataDir || "（还没检测到）"}</code></p>
         <p>
           微软登录客户端：${this.msa?.using_temporary_client_id
             ? "当前使用临时公共客户端，正式发布前会换成 EasyMC 自有。"
@@ -930,7 +930,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>关于</h2>
         <p>
-          EasyMC ${this.settings ? "0.1.2" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
+          EasyMC ${this.settings ? "0.1.12" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
         </p>
       </div>
     `;

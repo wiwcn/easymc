@@ -462,7 +462,7 @@ export class AccountsPage extends LitElement {
         </button>
         <button class="choice" type="button" @click=${() => (this.panel = "skin")}>
           <strong>第三方皮肤站</strong>
-          <span>Authlib / 统一通行证等皮肤站账号（即将支持完整登录）。</span>
+          <span>用皮肤站账号显示自定义皮肤（完整登录即将支持）。</span>
         </button>
       </div>
     `;
