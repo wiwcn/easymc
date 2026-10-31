@@ -116,6 +116,15 @@ Tauri：`container_provision_cmd`、`container_preheat_cmd`、`container_pull_im
 Tauri：`container_layer_*`、`container_agent_workspace_cmd`。  
 UI：设置页「版本隔离」；版本管理设置里「隔离改动」应用/丢弃。
 
+### C/D 加固（Focus B）
+
+- `assemble_container_run_argv`：纯函数拼 `podman run` argv（含 remap），单测不依赖本机 Podman。
+- Remap：`-cp`/`-classpath` 下一参数、`-D…=path` 多路径列表、Windows 盘符 classpath。
+- GUI：X11 / Wayland 中文提示区分；挂载 `XAUTHORITY`；Windows 仅在无 `DISPLAY` 时补 `:0`。
+- Layer：apply/discard 经 staging 再 rename，中途失败不破坏旧基线；`saves/` 仍不动。
+- Agent：`path_is_gated_save` / `gate_saves_mutation`；危险工具卡中文说明；模组改动会 `mark_layer_dirty`。
+
+
 ## 玩家文案（C/D）
 
 UI：设置「启动」→「版本隔离（可选）」；版本管理设置里「隔离改动」应用/丢弃。

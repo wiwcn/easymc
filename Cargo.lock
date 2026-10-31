@@ -774,6 +774,7 @@ version = "0.1.13"
 dependencies = [
  "async-trait",
  "chrono",
+ "easymc-container",
  "easymc-core",
  "regex",
  "reqwest 0.12.28",

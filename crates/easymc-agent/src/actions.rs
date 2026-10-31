@@ -23,6 +23,14 @@ pub struct ActionResult {
     pub value: Option<serde_json::Value>,
 }
 
+/// When the instance is container-backed, mark the writable layer dirty after Agent edits.
+fn maybe_mark_container_layer_dirty(paths: &Paths, inst: &Instance) {
+    if inst.container.is_some() {
+        let _ = easymc_container::mark_layer_dirty(paths, &inst.id);
+    }
+}
+
+
 pub fn show_data_dir(paths: &Paths) -> ActionResult {
     ActionResult {
         ok: true,
@@ -494,12 +502,18 @@ pub fn toggle_mod(
     }
     match fs::rename(src, &dest) {
         Ok(()) => {
+            maybe_mark_container_layer_dirty(paths, inst);
             let verb = if want_enable { "已启用" } else { "已禁用" };
+            let layer_hint = if inst.container.is_some() {
+                "隔离层已标记为有未保存改动，可在版本页应用或丢弃。"
+            } else {
+                ""
+            };
             ActionResult {
                 ok: true,
                 action: "toggle_mod".into(),
                 message_zh: format!(
-                    "{verb}模组「{dest_name}」（版本「{}」）。下次启动游戏生效。",
+                    "{verb}模组「{dest_name}」（版本「{}」）。下次启动游戏生效。{layer_hint}",
                     inst.name
                 ),
                 path: Some(dest.display().to_string()),
@@ -1679,22 +1693,30 @@ pub fn delete_mod(paths: &Paths, instance_id: Option<&str>, query: &str) -> Acti
     let src = &hits[0];
     let name = src.file_name().unwrap().to_string_lossy().to_string();
     match fs::remove_file(src) {
-        Ok(()) => ActionResult {
-            ok: true,
-            action: "delete_mod".into(),
-            message_zh: format!(
-                "已从版本「{}」删掉模组「{name}」。想再装可以说「装 …」。",
-                inst.name
-            ),
-            path: Some(mods_dir.display().to_string()),
-            value: Some(serde_json::json!({
-                "instance_id": inst.id,
-                "instance_name": inst.name,
-                "filename": name,
-                "query": q,
-                "deleted": true,
-            })),
-        },
+        Ok(()) => {
+            maybe_mark_container_layer_dirty(paths, inst);
+            let layer_hint = if inst.container.is_some() {
+                "隔离层已标记为有未保存改动，可在版本页应用或丢弃。"
+            } else {
+                ""
+            };
+            ActionResult {
+                ok: true,
+                action: "delete_mod".into(),
+                message_zh: format!(
+                    "已从版本「{}」删掉模组「{name}」。想再装可以说「装 …」。{layer_hint}",
+                    inst.name
+                ),
+                path: Some(mods_dir.display().to_string()),
+                value: Some(serde_json::json!({
+                    "instance_id": inst.id,
+                    "instance_name": inst.name,
+                    "filename": name,
+                    "query": q,
+                    "deleted": true,
+                })),
+            }
+        }
         Err(e) => ActionResult {
             ok: false,
             action: "delete_mod".into(),

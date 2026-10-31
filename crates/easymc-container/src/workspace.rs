@@ -1,6 +1,6 @@
 //! Agent workspace bind for container-backed versions (Slice D).
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use easymc_core::{load_instances, load_settings, Instance, Paths, Result as CoreResult};
 use serde::{Deserialize, Serialize};
@@ -55,9 +55,18 @@ pub fn workspace_for_instance(paths: &Paths, inst: &Instance) -> AgentWorkspace 
     let saves_gate = settings_saves_gate(paths);
     match &inst.container {
         Some(c) => {
-            let layer = ensure_baseline(paths, inst).ok().or_else(|| {
-                layer_state_for(paths, &inst.id).ok()
-            });
+            let (layer, baseline_ok) = match ensure_baseline(paths, inst) {
+                Ok(s) => (Some(s), true),
+                Err(_) => (layer_state_for(paths, &inst.id).ok(), false),
+            };
+            let message_zh = if baseline_ok
+                || layer.as_ref().and_then(|l| l.baseline_at.as_ref()).is_some()
+            {
+                "助手工作区已绑到这个隔离版本的可写层（游戏目录）".into()
+            } else {
+                "助手工作区已绑到隔离可写层；尚未建立可回退的干净状态，请先在版本页点「应用更改」"
+                    .into()
+            };
             AgentWorkspace {
                 instance_id: inst.id.clone(),
                 kind: WorkspaceKind::Container,
@@ -66,7 +75,7 @@ pub fn workspace_for_instance(paths: &Paths, inst: &Instance) -> AgentWorkspace 
                 image: c.image.clone(),
                 saves_require_propose: saves_gate,
                 layer,
-                message_zh: "助手工作区已绑到这个隔离版本的可写层（游戏目录）".into(),
+                message_zh,
             }
         }
         None => AgentWorkspace {
@@ -82,18 +91,53 @@ pub fn workspace_for_instance(paths: &Paths, inst: &Instance) -> AgentWorkspace 
     }
 }
 
+/// Normalize `..` / `.` without requiring the path to exist.
+fn normalize_lexical(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for c in path.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
 /// True when `path` is under the instance saves folder and propose is required.
 pub fn path_is_gated_save(workspace: &AgentWorkspace, path: &Path) -> bool {
     if !workspace.saves_require_propose {
         return false;
     }
-    let saves = PathBuf::from(&workspace.root).join("saves");
-    path.starts_with(&saves)
+    let root = normalize_lexical(Path::new(&workspace.root));
+    let saves = normalize_lexical(&root.join("saves"));
+    let candidate = if path.is_absolute() {
+        normalize_lexical(path)
+    } else {
+        normalize_lexical(&root.join(path))
+    };
+    candidate == saves || candidate.starts_with(&saves)
 }
 
 /// Player-facing tip when Agent tries to touch saves under container mode.
 pub fn saves_propose_message_zh() -> &'static str {
-    "容器模式下修改存档需要先提出建议，经你确认后再写入（可在设置关闭「存档需确认」）。"
+    "隔离环境下改存档需要先提出建议，经你确认后再写入（可在设置关闭「存档修改需确认」）。"
+}
+
+/// Gate a would-be write under `saves/`. Ok when allowed; Err with Chinese player copy.
+pub fn gate_saves_mutation(workspace: &AgentWorkspace, path: &Path) -> Result<(), String> {
+    if path_is_gated_save(workspace, path) {
+        Err(saves_propose_message_zh().into())
+    } else {
+        Ok(())
+    }
+}
+
+/// Whether Agent should treat layer apply/discard as propose-gated (always for container).
+pub fn layer_ops_require_confirm(workspace: &AgentWorkspace) -> bool {
+    matches!(workspace.kind, WorkspaceKind::Container)
 }
 
 #[cfg(test)]
@@ -124,7 +168,6 @@ mod tests {
             category: None,
             container: None,
         };
-        // Can't call workspace_for_instance without real paths settings — construct manually.
         let ws = AgentWorkspace {
             instance_id: inst.id.clone(),
             kind: WorkspaceKind::Native,
@@ -145,6 +188,16 @@ mod tests {
         cws.root = "/tmp/g".into();
         assert!(path_is_gated_save(&cws, Path::new("/tmp/g/saves/w")));
         assert!(!path_is_gated_save(&cws, Path::new("/tmp/g/mods/a.jar")));
+        // Relative + lexical .. should still gate
+        assert!(path_is_gated_save(&cws, Path::new("saves/w")));
+        assert!(path_is_gated_save(
+            &cws,
+            Path::new("/tmp/g/mods/../saves/w")
+        ));
+        assert!(gate_saves_mutation(&cws, Path::new("saves/world")).is_err());
+        assert!(gate_saves_mutation(&cws, Path::new("mods/a.jar")).is_ok());
+        assert!(layer_ops_require_confirm(&cws));
+        assert!(!layer_ops_require_confirm(&ws));
         let _ = ContainerMeta::new_podman("x");
     }
 }
