@@ -5,6 +5,12 @@
 
 <!-- CONTAINER-MODE-A-B -->
 
+## 已完成 · 容器 C/D Focus B 加固（启动 remap + Agent 层 · 2026-10-31）
+
+- Remap/`assemble_container_run_argv`、Linux X11/Wayland 与 Win 图形提示、apply/discard staging、存档 propose 门控接线、Agent 模组改动标脏
+- 真测：`cargo test -p easymc-container -p easymc-agent`；有 Podman 则 alpine/hello smoke
+
+
 ## 已完成 · Java 管理可视列表 + 首选选用（2026-10-31）
 
 - 缺口 #28：设置 → 启动「Java 运行环境」列出本机检测结果，点选设为全局 `preferred_java`（可清除回自动最高版本）

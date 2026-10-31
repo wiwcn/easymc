@@ -26,6 +26,13 @@ pub fn default_volumes(paths: &Paths, instance: &Instance) -> Vec<ContainerVolum
     ]
 }
 
+fn looks_like_abs_path(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    s.starts_with('/') || (s.len() > 2 && s.as_bytes()[1] == b':' && s.as_bytes()[0].is_ascii_alphabetic())
+}
+
 /// Rewrite a host absolute path to the in-container path when it sits under a known mount.
 pub fn remap_host_path(host: &str, volumes: &[ContainerVolume]) -> String {
     // Longest host prefix wins (game_dir may nest under data root).
@@ -54,35 +61,105 @@ pub fn remap_host_path(host: &str, volumes: &[ContainerVolume]) -> String {
     }
 }
 
-/// Remap every path-looking token in a JVM/game arg list.
-pub fn remap_launch_args(args: &[String], volumes: &[ContainerVolume]) -> Vec<String> {
-    args.iter()
-        .map(|a| {
-            // Classpath: split on : or ; then remap each entry.
-            if a.contains(".jar") && (a.contains(':') || a.contains(';')) {
-                let sep = if a.contains(';') { ';' } else { ':' };
-                let remapped: Vec<String> = a
-                    .split(sep)
-                    .map(|p| remap_host_path(p, volumes))
-                    .collect();
-                // Inside Linux container always use ':'
-                remapped.join(":")
-            } else if a.starts_with('/') || (a.len() > 2 && a.as_bytes()[1] == b':') {
-                remap_host_path(a, volumes)
-            } else if let Some(idx) = a.find('=') {
-                // -Djava.library.path=/host/...
-                let (k, v) = a.split_at(idx);
-                let val = &v[1..];
-                if val.starts_with('/') || (val.len() > 2 && val.as_bytes()[1] == b':') {
-                    format!("{}={}", k, remap_host_path(val, volumes))
-                } else {
-                    a.clone()
-                }
-            } else {
-                a.clone()
+/// Remap a classpath-style or path-list string (split on `:` / `;`).
+///
+/// Drive-letter paths (`C:\…`) keep their colon; list separators use `;` on Windows-style
+/// lists and `:` otherwise. Result always joins with `:` for the Linux container.
+pub fn remap_path_list(list: &str, volumes: &[ContainerVolume]) -> String {
+    if list.is_empty() {
+        return String::new();
+    }
+    let parts = split_path_list(list);
+    parts
+        .into_iter()
+        .map(|p| remap_host_path(&p, volumes))
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+fn split_path_list(list: &str) -> Vec<String> {
+    // Prefer `;` when present (Windows classpath). Otherwise split on `:` but keep `C:` drives.
+    if list.contains(';') {
+        return list
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+    }
+    let mut out = Vec::new();
+    let bytes = list.as_bytes();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b':' {
+            // Windows drive letter: X: at start of this segment
+            let seg_start = start;
+            let is_drive = i == seg_start + 1
+                && bytes[seg_start].is_ascii_alphabetic()
+                && (i + 1 >= bytes.len()
+                    || bytes[i + 1] == b'\\'
+                    || bytes[i + 1] == b'/');
+            if is_drive {
+                i += 1;
+                continue;
             }
-        })
-        .collect()
+            if i > start {
+                out.push(list[start..i].to_string());
+            }
+            start = i + 1;
+        }
+        i += 1;
+    }
+    if start < list.len() {
+        out.push(list[start..].to_string());
+    }
+    out
+}
+
+fn remap_one_arg(a: &str, volumes: &[ContainerVolume]) -> String {
+    // Classpath / multi-jar list
+    if a.contains(".jar") && (a.contains(':') || a.contains(';')) {
+        return remap_path_list(a, volumes);
+    }
+    if looks_like_abs_path(a) {
+        return remap_host_path(a, volumes);
+    }
+    if let Some(idx) = a.find('=') {
+        // -Djava.library.path=/host/... or multi-path after =
+        let (k, v) = a.split_at(idx);
+        let val = &v[1..];
+        if val.is_empty() {
+            return a.to_string();
+        }
+        if looks_like_abs_path(val) || val.contains(';') || (val.contains(':') && val.contains('/'))
+        {
+            return format!("{}={}", k, remap_path_list(val, volumes));
+        }
+    }
+    a.to_string()
+}
+
+/// Remap every path-looking token in a JVM/game arg list.
+///
+/// Also rewrites the argument immediately after `-cp` / `-classpath`.
+pub fn remap_launch_args(args: &[String], volumes: &[ContainerVolume]) -> Vec<String> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut remap_next = false;
+    for a in args {
+        if remap_next {
+            out.push(remap_one_arg(a, volumes));
+            remap_next = false;
+            continue;
+        }
+        let lower = a.to_ascii_lowercase();
+        if lower == "-cp" || lower == "-classpath" {
+            out.push(a.clone());
+            remap_next = true;
+            continue;
+        }
+        out.push(remap_one_arg(a, volumes));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -115,5 +192,61 @@ mod tests {
         let args = vec!["/libs/a.jar:/libs/b.jar".into()];
         let out = remap_launch_args(&args, &vols);
         assert_eq!(out[0], "/data/libraries/a.jar:/data/libraries/b.jar");
+    }
+
+    #[test]
+    fn remap_cp_flag_next_arg() {
+        let vols = vec![ContainerVolume::ro("/libs", CTR_LIBRARIES)];
+        let args = vec![
+            "-cp".into(),
+            "/libs/a.jar;/libs/b.jar".into(),
+            "net.minecraft.client.main.Main".into(),
+        ];
+        let out = remap_launch_args(&args, &vols);
+        assert_eq!(out[1], "/data/libraries/a.jar:/data/libraries/b.jar");
+        assert_eq!(out[2], "net.minecraft.client.main.Main");
+    }
+
+    #[test]
+    fn remap_single_jar_abs() {
+        let vols = vec![ContainerVolume::ro("/libs", CTR_LIBRARIES)];
+        let out = remap_launch_args(&["/libs/alone.jar".into()], &vols);
+        assert_eq!(out[0], "/data/libraries/alone.jar");
+    }
+
+    #[test]
+    fn remap_library_path_list() {
+        let vols = vec![
+            ContainerVolume::ro("/natives", CTR_NATIVES),
+            ContainerVolume::ro("/libs", CTR_LIBRARIES),
+        ];
+        let out = remap_launch_args(
+            &["-Djava.library.path=/natives/1.21:/libs/extra".into()],
+            &vols,
+        );
+        assert_eq!(
+            out[0],
+            "-Djava.library.path=/data/natives/1.21:/data/libraries/extra"
+        );
+    }
+
+    #[test]
+    fn remap_windows_drive_in_list() {
+        let vols = vec![ContainerVolume::ro(r"C:\EasyMC\libraries", CTR_LIBRARIES)];
+        let list = r"C:\EasyMC\libraries\a.jar;C:\EasyMC\libraries\b.jar";
+        assert_eq!(
+            remap_path_list(list, &vols),
+            "/data/libraries/a.jar:/data/libraries/b.jar"
+        );
+    }
+
+    #[test]
+    fn split_keeps_drive_letter() {
+        let parts = split_path_list(r"C:\libs\a.jar:C:\libs\b.jar");
+        // Without `;`, colon after drive is kept; second `C:` starts new? 
+        // Actually C:\libs\a.jar:C:\libs\b.jar — after jar the `:` before second C splits.
+        assert_eq!(parts.len(), 2);
+        assert!(parts[0].starts_with("C:"));
+        assert!(parts[1].starts_with("C:"));
     }
 }

@@ -34,17 +34,18 @@ pub use image::{
     ImagePullResult,
 };
 pub use launch::{
-    default_image, gui_mount_hints, plan_container_launch, plan_to_spawn, plan_without_replace,
-    provision_for_launch, ContainerLaunchPlan, GuiMountHint,
+    assemble_container_run_argv, default_image, gui_mount_hints, gui_note_zh,
+    plan_container_launch, plan_to_spawn, plan_without_replace, provision_for_launch,
+    ContainerLaunchPlan, GuiMountHint,
 };
 pub use layer::{
     apply_game_layer, discard_game_layer, ensure_baseline, layer_state_for, mark_layer_dirty,
-    LayerOpResult, LayerState, LAYER_DIRS,
+    restore_layer_dirs, snapshot_layer_dirs, LayerOpResult, LayerState, LAYER_DIRS,
 };
 pub use meta::{ContainerMeta, ContainerVolume, CONTAINER_RUNTIME_PODMAN};
 pub use mounts::{
-    default_volumes, remap_host_path, remap_launch_args, CTR_ASSETS, CTR_LIBRARIES, CTR_MINECRAFT,
-    CTR_NATIVES, CTR_VERSIONS,
+    default_volumes, remap_host_path, remap_launch_args, remap_path_list, CTR_ASSETS,
+    CTR_LIBRARIES, CTR_MINECRAFT, CTR_NATIVES, CTR_VERSIONS,
 };
 pub use preheat::{
     preheat_container_runtime, preheat_container_runtime_ex, preheat_status, PreheatResult,
@@ -73,6 +74,6 @@ pub use versions::{
     list_container_versions, provision_container_version, ContainerVersionSummary, ProvisionResult,
 };
 pub use workspace::{
-    path_is_gated_save, resolve_agent_workspace, saves_propose_message_zh, workspace_for_instance,
-    AgentWorkspace, WorkspaceKind,
+    gate_saves_mutation, layer_ops_require_confirm, path_is_gated_save, resolve_agent_workspace,
+    saves_propose_message_zh, workspace_for_instance, AgentWorkspace, WorkspaceKind,
 };

@@ -103,6 +103,9 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "diagnostics" => ("导出问题报告", Some("诊断")),
         "diagnose" | "analyze_crash_log" | "analyze_launch_log" => ("查看崩溃", Some("诊断")),
         "suggest_memory" => ("内存建议", Some("配置")),
+        "apply_game_layer" => ("应用隔离改动", Some("隔离")),
+        "discard_game_layer" => ("丢弃隔离改动", Some("隔离")),
+        "modify_saves" | "write_saves" => ("修改存档", Some("存档")),
         _ => ("工具", None),
     }
 }

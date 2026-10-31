@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use easymc_core::{ContainerMeta, Instance, Paths};
+use easymc_core::{ContainerMeta, ContainerVolume, Instance, Paths};
 use serde::{Deserialize, Serialize};
 
 use crate::detect::{probe_container_runtime, ProbeStatus};
@@ -35,6 +35,7 @@ pub struct GuiMountHint {
     pub display: Option<String>,
     pub wayland: Option<String>,
     pub xdg_runtime_dir: Option<String>,
+    pub xauthority: Option<String>,
     pub has_dri: bool,
     pub note_zh: String,
 }
@@ -44,38 +45,86 @@ pub fn gui_mount_hints() -> GuiMountHint {
     let display = std::env::var("DISPLAY").ok().filter(|s| !s.is_empty());
     let wayland = std::env::var("WAYLAND_DISPLAY").ok().filter(|s| !s.is_empty());
     let xdg = std::env::var("XDG_RUNTIME_DIR").ok().filter(|s| !s.is_empty());
+    let xauthority = std::env::var("XAUTHORITY")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            // Common default when DISPLAY is set but XAUTHORITY is unset.
+            dirs::home_dir().map(|h| h.join(".Xauthority")).and_then(|p| {
+                if p.is_file() {
+                    Some(p.to_string_lossy().into_owned())
+                } else {
+                    None
+                }
+            })
+        });
     let has_dri = std::path::Path::new("/dev/dri").exists();
-    let note_zh = if cfg!(target_os = "windows") {
-        "Windows 开隔离环境需要官方安装包的运行环境（含图形支持）。请确认图形显示可用后再开玩。"
-            .into()
-    } else if cfg!(target_os = "macos") {
-        "macOS 不走容器 GUI 路径。".into()
-    } else if display.is_some() || wayland.is_some() {
-        if has_dri {
-            "已检测到显示变量与 /dev/dri，将尝试 GPU 直通。".into()
-        } else {
-            "已检测到显示变量，但无 /dev/dri（可能落到软件渲染）。".into()
-        }
-    } else {
-        "未检测到 DISPLAY/WAYLAND_DISPLAY；无头环境只能做非 GUI 验证。".into()
-    };
+    let note_zh = gui_note_zh(
+        cfg!(target_os = "windows"),
+        cfg!(target_os = "macos"),
+        display.is_some(),
+        wayland.is_some(),
+        has_dri,
+    );
     GuiMountHint {
         display,
         wayland,
         xdg_runtime_dir: xdg,
+        xauthority,
         has_dri,
         note_zh,
     }
 }
 
+/// Player-facing GUI notes (Chinese). Keep jargon out of Windows copy.
+pub fn gui_note_zh(
+    is_windows: bool,
+    is_macos: bool,
+    has_display: bool,
+    has_wayland: bool,
+    has_dri: bool,
+) -> String {
+    if is_windows {
+        return "Windows 开隔离环境需要官方安装包的运行环境（含图形支持）。请确认窗口能正常弹出后再开玩。".into();
+    }
+    if is_macos {
+        return "Mac 不走隔离窗口路径，请用普通方式开玩。".into();
+    }
+    match (has_display, has_wayland, has_dri) {
+        (true, _, true) | (_, true, true) => {
+            "已检测到图形显示与显卡直通接口，隔离窗口会尽量用本机加速。".into()
+        }
+        (true, false, false) => {
+            "已检测到 X11 显示，但没有显卡直通接口，可能会用软件渲染（更慢）。".into()
+        }
+        (false, true, false) => {
+            "已检测到 Wayland 显示，但没有显卡直通接口，可能会用软件渲染（更慢）。".into()
+        }
+        (true, true, false) => {
+            "已检测到图形显示，但没有显卡直通接口，可能会用软件渲染（更慢）。".into()
+        }
+        _ => "未检测到图形显示变量；无窗口环境只能做非界面验证。".into(),
+    }
+}
+
 fn push_gui_args(argv: &mut Vec<String>, hints: &GuiMountHint) {
+    let mut display_set = false;
     if let Some(d) = &hints.display {
         argv.push("-e".into());
         argv.push(format!("DISPLAY={d}"));
+        display_set = true;
         // X11 socket — Linux host; on Podman Machine WSLg the socket lives inside the VM.
         if std::path::Path::new("/tmp/.X11-unix").exists() {
             argv.push("-v".into());
             argv.push("/tmp/.X11-unix:/tmp/.X11-unix:ro".into());
+        }
+    }
+    if let Some(xa) = &hints.xauthority {
+        if std::path::Path::new(xa).is_file() {
+            argv.push("-e".into());
+            argv.push(format!("XAUTHORITY={xa}"));
+            argv.push("-v".into());
+            argv.push(format!("{xa}:{xa}:ro"));
         }
     }
     if let Some(w) = &hints.wayland {
@@ -89,23 +138,77 @@ fn push_gui_args(argv: &mut Vec<String>, hints: &GuiMountHint) {
             argv.push("-v".into());
             argv.push(format!("{xdg}:{xdg}"));
         }
+        // PulseAudio native socket (best-effort)
+        let pulse = format!("{xdg}/pulse/native");
+        if std::path::Path::new(&pulse).exists() {
+            argv.push("-e".into());
+            argv.push(format!("PULSE_SERVER=unix:{pulse}"));
+        }
     }
     if hints.has_dri {
         argv.push("--device".into());
         argv.push("/dev/dri".into());
     }
-    // WSLg / Pulse (best-effort; harmless if absent)
+    // Explicit PULSE_SERVER from host env wins / supplements.
     if let Ok(pulse) = std::env::var("PULSE_SERVER") {
         if !pulse.is_empty() {
             argv.push("-e".into());
             argv.push(format!("PULSE_SERVER={pulse}"));
         }
     }
-    if cfg!(target_os = "windows") {
+    if cfg!(target_os = "windows") && !display_set {
         // Design hooks for Podman Machine + WSLg acceptance path.
+        // Only set when host did not already provide DISPLAY.
         argv.push("-e".into());
         argv.push("DISPLAY=:0".into());
     }
+}
+
+fn stable_container_name(meta: &ContainerMeta, instance_id: &str) -> String {
+    let cname = meta
+        .container_id
+        .clone()
+        .filter(|s| s.starts_with("easymc-") || !s.is_empty())
+        .unwrap_or_else(|| container_name_for(instance_id));
+    // Prefer stable name over raw id from older creates
+    if cname.len() == 64 && cname.chars().all(|c| c.is_ascii_hexdigit()) {
+        container_name_for(instance_id)
+    } else {
+        cname
+    }
+}
+
+/// Pure argv assembly (no Podman probe). Used by `plan_container_launch` and unit tests.
+pub fn assemble_container_run_argv(
+    image: &str,
+    container_name: &str,
+    volumes: &[ContainerVolume],
+    java_args_host: &[String],
+    hints: &GuiMountHint,
+) -> Vec<String> {
+    let remapped = remap_launch_args(java_args_host, volumes);
+    let mut argv: Vec<String> = vec![
+        "run".into(),
+        "--rm".into(),
+        "--name".into(),
+        container_name.to_string(),
+        "--replace".into(),
+        "-w".into(),
+        CTR_MINECRAFT.into(),
+        "--network".into(),
+        "host".into(),
+        "--ipc".into(),
+        "host".into(),
+    ];
+    push_gui_args(&mut argv, hints);
+    for v in volumes {
+        argv.push("-v".into());
+        argv.push(format!("{}:{}:{}", v.host, v.container, v.mode));
+    }
+    argv.push(image.to_string());
+    argv.push("java".into());
+    argv.extend(remapped);
+    argv
 }
 
 /// Build a `podman run --rm … <image> java <args…>` plan.
@@ -153,41 +256,9 @@ pub fn plan_container_launch(
     } else {
         meta.volumes.clone()
     };
-    let remapped = remap_launch_args(java_args_host, &volumes);
-    let cname = meta
-        .container_id
-        .clone()
-        .filter(|s| s.starts_with("easymc-") || !s.is_empty())
-        .unwrap_or_else(|| container_name_for(&instance.id));
-    // Prefer stable name over raw id from older creates
-    let cname = if cname.len() == 64 && cname.chars().all(|c| c.is_ascii_hexdigit()) {
-        container_name_for(&instance.id)
-    } else {
-        cname
-    };
-
+    let cname = stable_container_name(meta, &instance.id);
     let bin = podman_bin()?;
-    let mut argv: Vec<String> = vec![
-        "run".into(),
-        "--rm".into(),
-        "--name".into(),
-        cname.clone(),
-        "--replace".into(),
-        "-w".into(),
-        CTR_MINECRAFT.into(),
-        "--network".into(),
-        "host".into(),
-        "--ipc".into(),
-        "host".into(),
-    ];
-    push_gui_args(&mut argv, &hints);
-    for v in &volumes {
-        argv.push("-v".into());
-        argv.push(format!("{}:{}:{}", v.host, v.container, v.mode));
-    }
-    argv.push(image.clone());
-    argv.push("java".into());
-    argv.extend(remapped);
+    let argv = assemble_container_run_argv(&image, &cname, &volumes, java_args_host, &hints);
 
     // Older podman may not support --replace on run; caller can strip on retry.
     Ok(ContainerLaunchPlan {
@@ -274,6 +345,18 @@ mod tests {
     }
 
     #[test]
+    fn gui_note_x11_vs_wayland() {
+        let x11 = gui_note_zh(false, false, true, false, false);
+        assert!(x11.contains("X11") || x11.contains("软件渲染"));
+        let wl = gui_note_zh(false, false, false, true, false);
+        assert!(wl.contains("Wayland") || wl.contains("软件渲染"));
+        let win = gui_note_zh(true, false, false, false, false);
+        assert!(win.contains("Windows") || win.contains("官方安装包"));
+        assert!(!win.to_lowercase().contains("wsl"));
+        assert!(!win.to_lowercase().contains("podman"));
+    }
+
+    #[test]
     fn plan_without_replace_strips() {
         let plan = ContainerLaunchPlan {
             podman: "podman".into(),
@@ -289,12 +372,46 @@ mod tests {
     }
 
     #[test]
-    fn remap_used_in_plan_shape() {
-        let vols = vec![ContainerVolume::ro("/libs", CTR_LIBRARIES)];
-        let args = remap_launch_args(&["/libs/a.jar".into()], &vols);
-        assert_eq!(args[0], "/data/libraries/a.jar");
+    fn assemble_remaps_classpath_and_volumes() {
+        let vols = vec![
+            ContainerVolume::rw("/game", CTR_MINECRAFT),
+            ContainerVolume::ro("/libs", CTR_LIBRARIES),
+        ];
+        let hints = GuiMountHint {
+            display: None,
+            wayland: None,
+            xdg_runtime_dir: None,
+            xauthority: None,
+            has_dri: false,
+            note_zh: "test".into(),
+        };
+        let argv = assemble_container_run_argv(
+            "img:21",
+            "easymc-t",
+            &vols,
+            &[
+                "-cp".into(),
+                "/libs/a.jar:/libs/b.jar".into(),
+                "-Djava.library.path=/libs/n".into(),
+                "net.minecraft.client.main.Main".into(),
+                "--gameDir".into(),
+                "/game".into(),
+            ],
+            &hints,
+        );
+        assert!(argv.iter().any(|a| a == "run"));
+        assert!(argv.iter().any(|a| a.starts_with("/game:")));
+        assert!(argv.iter().any(|a| a == "java"));
+        let cp_idx = argv.iter().position(|a| a == "-cp").expect("cp");
+        assert_eq!(
+            argv[cp_idx + 1],
+            "/data/libraries/a.jar:/data/libraries/b.jar"
+        );
+        assert!(argv
+            .iter()
+            .any(|a| a == "-Djava.library.path=/data/libraries/n"));
+        assert!(argv.iter().any(|a| a == CTR_MINECRAFT));
         let _ = McVersion("1.21.1".into());
         let _ = ModLoader::Vanilla;
-        let _ = probe_container_runtime();
     }
 }

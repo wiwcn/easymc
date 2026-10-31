@@ -179,10 +179,23 @@ fn gate_dangerous(
     }
 
     let utterance = tool_call_to_utterance(name, &tc.arguments);
-    let msg = format!(
-        "【需确认】「{utterance}」会改动你的游戏文件，助手不会自动执行。\
-请你在对话里用明确的中文再说一次（例如「确认删除版本 xxx」或「禁用 sodium」），本地规则才会执行。"
-    );
+    let msg = if matches!(name, "apply_game_layer") {
+        format!(
+            "【需确认】「{utterance}」会把当前模组/配置等改动保存为可回退的干净状态（存档不动）。请在对话里明确说「确认应用隔离改动」，或到版本页点「应用更改」。"
+        )
+    } else if matches!(name, "discard_game_layer") {
+        format!(
+            "【需确认】「{utterance}」会丢弃未保存的隔离改动并恢复干净状态（存档不动）。请在对话里明确说「确认丢弃隔离改动」，或到版本页点「丢弃更改」。"
+        )
+    } else if matches!(name, "modify_saves" | "write_saves") {
+        format!(
+            "【需确认】「{utterance}」会改动存档。隔离环境下默认要先提出建议再写入。请明确说「确认修改存档 …」，或在设置关闭「存档修改需确认」。"
+        )
+    } else {
+        format!(
+            "【需确认】「{utterance}」会改动你的游戏文件，助手不会自动执行。请你在对话里用明确的中文再说一次（例如「确认删除版本 xxx」或「禁用 sodium」），本地规则才会执行。"
+        )
+    };
     let (title, tag) = crate::tool::tool_meta(name);
     let card = ToolCall {
         id: format!("gate-{}", tc.id),
