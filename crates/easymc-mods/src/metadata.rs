@@ -1,6 +1,7 @@
 //! Parse Fabric / Quilt / Forge / NeoForge mod metadata from jar files.
 
-use std::io::{Read, Seek};
+use std::collections::HashSet;
+use std::io::{Cursor, Read, Seek};
 use std::path::Path;
 
 use easymc_core::{EasyMcError, Result};
@@ -65,6 +66,9 @@ pub struct ModMeta {
     pub kind: ModMetaKind,
     pub depends: Vec<ModDepReq>,
     pub breaks: Vec<ModDepReq>,
+    /// Fabric/Quilt `provides` — alternate ids satisfied by this jar (e.g. fabric-api → fabric).
+    #[serde(default)]
+    pub provides: Vec<String>,
 }
 
 /// Built-in / loader-provided ids that are never "missing mods".
@@ -84,6 +88,156 @@ pub fn is_provided_mod_id(id: &str) -> bool {
             | "client"
             | "server"
     )
+}
+
+/// Read primary mod meta plus nested jars listed in fabric.mod.json `jars`.
+/// Nested metas inherit the outer filename (with `#nested/<id>`) and disabled flag.
+/// Expansion is recursive (LibGui → jankson / libninepatch, etc.).
+pub fn read_mod_metas_expanded(path: &Path) -> Result<Vec<ModMeta>> {
+    let primary = read_mod_meta(path)?;
+    let filename = primary.filename.clone();
+    let disabled = primary.disabled;
+    let file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Ok(vec![primary]),
+    };
+    let mut archive = match ZipArchive::new(file) {
+        Ok(a) => a,
+        Err(_) => return Ok(vec![primary]),
+    };
+    let mut out = vec![primary];
+    let mut seen: HashSet<String> = out.iter().map(|m| m.mod_id.to_ascii_lowercase()).collect();
+    expand_nested_from_archive(&mut archive, &filename, disabled, &mut out, &mut seen, 0)?;
+    Ok(out)
+}
+
+const MAX_NEST_DEPTH: usize = 4;
+
+fn expand_nested_from_archive<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    outer_filename: &str,
+    disabled: bool,
+    out: &mut Vec<ModMeta>,
+    seen: &mut HashSet<String>,
+    depth: usize,
+) -> Result<()> {
+    if depth >= MAX_NEST_DEPTH {
+        return Ok(());
+    }
+    let raw = match read_zip_string(archive, "fabric.mod.json") {
+        Ok(Some(s)) => s,
+        _ => match read_zip_string(archive, "quilt.mod.json") {
+            Ok(Some(s)) => s,
+            _ => return Ok(()),
+        },
+    };
+    let Ok(v) = serde_json::from_str::<JsonValue>(&raw) else {
+        return Ok(());
+    };
+    let root = v.get("quilt_loader").cloned().unwrap_or(v);
+    // Merge top-level provides into the first matching outer meta if present
+    if let Some(provides) = root.get("provides").and_then(|a| a.as_array()) {
+        if let Some(id) = root.get("id").and_then(|x| x.as_str()) {
+            if let Some(meta) = out.iter_mut().find(|m| m.mod_id == id) {
+                for p in provides.iter().filter_map(|x| x.as_str()) {
+                    if !meta.provides.iter().any(|x| x == p) {
+                        meta.provides.push(p.to_string());
+                    }
+                }
+            }
+        }
+    }
+    let Some(jars) = root.get("jars").and_then(|j| j.as_array()) else {
+        return Ok(());
+    };
+    for entry in jars {
+        let Some(nested_path) = entry.get("file").and_then(|x| x.as_str()) else {
+            continue;
+        };
+        let Ok(Some(bytes)) = read_zip_bytes(archive, nested_path) else {
+            continue;
+        };
+        let cursor = Cursor::new(bytes.clone());
+        let Ok(mut nested_zip) = ZipArchive::new(cursor) else {
+            continue;
+        };
+        let mut meta_opt = try_fabric_family(
+            &mut nested_zip,
+            outer_filename,
+            disabled,
+            ModMetaKind::Fabric,
+        )?;
+        if meta_opt.is_none() {
+            // re-open because try may have consumed? ZipArchive with Cursor is fine to recreate
+            let cursor = Cursor::new(bytes.clone());
+            if let Ok(mut nz) = ZipArchive::new(cursor) {
+                meta_opt = try_fabric_family(&mut nz, outer_filename, disabled, ModMetaKind::Quilt)?;
+            }
+        }
+        if let Some(mut meta) = meta_opt {
+            let key = meta.mod_id.to_ascii_lowercase();
+            meta.filename = format!("{outer_filename}#nested/{}", meta.mod_id);
+            if seen.contains(&key) {
+                // fold provides into existing
+                if let Some(existing) = out.iter_mut().find(|m| m.mod_id.eq_ignore_ascii_case(&meta.mod_id))
+                {
+                    for p in meta.provides.drain(..) {
+                        if !existing.provides.contains(&p) {
+                            existing.provides.push(p);
+                        }
+                    }
+                }
+            } else {
+                seen.insert(key);
+                for p in &meta.provides {
+                    seen.insert(p.to_ascii_lowercase());
+                }
+                out.push(meta);
+            }
+        }
+        // Recurse into the nested jar bytes for deeper jars
+        let cursor = Cursor::new(bytes);
+        if let Ok(mut nz) = ZipArchive::new(cursor) {
+            expand_nested_from_archive(
+                &mut nz,
+                outer_filename,
+                disabled,
+                out,
+                seen,
+                depth + 1,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn read_zip_bytes<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    name: &str,
+) -> Result<Option<Vec<u8>>> {
+    let idx = match archive.index_for_name(name) {
+        Some(i) => i,
+        None => {
+            let lower = name.to_ascii_lowercase();
+            let found = (0..archive.len()).find(|&i| {
+                archive
+                    .name_for_index(i)
+                    .map(|n| n.to_ascii_lowercase() == lower)
+                    .unwrap_or(false)
+            });
+            match found {
+                Some(i) => i,
+                None => return Ok(None),
+            }
+        }
+    };
+    let mut file = archive
+        .by_index(idx)
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 失败: {e}")))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 内容失败: {e}")))?;
+    Ok(Some(buf))
 }
 
 /// Read mod metadata from a jar (or `.jar.disabled`) path.
@@ -125,6 +279,7 @@ pub fn read_mod_meta(path: &Path) -> Result<ModMeta> {
         kind: ModMetaKind::Unknown,
         depends: vec![],
         breaks: vec![],
+        provides: vec![],
     })
 }
 
@@ -195,6 +350,16 @@ fn try_fabric_family<R: Read + Seek>(
         }
     }
 
+    let provides: Vec<String> = root
+        .get("provides")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(Some(ModMeta {
         mod_id,
         version,
@@ -204,6 +369,7 @@ fn try_fabric_family<R: Read + Seek>(
         kind,
         depends,
         breaks,
+        provides,
     }))
 }
 
@@ -215,14 +381,17 @@ fn collect_fabric_map(root: &JsonValue, key: &str, kind: DepKind, out: &mut Vec<
         let range = match range_val {
             JsonValue::String(s) => Some(s.clone()),
             JsonValue::Array(arr) => {
+                // Fabric: array means OR of version predicates.
                 let parts: Vec<String> = arr
                     .iter()
                     .filter_map(|x| x.as_str().map(|s| s.to_string()))
                     .collect();
                 if parts.is_empty() {
                     None
+                } else if parts.len() == 1 {
+                    Some(parts[0].clone())
                 } else {
-                    Some(parts.join(" "))
+                    Some(parts.join(" || "))
                 }
             }
             JsonValue::Bool(false) => continue, // explicitly not depending
@@ -351,6 +520,7 @@ fn parse_mods_toml(
         kind,
         depends,
         breaks,
+        provides: vec![],
     }))
 }
 
@@ -395,6 +565,14 @@ pub fn version_satisfies(installed: &str, range: &str) -> bool {
         // Can't verify — treat as satisfied to avoid false conflicts on unknown jars
         return true;
     }
+    // Fabric array → OR (we join with " || " in collect_fabric_map)
+    if range.contains("||") {
+        return range
+            .split("||")
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .any(|p| version_satisfies(installed, p));
+    }
     // Multiple space-separated predicates (Fabric): ">=1.0 <2.0"
     if range.contains(' ') && !range.starts_with('[') && !range.starts_with('(') {
         return range.split_whitespace().all(|p| version_satisfies(installed, p));
@@ -402,6 +580,15 @@ pub fn version_satisfies(installed: &str, range: &str) -> bool {
     // Maven range: [1.0,2.0) or (1.0,) etc.
     if range.starts_with('[') || range.starts_with('(') {
         return maven_range_satisfies(installed, range);
+    }
+    // Wildcard minor: "0.8.x" / "1.21.x"
+    if let Some(prefix) = range.strip_suffix(".x").or_else(|| range.strip_suffix(".X")) {
+        let prefix = prefix.trim().trim_end_matches('.');
+        if !prefix.is_empty() {
+            return installed == prefix
+                || installed.starts_with(&format!("{prefix}."))
+                || same_minor_prefix(installed, prefix);
+        }
     }
     // Exact or operator
     for op in [">=", "<=", ">", "<", "=", "~", "^"] {
@@ -609,6 +796,38 @@ side="BOTH"
         assert!(!version_satisfies("1.21", "[1.20,1.21)"));
         assert!(version_satisfies("0.15.11", ">=0.15"));
         assert!(version_satisfies("1.21.1", "~1.21"));
+        // Fabric array OR
+        assert!(version_satisfies("0.8.13", "0.8.x || 0.9.x"));
+        assert!(version_satisfies("0.9.1", "0.8.x || 0.9.x"));
+        assert!(!version_satisfies("0.7.0", "0.8.x || 0.9.x"));
+        assert!(version_satisfies("0.8.13", "0.8.x"));
+        assert!(version_satisfies("1.21.1", "1.21.x"));
+    }
+
+    #[test]
+    fn fabric_array_depends_are_or() {
+        let dir = std::env::temp_dir().join(format!(
+            "easymc-meta-or-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let jar = dir.join("pf.jar");
+        write_jar(
+            &jar,
+            &[(
+                "fabric.mod.json",
+                r#"{"schemaVersion":1,"id":"presencefootsteps","version":"1.0","depends":{"sodium":["0.8.x","0.9.x"]},"provides":["presence-footsteps"]}"#,
+            )],
+        );
+        let meta = read_mod_meta(&jar).unwrap();
+        let dep = meta.depends.iter().find(|d| d.mod_id == "sodium").unwrap();
+        assert!(dep.version_range.as_deref().unwrap().contains("||"));
+        assert!(meta.provides.iter().any(|p| p == "presence-footsteps"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

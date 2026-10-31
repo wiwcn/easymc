@@ -289,7 +289,7 @@ export interface DepGraphReportDto {
 export interface FetchMissingResultDto {
   attempted: string[];
   installed: ModInstallResultDto[];
-  failed: { mod_id: string; error_zh: string }[];
+  failed: { mod_id: string; error_zh: string; reason?: string | null; tried_slug?: string | null }[];
   message_zh: string;
 }
 

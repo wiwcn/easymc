@@ -254,6 +254,30 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
             }
             if let Some(arr) = v.get("failed").and_then(|x| x.as_array()) {
                 out.push(arg("failed", "失败", format!("{}", arr.len())));
+                // Compact reason taxonomy for the tool card (first few).
+                let mut reasons: Vec<String> = Vec::new();
+                for f in arr.iter().take(6) {
+                    let id = f.get("mod_id").and_then(|x| x.as_str()).unwrap_or("?");
+                    let reason = f
+                        .get("reason")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("unknown");
+                    let slug = f
+                        .get("tried_slug")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("");
+                    if slug.is_empty() {
+                        reasons.push(format!("{id}={reason}"));
+                    } else {
+                        reasons.push(format!("{id}={reason}({slug})"));
+                    }
+                }
+                if arr.len() > 6 {
+                    reasons.push(format!("…+{}", arr.len() - 6));
+                }
+                if !reasons.is_empty() {
+                    out.push(arg("fail_detail", "失败明细", reasons.join(" · ")));
+                }
             }
         }
         "toggle_mod" | "enable_mod" | "disable_mod" => {

@@ -1874,6 +1874,8 @@ async fn agent_ask(
                                 "failed": r.failed.iter().map(|f| serde_json::json!({
                                     "mod_id": f.mod_id,
                                     "error_zh": f.error_zh,
+                                    "reason": f.reason,
+                                    "tried_slug": f.tried_slug,
                                 })).collect::<Vec<_>>(),
                             })),
                         });
