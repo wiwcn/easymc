@@ -25,6 +25,7 @@ import {
   setModDisabled,
   updateInstance,
   writeLaunchScript,
+  uploadLatestLog,
   containerAttach,
   containerProvision,
   containerLayerState,
@@ -72,6 +73,8 @@ export class InstancePage extends LitElement {
   @state() private heightDraft = "";
   @state() private jvmDraft = "";
   @state() private catDraft = "";
+  @state() private qpModeDraft: "" | "world" | "server" | "realms" = "";
+  @state() private qpTargetDraft = "";
   @state() private showCreate = false;
   @state() private newName = "";
   @state() private newVersion = "1.21.1";
@@ -359,6 +362,20 @@ export class InstancePage extends LitElement {
     this.heightDraft = d.height ? String(d.height) : "";
     this.jvmDraft = d.jvm_args ?? "";
     this.catDraft = d.category ?? "";
+    const qp = d.quick_play;
+    if (qp?.type === "world") {
+      this.qpModeDraft = "world";
+      this.qpTargetDraft = qp.name || "";
+    } else if (qp?.type === "server") {
+      this.qpModeDraft = "server";
+      this.qpTargetDraft = qp.address || "";
+    } else if (qp?.type === "realms") {
+      this.qpModeDraft = "realms";
+      this.qpTargetDraft = qp.id || "";
+    } else {
+      this.qpModeDraft = "";
+      this.qpTargetDraft = "";
+    }
     await this.refreshLayer(d.id);
     await this.refreshTab();
   }
@@ -595,7 +612,46 @@ export class InstancePage extends LitElement {
             </div>
           </div>
           <div class="field"><label>额外启动参数（高级）</label><input placeholder="不懂就留空" .value=${this.jvmDraft} @input=${(e: Event) => (this.jvmDraft = (e.target as HTMLInputElement).value)} /></div>
-          <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
+          <div class="field" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--md-sys-color-outline-variant)">
+            <label>快速进入（Quick Play）</label>
+            <p class="muted" style="margin:4px 0 8px">启动后跳过标题屏，直接进世界或服务器（需 Minecraft 1.20+；旧版本仅支持直连服务器）。灵感来自 CMCL / Prism。</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              <select
+                aria-label="快速进入方式"
+                .value=${this.qpModeDraft}
+                @change=${(e: Event) => {
+                  this.qpModeDraft = (e.target as HTMLSelectElement).value as typeof this.qpModeDraft;
+                }}
+              >
+                <option value="">不使用</option>
+                <option value="world">单人世界</option>
+                <option value="server">多人服务器</option>
+                <option value="realms">Realms</option>
+              </select>
+              <input
+                style="flex:1;min-width:160px"
+                placeholder=${this.qpModeDraft === "server"
+                  ? "地址，如 play.example.com:25565"
+                  : this.qpModeDraft === "realms"
+                    ? "Realms 世界 ID"
+                    : "存档文件夹名（saves 下）"}
+                .value=${this.qpTargetDraft}
+                ?disabled=${!this.qpModeDraft}
+                @input=${(e: Event) => (this.qpTargetDraft = (e.target as HTMLInputElement).value)}
+              />
+            </div>
+            ${this.qpModeDraft
+              ? html`<p class="muted" style="margin:0">当前：${this.qpModeDraft === "world" ? "世界" : this.qpModeDraft === "server" ? "服务器" : "Realms"} → ${this.qpTargetDraft.trim() || "（还没填目标）"}</p>`
+              : nothing}
+          </div>
+          <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+            <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
+            <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
+              const r = await uploadLatestLog(d.id);
+              showToast(r.message_zh);
+              try { await navigator.clipboard.writeText(r.url); showToast("链接已复制"); } catch { /* ignore */ }
+            })}>分享最新日志（mclo.gs）</button>
+          </div>
           ${d.container
             ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
                 <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">隔离改动</h2>
@@ -767,6 +823,21 @@ export class InstancePage extends LitElement {
               </div>
             </div>
             <div class="res-card-foot">
+              ${kind === "saves" && e.is_dir
+                ? html`<button class="ghost" type="button" @click=${() => this.act(async () => {
+                    await updateInstance(d.id, { quick_play_mode: "world", quick_play_target: e.name });
+                    this.qpModeDraft = "world";
+                    this.qpTargetDraft = e.name;
+                    await this.load();
+                    showToast(`已设为快速进入「${e.name}」`);
+                  })}>设为快速进入</button>
+                  <button class="tonal" type="button" @click=${() => this.act(async () => {
+                    await updateInstance(d.id, { quick_play_mode: "world", quick_play_target: e.name });
+                    await launchInstance(d.id);
+                    showToast(`正在直进「${e.name}」…`);
+                    await this.load();
+                  })}>直进</button>`
+                : nothing}
               <button class="danger ghost" type="button" @click=${() => this.act(async () => {
                 if (!confirm(`删除 ${e.name}？`)) return;
                 await deleteLocalContent(d.id, kind, e.name);
@@ -794,6 +865,12 @@ export class InstancePage extends LitElement {
       } else patch.clear_resolution = true;
       if (this.jvmDraft.trim()) patch.jvm_args = this.jvmDraft.trim();
       else patch.clear_jvm_args = true;
+      if (this.qpModeDraft && this.qpTargetDraft.trim()) {
+        patch.quick_play_mode = this.qpModeDraft;
+        patch.quick_play_target = this.qpTargetDraft.trim();
+      } else {
+        patch.clear_quick_play = true;
+      }
       await updateInstance(d.id, patch);
       await this.load();
       showToast("已保存");

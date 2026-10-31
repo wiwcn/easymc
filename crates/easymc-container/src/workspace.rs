@@ -166,6 +166,7 @@ mod tests {
             description: None,
             icon: None,
             category: None,
+            quick_play: None,
             container: None,
         };
         let ws = AgentWorkspace {

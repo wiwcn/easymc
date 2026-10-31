@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use easymc_core::{Account, AccountKind, EasyMcError, Instance, ModLoader, Paths, Result, Settings};
+use easymc_core::{Account, AccountKind, EasyMcError, Instance, ModLoader, Paths, QuickPlay, Result, Settings};
 use easymc_meta::rules_allow;
 use easymc_meta::{
     classpath_jars, extract_natives, fabric_profile_id, forge_profile_id, is_version_installed,
@@ -286,9 +286,92 @@ pub fn build_jvm_and_game_args(
             args.extend(["--width".into(), w.to_string(), "--height".into(), h.to_string()]);
         }
     }
+    if let Some(qp) = &instance.quick_play {
+        append_quick_play_args(&mut args, qp, instance.version.as_str());
+    }
 
     Ok(args)
 }
+
+/// Append Quick Play / legacy server join args. Minecraft 1.20+ supports `--quickPlay*`.
+pub fn append_quick_play_args(args: &mut Vec<String>, quick: &QuickPlay, mc_version: &str) {
+    let modern = mc_version_at_least(mc_version, 1, 20);
+    match quick {
+        QuickPlay::World { name } => {
+            if modern {
+                args.push("--quickPlaySingleplayer".into());
+                args.push(name.clone());
+            }
+        }
+        QuickPlay::Server { address } => {
+            if modern {
+                args.push("--quickPlayMultiplayer".into());
+                args.push(address.clone());
+            } else {
+                let (host, port) = split_host_port(address);
+                args.push("--server".into());
+                args.push(host);
+                if let Some(p) = port {
+                    args.push("--port".into());
+                    args.push(p);
+                }
+            }
+        }
+        QuickPlay::Realms { id } => {
+            if modern {
+                args.push("--quickPlayRealms".into());
+                args.push(id.clone());
+            }
+        }
+    }
+}
+
+fn split_host_port(address: &str) -> (String, Option<String>) {
+    let a = address.trim();
+    if let Some(rest) = a.strip_prefix('[') {
+        if let Some((host, port)) = rest.split_once("]:") {
+            return (format!("[{host}]"), Some(port.to_string()));
+        }
+        return (a.to_string(), None);
+    }
+    if let Some((host, port)) = a.rsplit_once(':') {
+        if !host.is_empty() && port.chars().all(|c| c.is_ascii_digit()) {
+            return (host.to_string(), Some(port.to_string()));
+        }
+    }
+    (a.to_string(), None)
+}
+
+fn mc_version_at_least(version: &str, major: u32, minor: u32) -> bool {
+    let mut nums = Vec::new();
+    let mut cur = String::new();
+    for c in version.chars() {
+        if c.is_ascii_digit() {
+            cur.push(c);
+        } else if !cur.is_empty() {
+            if let Ok(n) = cur.parse::<u32>() {
+                nums.push(n);
+            }
+            cur.clear();
+            if c != '.' && nums.len() >= 2 {
+                break;
+            }
+            if c != '.' {
+                nums.clear();
+            }
+        }
+    }
+    if !cur.is_empty() {
+        if let Ok(n) = cur.parse::<u32>() {
+            nums.push(n);
+        }
+    }
+    if nums.len() < 2 {
+        return false;
+    }
+    nums[0] > major || (nums[0] == major && nums[1] >= minor)
+}
+
 
 fn push_arg_value(
     out: &mut Vec<String>,
@@ -385,4 +468,67 @@ pub fn write_launch_script(
         let _ = std::fs::set_permissions(&out, std::fs::Permissions::from_mode(0o755));
     }
     Ok(out)
+}
+
+
+#[cfg(test)]
+mod quick_play_tests {
+    use super::*;
+
+    #[test]
+    fn modern_server() {
+        let mut args = vec![];
+        append_quick_play_args(
+            &mut args,
+            &QuickPlay::Server {
+                address: "play.example.com:25566".into(),
+            },
+            "1.21.1",
+        );
+        assert_eq!(args, vec!["--quickPlayMultiplayer", "play.example.com:25566"]);
+    }
+
+    #[test]
+    fn legacy_server_splits_port() {
+        let mut args = vec![];
+        append_quick_play_args(
+            &mut args,
+            &QuickPlay::Server {
+                address: "mc.hypixel.net:25565".into(),
+            },
+            "1.16.5",
+        );
+        assert_eq!(
+            args,
+            vec!["--server", "mc.hypixel.net", "--port", "25565"]
+        );
+    }
+
+    #[test]
+    fn world_modern_only() {
+        let mut args = vec![];
+        append_quick_play_args(
+            &mut args,
+            &QuickPlay::World {
+                name: "New World".into(),
+            },
+            "1.20",
+        );
+        assert_eq!(args, vec!["--quickPlaySingleplayer", "New World"]);
+        let mut old = vec![];
+        append_quick_play_args(
+            &mut old,
+            &QuickPlay::World {
+                name: "New World".into(),
+            },
+            "1.19.4",
+        );
+        assert!(old.is_empty());
+    }
+
+    #[test]
+    fn version_parse() {
+        assert!(mc_version_at_least("1.20.1", 1, 20));
+        assert!(!mc_version_at_least("1.19.4", 1, 20));
+    }
 }

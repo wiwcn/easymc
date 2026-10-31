@@ -72,6 +72,45 @@ impl std::fmt::Display for ModLoader {
     }
 }
 
+
+/// Quick Play target (Minecraft 1.20+ `--quickPlay*`; older clients fall back to `--server` for Server).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum QuickPlay {
+    /// World folder name under `saves/` (not display name).
+    World { name: String },
+    /// Server address, e.g. `mc.example.com` or `host:25565`.
+    Server { address: String },
+    /// Realms world id.
+    Realms { id: String },
+}
+
+impl QuickPlay {
+    pub fn mode_key(&self) -> &'static str {
+        match self {
+            Self::World { .. } => "world",
+            Self::Server { .. } => "server",
+            Self::Realms { .. } => "realms",
+        }
+    }
+
+    pub fn target(&self) -> &str {
+        match self {
+            Self::World { name } => name,
+            Self::Server { address } => address,
+            Self::Realms { id } => id,
+        }
+    }
+
+    pub fn label_zh(&self) -> String {
+        match self {
+            Self::World { name } => format!("单人世界「{name}」"),
+            Self::Server { address } => format!("服务器 {address}"),
+            Self::Realms { id } => format!("Realms {id}"),
+        }
+    }
+}
+
 /// A playable instance (Java Edition).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {
@@ -110,6 +149,9 @@ pub struct Instance {
     pub height: Option<u32>,
     #[serde(default)]
     pub jvm_args: Option<String>,
+    /// Skip title screen: join a world / server / Realms on launch (CMCL / Prism Quick Play).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quick_play: Option<QuickPlay>,
     /// When set, this version runs via container mode (Podman). `None` = native.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<crate::ContainerMeta>,
@@ -136,6 +178,7 @@ impl Instance {
             width: None,
             height: None,
             jvm_args: None,
+            quick_play: None,
             container: None,
         }
     }

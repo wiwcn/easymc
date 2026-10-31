@@ -8,6 +8,7 @@ mod paths;
 mod store;
 mod skin;
 mod wardrobe;
+mod mclogs;
 
 pub mod msa;
 pub use account::*;
@@ -18,3 +19,4 @@ pub use paths::*;
 pub use store::*;
 pub use skin::*;
 pub use wardrobe::*;
+pub use mclogs::*;

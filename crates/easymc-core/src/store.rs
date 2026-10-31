@@ -456,6 +456,7 @@ pub fn duplicate_instance(paths: &Paths, id: &str, new_name: Option<&str>) -> Re
     copy.width = src.width;
     copy.height = src.height;
     copy.jvm_args = src.jvm_args.clone();
+    copy.quick_play = src.quick_play.clone();
     // Container identity is per-version — duplicate stays native until re-attached.
     copy.container = None;
     copy.description = Some(format!("由「{}」复制", src.name));

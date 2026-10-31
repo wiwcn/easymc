@@ -1,5 +1,22 @@
 export type NavId = "home" | "download" | "instances" | "multiplayer" | "accounts" | "wardrobe" | "settings" | "more" | "agent";
 
+export type QuickPlayMode = "world" | "server" | "realms";
+
+/** Skip title screen on launch (Minecraft 1.20+ Quick Play). */
+export interface QuickPlayDto {
+  type: QuickPlayMode;
+  name?: string;
+  address?: string;
+  id?: string;
+}
+
+export interface MclogsUploadResultDto {
+  id: string;
+  url: string;
+  raw?: string | null;
+  message_zh: string;
+}
+
 export interface InstanceDto {
   id: string;
   name: string;
@@ -19,6 +36,8 @@ export interface InstanceDto {
   width?: number | null;
   height?: number | null;
   jvm_args?: string | null;
+  /** Direct-join world/server/Realms on launch. */
+  quick_play?: QuickPlayDto | null;
   /** Present when this version is container-backed (Podman). */
   container?: ContainerMetaDto | null;
 }

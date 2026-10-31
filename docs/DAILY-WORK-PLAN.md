@@ -3,6 +3,17 @@
 时区：Asia/Shanghai。推送只用本机 `~/.config/easymc/gh_token`。不主动打扰 William（除非被挡住）。
 
 
+<!-- QUICK-PLAY-MCLOGS -->
+
+## 已完成 · Quick Play + mclo.gs 日志分享（2026-10-31）
+
+- 对照 CMCL / Prism 等：版本可配置快速进入（世界 / 服务器 / Realms）；启动参数注入；世界页「直进」
+- mclo.gs：上传 `latest.log` 或最新崩溃报告，设置页一键分享并尝试复制链接
+- 文档：`docs/FEATURE-BACKLOG.md`（桌面快捷方式、禁用聊天举报、游玩时长、实时日志等仍待办）
+- 约束：未动并行中的皮肤 / 依赖图 / 图标网格实现；无品牌抄袭
+
+
+
 <!-- CONTAINER-MODE-A-B -->
 
 ## 已完成 · 容器 C/D Focus B 加固（启动 remap + Agent 层 · 2026-10-31）

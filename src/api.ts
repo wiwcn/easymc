@@ -876,6 +876,14 @@ export async function writeLaunchScript(instanceId: string): Promise<{ path: str
   return invokeOrThrow("write_launch_script_cmd", { instanceId });
 }
 
+export async function uploadLatestLog(
+  instanceId?: string | null,
+): Promise<import("./types").MclogsUploadResultDto> {
+  return invokeOrThrow("upload_latest_log_cmd", {
+    instanceId: instanceId || null,
+  });
+}
+
 export async function listLocalContent(instanceId: string, kind: string): Promise<LocalEntryDto[]> {
   return (await invokeSafe<LocalEntryDto[]>("list_local_content_cmd", { instanceId, kind })) ?? [];
 }
