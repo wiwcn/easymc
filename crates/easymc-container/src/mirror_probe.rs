@@ -188,17 +188,29 @@ fn short_reqwest_err(e: &reqwest::Error) -> String {
 }
 
 fn mark_fastest(results: &mut [RegistryMirrorProbe]) {
-    let best = results
-        .iter()
-        .filter(|r| r.ok)
-        .filter_map(|r| r.latency_ms.map(|ms| (r.id.as_str(), ms)))
-        .min_by_key(|(_, ms)| *ms)
-        .map(|(id, _)| id.to_string());
-    if let Some(id) = best {
-        for r in results.iter_mut() {
-            r.recommended = r.id == id;
-        }
+    for r in results.iter_mut() {
+        r.recommended = false;
     }
+    let best_idx = results
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.ok)
+        .filter_map(|(i, r)| r.latency_ms.map(|ms| (i, ms)))
+        .min_by_key(|&(i, ms)| (ms, i))
+        .map(|(i, _)| i);
+    if let Some(i) = best_idx {
+        results[i].recommended = true;
+    }
+    results.sort_by(|a, b| match (a.ok, b.ok) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (true, true) => a
+            .latency_ms
+            .unwrap_or(u32::MAX)
+            .cmp(&b.latency_ms.unwrap_or(u32::MAX))
+            .then_with(|| a.id.cmp(&b.id)),
+        (false, false) => a.id.cmp(&b.id),
+    });
 }
 
 /// Sanity: default sample images stay consistent with registries helpers.
@@ -255,5 +267,61 @@ mod tests {
     fn elapsed_ms_never_zero() {
         let start = Instant::now();
         assert!(elapsed_ms(start) >= 1);
+    }
+
+    #[test]
+    fn mark_fastest_never_picks_slower_china_over_faster_ok() {
+        // Live box: DaoCloud ~1068ms, Official ~189ms — A must not stay ★.
+        let mut v = vec![
+            RegistryMirrorProbe {
+                id: "daocloud".into(),
+                label_zh: "国内线路 A".into(),
+                region_zh: "国内".into(),
+                prefer_china: true,
+                ok: true,
+                latency_ms: Some(1068),
+                error_zh: None,
+                recommended: true, // stale
+                sample_image: String::new(),
+            },
+            RegistryMirrorProbe {
+                id: "dockerproxy".into(),
+                label_zh: "国内线路 B".into(),
+                region_zh: "国内".into(),
+                prefer_china: true,
+                ok: false,
+                latency_ms: None,
+                error_zh: Some("超时".into()),
+                recommended: false,
+                sample_image: String::new(),
+            },
+            RegistryMirrorProbe {
+                id: "onems".into(),
+                label_zh: "国内线路 C".into(),
+                region_zh: "国内".into(),
+                prefer_china: true,
+                ok: true,
+                latency_ms: Some(1743),
+                error_zh: None,
+                recommended: false,
+                sample_image: String::new(),
+            },
+            RegistryMirrorProbe {
+                id: "official".into(),
+                label_zh: "官方".into(),
+                region_zh: "全球".into(),
+                prefer_china: false,
+                ok: true,
+                latency_ms: Some(189),
+                error_zh: None,
+                recommended: false,
+                sample_image: String::new(),
+            },
+        ];
+        mark_fastest(&mut v);
+        let rec: Vec<_> = v.iter().filter(|r| r.recommended).map(|r| r.id.as_str()).collect();
+        assert_eq!(rec, ["official"]);
+        assert!(!v.iter().find(|r| r.id == "daocloud").unwrap().recommended);
+        assert_eq!(v[0].id, "official");
     }
 }

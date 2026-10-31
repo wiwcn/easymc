@@ -30,8 +30,9 @@ pub use env_pack::{
     ENV_EXT, ENV_FORMAT_ID, ENV_FORMAT_VERSION, ENV_MANIFEST_NAME,
 };
 pub use image::{
-    ensure_runtime_image, resolve_runtime_image, runtime_image_ready, try_pull_runtime_image,
-    ImagePullResult,
+    ensure_runtime_image, ensure_runtime_image_for_profile, resolve_runtime_image,
+    resolve_runtime_image_for_profile, runtime_image_ready, runtime_image_ready_for_profile,
+    try_pull_runtime_image, try_pull_runtime_image_for_profile, ImagePullResult,
 };
 pub use launch::{
     assemble_container_run_argv, default_image, gui_mount_hints, gui_note_zh,
@@ -52,10 +53,10 @@ pub use preheat::{
     PreheatStatus,
 };
 pub use registries::{
-    china_friendly_registries_toml, prefer_china_image_ref, prefer_image_ref_for_profile,
-    registries_conf_path, registries_toml_for_profile, write_china_registries_config,
-    write_registries_config_for_profile, ChinaRegistriesResult, DEFAULT_BASE_IMAGE,
-    DEFAULT_BASE_IMAGE_MIRROR,
+    china_friendly_registries_toml, clear_china_registries_config, prefer_china_image_ref,
+    prefer_image_ref_for_profile, registries_conf_path, registries_toml_for_profile,
+    write_china_registries_config, write_registries_config_for_profile, ChinaRegistriesResult,
+    DEFAULT_BASE_IMAGE, DEFAULT_BASE_IMAGE_MIRROR,
 };
 pub use mirror_probe::{
     list_registry_mirror_candidates, probe_registry_mirrors, RegistryMirrorCandidate,

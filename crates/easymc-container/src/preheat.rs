@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::detect::{detect_podman, probe_container_runtime, ProbeStatus};
 use crate::image::{ensure_runtime_image, runtime_image_ready, try_pull_runtime_image, ImagePullResult};
-use crate::podman_util::podman_cmd;
+use crate::podman_util::{podman_cmd, try_wake_runtime};
 
 const WARM_WINDOW_SECS: u64 = 30 * 60; // 30 minutes counts as "warm"
 
@@ -107,18 +107,15 @@ pub fn preheat_status(prefer_china: bool) -> PreheatStatus {
             .map(|s| s <= WARM_WINDOW_SECS)
             .unwrap_or(false);
 
-    let message_zh = if matches!(probe.status, ProbeStatus::Unsupported) {
+    // Same detect truth as onboarding: when runtime is not Ready, surface probe.message_zh.
+    let message_zh = if !machine_ready {
         probe.message_zh
     } else if warm {
         "隔离环境已准备好，开玩更快".into()
-    } else if machine_ready && image_ready {
+    } else if image_ready {
         "隔离环境还在，但距上次准备较久，建议再点一次「现在就准备好」".into()
-    } else if machine_ready {
-        "隔离组件已就绪，还差下载运行环境基础文件".into()
-    } else if matches!(probe.status, ProbeStatus::NotInstalled) {
-        "还没装隔离组件，提前准备暂不可用".into()
     } else {
-        "隔离环境还没准备：提前准备可减少第一次开玩的等待".into()
+        "隔离组件已就绪，还差下载运行环境基础文件".into()
     };
 
     PreheatStatus {
@@ -165,24 +162,12 @@ pub fn preheat_container_runtime_ex(
         ProbeStatus::InstalledNotReady | ProbeStatus::NotInstalled
     ) {
         if let Some(info) = detect_podman() {
-            if cfg!(target_os = "windows") {
-                messages.push("正在启动运行环境（冷启动可能需要几十秒）…".into());
-                match podman_cmd(&info.path, &["machine", "start"]) {
-                    Ok(_) => {
-                        machine_started = true;
-                        messages.push("运行环境已启动".into());
-                    }
-                    Err(e) => {
-                        let _ = podman_cmd(&info.path, &["machine", "init", "--now"]);
-                        machine_started = true;
-                        messages.push(format!("已尝试初始化/启动 Machine：{e}"));
-                    }
-                }
-            } else {
-                messages.push("隔离组件已装但未就绪，请到设置里点「修复隔离环境」".into());
-            }
+            messages.push("正在唤醒隔离环境…".into());
+            let wake = try_wake_runtime(&info.path);
+            messages.push(wake.message_zh.clone());
+            machine_started = wake.ok;
         } else {
-            messages.push("尚未安装隔离组件".into());
+            messages.push(probe.message_zh.clone());
         }
         probe = probe_container_runtime();
     }

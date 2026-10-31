@@ -78,10 +78,14 @@ impl MirrorProfile {
         }
     }
 
-    pub fn default_image(self) -> &'static str {
+    pub fn default_image(self) -> String {
         match self {
-            Self::Official => DEFAULT_BASE_IMAGE,
-            _ => DEFAULT_BASE_IMAGE_MIRROR,
+            Self::Official => DEFAULT_BASE_IMAGE.to_string(),
+            Self::Daocloud => DEFAULT_BASE_IMAGE_MIRROR.to_string(),
+            Self::Dockerproxy | Self::Onems => {
+                let host = self.docker_io_mirror_host().expect("cn proxy has host");
+                format!("{host}/library/eclipse-temurin:21-jre")
+            }
         }
     }
 
@@ -171,16 +175,12 @@ pub fn repair_container_runtime_with_profile(
     let mut messages = Vec::new();
     let mut registries = None;
 
-    if prefer_china {
-        match write_registries_config_for_profile(profile) {
-            Ok(r) => {
-                messages.push(r.message_zh.clone());
-                registries = Some(r);
-            }
-            Err(e) => messages.push(format!("下载加速配置失败：{e}")),
+    match write_registries_config_for_profile(profile) {
+        Ok(r) => {
+            messages.push(r.message_zh.clone());
+            registries = Some(r);
         }
-    } else {
-        messages.push("已选择官方线路；跳过写入国内加速配置".into());
+        Err(e) => messages.push(format!("加速线路配置失败：{e}")),
     }
 
     let preheat = preheat_container_runtime(prefer_china, true);

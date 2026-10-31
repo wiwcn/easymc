@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::detect::{detect_podman, probe_container_runtime, ProbeStatus};
 use crate::podman_util::{podman_bin, podman_cmd};
-use crate::registries::{prefer_china_image_ref, DEFAULT_BASE_IMAGE, DEFAULT_BASE_IMAGE_MIRROR};
+use crate::registries::{prefer_image_ref_for_profile, DEFAULT_BASE_IMAGE};
+use crate::repair::MirrorProfile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImagePullResult {
@@ -16,11 +17,11 @@ pub struct ImagePullResult {
 
 /// Resolve which image ref to use (DaoCloud prefix when prefer_china).
 pub fn resolve_runtime_image(prefer_china: bool) -> String {
-    if prefer_china {
-        DEFAULT_BASE_IMAGE_MIRROR.to_string()
-    } else {
-        prefer_china_image_ref(DEFAULT_BASE_IMAGE, false)
-    }
+    resolve_runtime_image_for_profile(MirrorProfile::from_prefer_china(prefer_china))
+}
+
+pub fn resolve_runtime_image_for_profile(profile: MirrorProfile) -> String {
+    prefer_image_ref_for_profile(DEFAULT_BASE_IMAGE, profile)
 }
 
 fn image_present(bin: &str, image: &str) -> bool {
@@ -29,6 +30,10 @@ fn image_present(bin: &str, image: &str) -> bool {
 
 /// Ensure the runtime image is local — pull via Podman (registries.conf mirrors apply).
 pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, String> {
+    ensure_runtime_image_for_profile(MirrorProfile::from_prefer_china(prefer_china))
+}
+
+pub fn ensure_runtime_image_for_profile(profile: MirrorProfile) -> Result<ImagePullResult, String> {
     let probe = probe_container_runtime();
     if matches!(probe.status, ProbeStatus::Unsupported) {
         return Err(probe.message_zh);
@@ -40,7 +45,7 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
         ));
     }
     let bin = podman_bin()?;
-    let image = resolve_runtime_image(prefer_china);
+    let image = resolve_runtime_image_for_profile(profile);
     if image_present(&bin, &image) {
         return Ok(ImagePullResult {
             image,
@@ -49,7 +54,6 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
             message_zh: "运行环境基础文件已在本地".into(),
         });
     }
-    // Fall back: if China mirror fails, try public docker.io tag once.
     match podman_cmd(&bin, &["pull", &image]) {
         Ok(_) => Ok(ImagePullResult {
             message_zh: format!("已下载运行环境基础文件 {image}"),
@@ -57,16 +61,16 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
             pulled: true,
             already_present: false,
         }),
-        Err(e) if prefer_china => {
+        Err(e) if profile.prefer_china() => {
             let fallback = DEFAULT_BASE_IMAGE.to_string();
             podman_cmd(&bin, &["pull", &fallback]).map_err(|e2| {
-                format!("下载基础文件失败（国内线路：{e}；官方线路：{e2}）")
+                format!("下载基础文件失败（{}：{e}；官方线路：{e2}）", profile.label_zh())
             })?;
             Ok(ImagePullResult {
                 image: fallback,
                 pulled: true,
                 already_present: false,
-                message_zh: "国内线路失败，已改用官方线路下载 Java 运行环境".into(),
+                message_zh: format!("{}失败，已改用官方线路下载 Java 运行环境", profile.label_zh()),
             })
         }
         Err(e) => Err(format!("下载基础文件失败：{e}")),
@@ -75,10 +79,14 @@ pub fn ensure_runtime_image(prefer_china: bool) -> Result<ImagePullResult, Strin
 
 /// Best-effort pull without requiring Ready (used during preheat after machine start).
 pub fn try_pull_runtime_image(prefer_china: bool) -> ImagePullResult {
-    match ensure_runtime_image(prefer_china) {
+    try_pull_runtime_image_for_profile(MirrorProfile::from_prefer_china(prefer_china))
+}
+
+pub fn try_pull_runtime_image_for_profile(profile: MirrorProfile) -> ImagePullResult {
+    match ensure_runtime_image_for_profile(profile) {
         Ok(r) => r,
         Err(msg) => ImagePullResult {
-            image: resolve_runtime_image(prefer_china),
+            image: resolve_runtime_image_for_profile(profile),
             pulled: false,
             already_present: false,
             message_zh: msg,
@@ -88,11 +96,15 @@ pub fn try_pull_runtime_image(prefer_china: bool) -> ImagePullResult {
 
 /// True when local podman reports the image.
 pub fn runtime_image_ready(prefer_china: bool) -> bool {
+    runtime_image_ready_for_profile(MirrorProfile::from_prefer_china(prefer_china))
+}
+
+pub fn runtime_image_ready_for_profile(profile: MirrorProfile) -> bool {
     let Some(pod) = detect_podman() else {
         return false;
     };
     if !pod.ready {
         return false;
     }
-    image_present(&pod.path, &resolve_runtime_image(prefer_china))
+    image_present(&pod.path, &resolve_runtime_image_for_profile(profile))
 }

@@ -103,6 +103,30 @@ pub struct ChinaRegistriesResult {
     pub message_zh: String,
 }
 
+/// Remove China registries drop-in so official pulls are not rewritten.
+pub fn clear_china_registries_config() -> Result<ChinaRegistriesResult, String> {
+    let Some(path) = registries_conf_path() else {
+        return Ok(ChinaRegistriesResult {
+            path: String::new(),
+            wrote: false,
+            message_zh: "已改用官方线路（海外）".into(),
+        });
+    };
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+        return Ok(ChinaRegistriesResult {
+            path: path.to_string_lossy().into_owned(),
+            wrote: true,
+            message_zh: "已清除国内加速配置，改用官方线路（海外）".into(),
+        });
+    }
+    Ok(ChinaRegistriesResult {
+        path: path.to_string_lossy().into_owned(),
+        wrote: false,
+        message_zh: "已改用官方线路（海外）".into(),
+    })
+}
+
 /// Write (or refresh) the China mirrors drop-in (DaoCloud). Idempotent.
 pub fn write_china_registries_config() -> Result<ChinaRegistriesResult, String> {
     let path = registries_conf_path().ok_or_else(|| "无法定位用户目录".to_string())?;
@@ -134,11 +158,7 @@ pub fn write_registries_config_for_profile(
     profile: MirrorProfile,
 ) -> Result<ChinaRegistriesResult, String> {
     if matches!(profile, MirrorProfile::Official) {
-        return Ok(ChinaRegistriesResult {
-            path: String::new(),
-            wrote: false,
-            message_zh: "已选择官方线路；跳过写入国内加速配置".into(),
-        });
+        return clear_china_registries_config();
     }
     // DaoCloud keeps the richer multi-registry map; other CN proxies only rewrite docker.io.
     if matches!(profile, MirrorProfile::Daocloud) {

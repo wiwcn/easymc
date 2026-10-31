@@ -465,7 +465,10 @@ export class SettingsPage extends LitElement {
     try {
       const list = await probeRegistryMirrors();
       this.registryProbes = list;
-      const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
+      const ok = list.filter((r) => r.ok && r.latency_ms != null);
+      const best = ok.length
+        ? ok.reduce((a, b) => ((b.latency_ms ?? 1e9) < (a.latency_ms ?? 1e9) ? b : a))
+        : list.find((r) => r.recommended) ?? list.find((r) => r.ok);
       if (best) {
         this.settings = await updateSettings({ container_mirror_profile: best.id });
         showToast(`已选用最快加速：${this.softMirrorLabel(best.id, best.label_zh)}${best.latency_ms != null ? `（${best.latency_ms} ms）` : ""}`);

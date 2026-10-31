@@ -401,12 +401,25 @@ export class OnboardingPage extends LitElement {
         platform: "other",
       };
     }
-    void this.runRegistryProbe(false);
+    void this.runRegistryProbe(true);
   }
 
   private pickContainerMirror(id: string, preferChina: boolean) {
     this.containerMirrorId = id;
     this.containerChina = preferChina;
+  }
+
+  /** Real min latency among successful probes (never leave a slower line selected). */
+  private pickFastestRegistry(list: Array<{
+    id: string; prefer_china?: boolean; ok?: boolean; latency_ms?: number | null; recommended?: boolean;
+  }>) {
+    const ok = list.filter((r) => r.ok && r.latency_ms != null) as Array<{
+      id: string; prefer_china?: boolean; latency_ms: number;
+    }>;
+    const best = ok.length
+      ? ok.reduce((a, b) => (b.latency_ms < a.latency_ms ? b : a))
+      : list.find((r) => r.recommended) ?? list.find((r) => r.ok);
+    if (best) this.pickContainerMirror(best.id, !!best.prefer_china);
   }
 
   private async runRegistryProbe(autoPick: boolean) {
@@ -415,10 +428,7 @@ export class OnboardingPage extends LitElement {
     try {
       const list = await probeRegistryMirrors();
       this.registryProbes = list;
-      if (autoPick) {
-        const best = list.find((r) => r.recommended) ?? list.find((r) => r.ok);
-        if (best) this.pickContainerMirror(best.id, !!best.prefer_china);
-      }
+      if (autoPick) this.pickFastestRegistry(list);
     } catch (e) {
       this.softToast(this.friendly(e));
     } finally {
@@ -489,7 +499,8 @@ export class OnboardingPage extends LitElement {
   private async enterEnvStep() {
     this.goStep(3);
     await this.refreshEnv();
-    void this.runDownloadProbe(false);
+    // Auto-pick fastest download mirror on first enter.
+    void this.runDownloadProbe(true);
   }
 
   private async skipContainer() {
@@ -804,22 +815,29 @@ export class OnboardingPage extends LitElement {
             </div>
           </div>
           <div class="actions-stack">
-            <button class="btn ghost" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
-              ${this.containerBusy ? "正在配置…" : ready ? "再检查一次（可选）" : "配置隔离环境（可选）"}
-            </button>
             ${this.containerLog ? html`<div class="java-log" aria-live="polite">${this.containerLog}</div>` : nothing}
+            ${ready
+              ? html`<button class="btn ghost" style="width:100%" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>再检查一次</button>`
+              : nothing}
           </div>
         `;
     return {
       title: "要用隔离环境吗？（可选）",
-      sub: "完全可选。开启后每个版本的模组与存档分开存放。不想装也没关系——直接点「暂不使用，继续」就能往下走。",
+      sub: "完全可选。开启后每个版本的模组与存档分开存放；点「配置隔离环境」按提示完成即可。跳过也能继续开玩。",
       body,
       footLeft: html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => this.goStep(1)}>上一步</button>`,
       footRight: html`
-        <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
         ${ready
-          ? html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>已配置，下一步</button>`
-          : nothing}
+          ? html`
+              <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>已配置，下一步</button>
+              <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
+            `
+          : html`
+              <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
+                ${this.containerBusy ? "正在配置…" : "配置隔离环境"}
+              </button>
+              <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
+            `}
       `,
     };
   }

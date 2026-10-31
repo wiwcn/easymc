@@ -7,7 +7,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::detect::{detect_podman, probe_container_runtime, ProbeStatus, RuntimeProbe};
-use crate::registries::{write_china_registries_config, ChinaRegistriesResult};
+use crate::podman_util::try_wake_runtime;
+use crate::registries::{
+    clear_china_registries_config, write_china_registries_config, ChinaRegistriesResult,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -144,7 +147,7 @@ pub fn install_guidance() -> SetupPlan {
 
     let summary_zh = match probe.status {
         ProbeStatus::Ready => "隔离环境已就绪，只需确认国内下载加速。".into(),
-        ProbeStatus::NotInstalled => "还差安装隔离组件，按步骤做完就能用容器版本。".into(),
+        ProbeStatus::NotInstalled => "还差安装隔离组件，按步骤做完就能用版本隔离。".into(),
         ProbeStatus::InstalledNotReady => "隔离组件已装，还差启动运行环境 / 服务。".into(),
         ProbeStatus::Unsupported => probe.message_zh.clone(),
     };
@@ -187,19 +190,19 @@ pub fn apply_one_click_setup(prefer_china_mirrors: bool) -> SetupResult {
             }
             Err(e) => messages.push(format!("下载加速配置失败：{e}")),
         }
+    } else {
+        match clear_china_registries_config() {
+            Ok(r) => messages.push(r.message_zh),
+            Err(e) => messages.push(format!("清除国内加速配置失败：{e}")),
+        }
     }
 
-    // Try machine start when binary exists but not ready (Windows acceptance path).
-    if matches!(
-        plan.probe.status,
-        ProbeStatus::InstalledNotReady | ProbeStatus::NotInstalled
-    ) {
+    // Wake when binary exists but not ready (Win Machine / Linux user socket).
+    if matches!(plan.probe.status, ProbeStatus::InstalledNotReady) {
         if let Some(info) = detect_podman() {
-            if !info.ready && cfg!(target_os = "windows") {
-                let _ = std::process::Command::new(&info.path)
-                    .args(["machine", "start"])
-                    .output();
-                messages.push("已尝试启动运行环境".into());
+            if !info.ready {
+                let wake = try_wake_runtime(&info.path);
+                messages.push(wake.message_zh);
             }
         }
     }
