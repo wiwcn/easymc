@@ -34,9 +34,9 @@ pub use propose::{
     suggested_client_jvm, undo_proposal, ApplyPayload, ChangeProposal, ProposeItem, UndoSnapshot,
 };
 pub use agent_loop::{
-    is_dangerous_tool, resolve_max_turns, run_agent_loop, run_agent_loop_with_progress,
-    tool_done_summary_zh, tool_start_summary_zh, AgentCompleter, AgentLoopConfig, AgentLoopResult,
-    AgentStepEvent, DEFAULT_MAX_TURNS, ENV_MAX_TURNS,
+    compose_reason_plan_zh, is_dangerous_tool, resolve_max_turns, run_agent_loop,
+    run_agent_loop_with_progress, tool_done_summary_zh, tool_start_summary_zh, AgentCompleter,
+    AgentLoopConfig, AgentLoopResult, AgentStepEvent, DEFAULT_MAX_TURNS, ENV_MAX_TURNS,
 };
 pub use service::{
     ask, ask_with_progress, execute_intent, memory_suggestion, run_diagnose, run_diagnose_with_path, tune_proposal, AskRequest, AskResponse,

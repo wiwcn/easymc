@@ -241,6 +241,270 @@ fn deps_done_summary(name: &str, card: &ToolCall) -> Option<String> {
     }
 }
 
+
+/// Build a plain-Chinese「原因 / 方案」reply from tool cards.
+///
+/// Prefer structured payloads (missing deps, fill ok/fail, conflicts) over a bare「好了。」.
+/// If `existing_reply` already contains both labels, it is kept as-is.
+pub fn compose_reason_plan_zh(tools: &[ToolCall], existing_reply: &str) -> String {
+    let existing = existing_reply.trim();
+    if existing.contains("原因") && existing.contains("方案") {
+        return existing.to_string();
+    }
+
+    let (reason, plan) = derive_reason_plan(tools);
+    let thin = is_thin_reply(existing);
+
+    if reason.is_none() && plan.is_none() {
+        if !thin {
+            return existing.to_string();
+        }
+        if tools.iter().any(|t| t.status == ToolStatus::Error) {
+            return "原因：有步骤没做成。\n方案：展开上方工具卡看详情，或换个说法再试。".into();
+        }
+        if !tools.is_empty() {
+            return "原因：已按你的请求跑完相关步骤。\n方案：需要细节可点开上方步骤摘要或工具卡。".into();
+        }
+        return existing.to_string();
+    }
+
+    let mut out = String::new();
+    if let Some(r) = &reason {
+        out.push_str("原因：");
+        out.push_str(r);
+    }
+    if let Some(p) = &plan {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("方案：");
+        out.push_str(p);
+    }
+
+    // Keep a substantial prose reply as an intro when it does not already explain 原因.
+    if !thin && !existing.contains("原因") && existing.chars().count() > 40 {
+        return format!("{existing}\n\n{out}");
+    }
+    out
+}
+
+fn is_thin_reply(s: &str) -> bool {
+    let t = s.trim();
+    t.is_empty()
+        || t == "(空回复)"
+        || t == "好了。"
+        || t == "好了"
+        || t == "这次没做成。"
+        || t == "这次没做成"
+        || t.starts_with("好了，步骤都跑完了")
+        || t == "整理好了答复。"
+}
+
+fn derive_reason_plan(tools: &[ToolCall]) -> (Option<String>, Option<String>) {
+    let mut reason_bits: Vec<String> = Vec::new();
+    let mut plan_bits: Vec<String> = Vec::new();
+
+    for card in tools {
+        let name = card.name.as_str();
+        let payload = card.payload.as_ref();
+
+        match name {
+            "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => {
+                let missing = payload
+                    .and_then(|p| p.get("missing_ids"))
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str())
+                            .take(8)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                let conflicts = payload
+                    .and_then(|p| p.get("conflict_messages"))
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str())
+                            .take(4)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                if card.status == ToolStatus::Error {
+                    reason_bits.push(
+                        card.result_zh
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or("依赖检查失败。")
+                            .to_string(),
+                    );
+                    plan_bits.push("确认已选版本后再说「查依赖」。".into());
+                } else if missing.is_empty() && conflicts.is_empty() {
+                    reason_bits.push("模组必需依赖齐全，也没看出明显冲突。".into());
+                    plan_bits.push("若游戏仍异常，把崩溃日志发我或说「诊断」。".into());
+                } else {
+                    if !missing.is_empty() {
+                        let more = if missing.len() >= 8 { " 等" } else { "" };
+                        reason_bits.push(format!(
+                            "缺 {} 个必需依赖：{}{}",
+                            payload
+                                .and_then(|p| p.get("missing_ids"))
+                                .and_then(|v| v.as_array())
+                                .map(|a| a.len())
+                                .unwrap_or(missing.len()),
+                            missing.join("、"),
+                            more
+                        ));
+                        plan_bits.push("已可自动从 Modrinth 补全能匹配到的项；也可以说「补全缺失依赖」。".into());
+                    }
+                    if !conflicts.is_empty() {
+                        reason_bits.push(format!("存在冲突/版本不匹配：{}", conflicts.join("；")));
+                        plan_bits.push("冲突项需手动调整模组版本或禁用冲突模组，无法一键下载解决。".into());
+                    }
+                }
+            }
+            "fetch_missing_mod_deps" | "install_missing_deps" => {
+                let installed = payload
+                    .and_then(|p| {
+                        p.get("installed")
+                            .or_else(|| p.get("installed_ids"))
+                    })
+                    .and_then(|v| v.as_array());
+                let fails = payload
+                    .and_then(|p| p.get("failed").or_else(|| p.get("failures")))
+                    .and_then(|v| v.as_array());
+                let skipped = payload
+                    .and_then(|p| p.get("skipped"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let deferred = payload
+                    .and_then(|p| p.get("deferred"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                if card.status == ToolStatus::Error {
+                    reason_bits.push(
+                        card.result_zh
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or("补全依赖失败。")
+                            .to_string(),
+                    );
+                    plan_bits.push("检查网络/下载源后重试，或到下载页手动搜模组。".into());
+                } else if skipped {
+                    reason_bits.push("当前没有可自动补全的缺失依赖。".into());
+                    plan_bits.push("若仍缺 jar，到下载页按模组名搜索安装。".into());
+                } else if deferred {
+                    let targets = payload
+                        .and_then(|p| p.get("targets"))
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
+                    reason_bits.push(format!("检测到约 {targets} 个可尝试补全的缺失依赖。"));
+                    plan_bits.push("主机正在/将从 Modrinth 下载；完成后可再说「再查依赖」核对。".into());
+                } else if let Some(arr) = installed {
+                    let n = arr.len();
+                    let names: Vec<_> = arr
+                        .iter()
+                        .filter_map(|x| {
+                            x.as_str()
+                                .or_else(|| x.get("mod_id").and_then(|v| v.as_str()))
+                                .or_else(|| x.get("id").and_then(|v| v.as_str()))
+                        })
+                        .take(6)
+                        .collect();
+                    if n > 0 {
+                        reason_bits.push(format!("此前缺依赖，已尝试补全 {n} 个。"));
+                        if !names.is_empty() {
+                            plan_bits.push(format!(
+                                "已装上 {}{}；建议再说「再查依赖」确认是否还缺。",
+                                names.join("、"),
+                                if n > names.len() { " 等" } else { "" }
+                            ));
+                        } else {
+                            plan_bits.push("建议再说「再查依赖」确认是否还缺。".into());
+                        }
+                    }
+                    if let Some(f) = fails {
+                        if !f.is_empty() {
+                            reason_bits.push(format!("另有 {} 个未能自动下载。", f.len()));
+                            plan_bits.push("失败项多半是 breaks/别名/嵌套 jar，或 Modrinth 无对应工程；需手动处理。".into());
+                        }
+                    }
+                } else if let Some(n) = payload.and_then(|p| p.get("installed_count")).and_then(|v| v.as_u64()) {
+                    reason_bits.push(format!("此前缺依赖，已补全 {n} 个。"));
+                    plan_bits.push("建议再说「再查依赖」确认是否还缺。".into());
+                } else if let Some(r) = card.result_zh.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    plan_bits.push(first_line_trimmed(r, 72));
+                }
+            }
+            "diagnose" | "analyze_crash_log" | "analyze_launch_log" | "diagnostics" => {
+                if let Some(s) = payload
+                    .and_then(|p| p.get("summary_zh"))
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    reason_bits.push(truncate(s, 80));
+                } else if let Some(r) = card.result_zh.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    reason_bits.push(first_line_trimmed(r, 72));
+                }
+                if card.status == ToolStatus::Ok {
+                    plan_bits.push("按诊断卡里的修复建议操作；需要调内存可以说「内存调到 4G」。".into());
+                }
+            }
+            _ => {
+                match card.status {
+                    ToolStatus::Error => {
+                        let r = card
+                            .result_zh
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(|s| first_line_trimmed(s, 72))
+                            .unwrap_or_else(|| {
+                                let (title, _) = crate::tool::tool_meta(name);
+                                format!("{title}没成功。")
+                            });
+                        reason_bits.push(r);
+                        plan_bits.push("展开工具卡看详情，或换个说法再试。".into());
+                    }
+                    ToolStatus::Pending => {
+                        let (title, _) = crate::tool::tool_meta(name);
+                        reason_bits.push(format!("{title}需要你确认后才会改动。"));
+                        plan_bits.push("在工具卡上点确认/应用，或说「取消」。".into());
+                    }
+                    ToolStatus::Ok | ToolStatus::Running => {}
+                }
+            }
+        }
+    }
+
+    // Dedup while preserving order
+    fn dedup(bits: Vec<String>) -> Option<String> {
+        let mut out: Vec<String> = Vec::new();
+        for b in bits {
+            let t = b.trim();
+            if t.is_empty() {
+                continue;
+            }
+            if out.iter().any(|x| x == t) {
+                continue;
+            }
+            out.push(t.to_string());
+        }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out.join(" "))
+        }
+    }
+
+    (dedup(reason_bits), dedup(plan_bits))
+}
+
 /// Abstraction over chat completions so the agent loop can be unit-tested
 /// without a live OpenAI-compatible endpoint.
 #[async_trait]
@@ -656,6 +920,11 @@ pub async fn run_agent_loop_with_progress(
         }
     }
 
+    // Prefer structured 原因/方案 over bare「好了。」 when tools ran.
+    if !tools_out.is_empty() {
+        last_content = compose_reason_plan_zh(&tools_out, &last_content);
+    }
+
     if !last_content.trim().is_empty() {
         step_index += 1;
         emit_step(
@@ -1017,5 +1286,58 @@ mod tests {
             assert!(s.summary_zh.chars().count() <= 64, "{}", s.summary_zh);
         }
     }
+
+    #[test]
+    fn compose_reason_plan_from_deps_payload() {
+        let check = ToolCall {
+            id: "t1".into(),
+            name: "check_mod_deps".into(),
+            title_zh: "模组依赖".into(),
+            status: ToolStatus::Ok,
+            args: vec![],
+            result_zh: Some("缺一堆".into()),
+            path: None,
+            payload: Some(json!({
+                "missing_ids": ["fabric-api", "cloth-config"],
+                "conflict_messages": [],
+                "summary_zh": "缺 2 个"
+            })),
+            ui_actions: vec![],
+            tag_zh: Some("依赖".into()),
+        };
+        let out = compose_reason_plan_zh(&[check], "好了。");
+        assert!(out.contains("原因"), "{out}");
+        assert!(out.contains("方案"), "{out}");
+        assert!(out.contains("fabric-api") || out.contains("缺"), "{out}");
+        assert!(!out.trim().eq("好了。"), "{out}");
+
+        // Already labeled → keep
+        let labeled = "原因：测试原因\n方案：测试方案";
+        assert_eq!(compose_reason_plan_zh(&[], labeled), labeled);
+    }
+
+    #[test]
+    fn compose_reason_plan_fetch_and_conflicts() {
+        let fetch = ToolCall {
+            id: "t2".into(),
+            name: "fetch_missing_mod_deps".into(),
+            title_zh: "补全依赖".into(),
+            status: ToolStatus::Ok,
+            args: vec![],
+            result_zh: Some("装好了".into()),
+            path: None,
+            payload: Some(json!({
+                "installed": ["fabric-api"],
+                "failed": [{"id": "nope", "reason": "not_found"}]
+            })),
+            ui_actions: vec![],
+            tag_zh: Some("依赖".into()),
+        };
+        let out = compose_reason_plan_zh(&[fetch], "");
+        assert!(out.contains("原因"), "{out}");
+        assert!(out.contains("方案"), "{out}");
+        assert!(out.contains("1") || out.contains("补全") || out.contains("fabric"), "{out}");
+    }
+
 
 }

@@ -68,7 +68,11 @@ model the player must confirm in Chinese so the rule path can execute.
 `AskResponse.steps: AgentStepEvent[]` — short Chinese step abstracts (look → do → verify).
 While `agent_ask` runs, the host also emits Tauri event `agent-step` with the same payload so
 the chat can append lines live (`1. 正在检查模组依赖…`). Tool cards stay collapsible detail;
-the step list leads.
+the step list leads. **After the turn finishes**, the Agent page folds all step abstracts into a
+`<details>` summary（「已执行 N 步 · 点击展开」）; live progressive steps stay open during the run.
+
+Final `reply_zh` prefers a plain-Chinese **原因 / 方案** block derived from tool payloads
+(`compose_reason_plan_zh`: missing deps, fill ok/fail, conflicts) instead of a bare「好了。」.
 
 ## Mod dependency tools
 

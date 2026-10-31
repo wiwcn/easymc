@@ -11,7 +11,7 @@ use crate::actions::{
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
-use crate::agent_loop::{resolve_max_turns, run_agent_loop_with_progress, AgentLoopConfig, AgentStepEvent};
+use crate::agent_loop::{compose_reason_plan_zh, resolve_max_turns, run_agent_loop_with_progress, AgentLoopConfig, AgentStepEvent};
 use crate::llm::{llm_status, LlmStatus, OpenAiCompatibleProvider};
 use crate::skills::skill_augmented_system_prompt;
 use crate::propose::{
@@ -454,6 +454,12 @@ fn make_ask_response_with_tools(
     } else {
         tools
     };
+    // Rule-path / thin LLM replies → structured 原因/方案 when tools are present.
+    let reply_zh = if !tools.is_empty() {
+        compose_reason_plan_zh(&tools, &reply_zh)
+    } else {
+        reply_zh
+    };
     let steps = if steps.is_empty() && !tools.is_empty() {
         let mut s = steps_from_tools(&tools);
         if !reply_zh.trim().is_empty() {
@@ -462,7 +468,14 @@ fn make_ask_response_with_tools(
         }
         s
     } else {
-        steps
+        // Refresh trailing reply abstract if we rewrote the bubble text.
+        let mut s = steps;
+        if let Some(last) = s.last_mut() {
+            if last.phase == "reply" && !reply_zh.trim().is_empty() {
+                *last = AgentStepEvent::reply(last.index, &reply_zh);
+            }
+        }
+        s
     };
     AskResponse {
         mode: mode.into(),

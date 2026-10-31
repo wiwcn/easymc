@@ -442,6 +442,44 @@ export class AgentPage extends LitElement {
       color: var(--md-sys-color-on-surface);
       font-weight: var(--easymc-weight-medium);
     }
+    /* Completed turn: fold numbered abstracts; click summary to expand */
+    .step-abstracts-fold {
+      margin: var(--easymc-space-2) 0 0;
+      padding: 0;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background: color-mix(in oklch, var(--md-sys-color-surface-container) 70%, transparent);
+    }
+    .step-abstracts-fold > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: var(--easymc-weight-medium);
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+    .step-abstracts-fold > summary::-webkit-details-marker {
+      display: none;
+    }
+    .step-abstracts-fold > summary::before {
+      content: "▸";
+      color: var(--md-sys-color-primary);
+      font-size: 0.85em;
+    }
+    .step-abstracts-fold[open] > summary::before {
+      content: "▾";
+    }
+    .step-abstracts-fold .step-abstracts {
+      margin: 0;
+      padding: 0 0 6px;
+    }
+    .step-abstracts-fold .step-abstracts li {
+      background: transparent;
+    }
 
     /* Normalized tool card */
     .tool-card {
@@ -1089,11 +1127,20 @@ export class AgentPage extends LitElement {
           void this.applyAction(resp.action);
         }
       }
-      // Prefer short bubble when the tool card already carries the result body.
-      if (tool?.result_zh && content.trim() === tool.result_zh.trim()) {
-        content = tool.status === "error" ? "这次没做成。" : "好了。";
-      }
+      // Prefer short bubble when the tool card already carries the result body —
+      // but never leave a bare「好了。」; derive 原因/方案 from tool payloads.
       if (tools.length === 0 && tool) tools = [tool];
+      if (tool?.result_zh && content.trim() === tool.result_zh.trim()) {
+        content = this.composeReasonPlanFromTools(tools, tool.status === "error" ? "这次没做成。" : "好了。");
+      } else if (tools.length && (!content.trim() || content.trim() === "好了。" || content.trim() === "这次没做成。")) {
+        content = this.composeReasonPlanFromTools(tools, content);
+      } else if (tools.length && !/原因/.test(content) && !/方案/.test(content)) {
+        // Host may already have composed; if not, enrich thin acks only.
+        const enriched = this.composeReasonPlanFromTools(tools, content);
+        if (/原因/.test(enriched) || /方案/.test(enriched)) {
+          content = enriched;
+        }
+      }
 
       const liveSteps = this.turns[progressIndex]?.steps ?? [];
       const respSteps = Array.isArray(resp.steps) ? resp.steps : [];
@@ -1530,9 +1577,9 @@ ${extraContent}` : t.content,
     return t.length > max ? `${t.slice(0, max)}…` : t;
   }
 
-  private renderStepAbstracts(steps?: AgentStepDto[]) {
+  private renderStepAbstracts(steps?: AgentStepDto[], fold = false) {
     if (!steps?.length) return nothing;
-    return html`<ol class="step-abstracts" aria-label="执行步骤">
+    const list = html`<ol class="step-abstracts" aria-label="执行步骤">
       ${steps.map(
         (s) => html`<li class="${s.phase}">
           <span class="step-idx">${s.index}.</span>
@@ -1540,6 +1587,119 @@ ${extraContent}` : t.content,
         </li>`,
       )}
     </ol>`;
+    // Live progressive steps stay open; after the turn finishes, fold into a summary.
+    if (!fold) return list;
+    const n = steps.length;
+    return html`<details class="step-abstracts-fold">
+      <summary>已执行 ${n} 步 · 点击展开</summary>
+      ${list}
+    </details>`;
+  }
+
+  /** Frontend fallback: build 原因/方案 when the host reply is still a bare ack. */
+  private composeReasonPlanFromTools(tools: ToolCallDto[], existing: string): string {
+    const existingTrim = (existing ?? "").trim();
+    if (/原因/.test(existingTrim) && /方案/.test(existingTrim)) return existingTrim;
+    const thin =
+      !existingTrim ||
+      existingTrim === "好了。" ||
+      existingTrim === "好了" ||
+      existingTrim === "这次没做成。" ||
+      existingTrim === "这次没做成" ||
+      existingTrim.startsWith("好了，步骤都跑完了");
+
+    const reasonBits: string[] = [];
+    const planBits: string[] = [];
+
+    for (const card of tools) {
+      const name = card.name;
+      const payload = (card.payload ?? null) as Record<string, unknown> | null;
+      const missing = Array.isArray(payload?.["missing_ids"])
+        ? (payload!["missing_ids"] as unknown[]).map(String).filter(Boolean)
+        : [];
+      const conflicts = Array.isArray(payload?.["conflict_messages"])
+        ? (payload!["conflict_messages"] as unknown[]).map(String).filter(Boolean)
+        : [];
+
+      if (name === "check_mod_deps" || name === "mod_dep_graph" || name === "analyze_mod_deps") {
+        if (card.status === "error") {
+          reasonBits.push((card.result_zh ?? "").trim() || "依赖检查失败。");
+          planBits.push("确认已选版本后再说「查依赖」。");
+        } else if (!missing.length && !conflicts.length) {
+          reasonBits.push("模组必需依赖齐全，也没看出明显冲突。");
+          planBits.push("若游戏仍异常，把崩溃日志发我或说「诊断」。");
+        } else {
+          if (missing.length) {
+            const preview = missing.slice(0, 8).join("、");
+            reasonBits.push(
+              `缺 ${missing.length} 个必需依赖：${preview}${missing.length > 8 ? " 等" : ""}`,
+            );
+            planBits.push("可以说「补全缺失依赖」从 Modrinth 自动下载能匹配到的项。");
+          }
+          if (conflicts.length) {
+            reasonBits.push(`存在冲突/版本不匹配：${conflicts.slice(0, 4).join("；")}`);
+            planBits.push("冲突项需手动调整模组版本或禁用冲突模组。");
+          }
+        }
+      } else if (name === "fetch_missing_mod_deps" || name === "install_missing_deps") {
+        const installedRaw = payload?.["installed"] ?? payload?.["installed_ids"];
+        const installed = Array.isArray(installedRaw) ? (installedRaw as unknown[]) : [];
+        const failsRaw = payload?.["failed"] ?? payload?.["failures"];
+        const fails = Array.isArray(failsRaw) ? (failsRaw as unknown[]) : [];
+        if (card.status === "error") {
+          reasonBits.push((card.result_zh ?? "").trim() || "补全依赖失败。");
+          planBits.push("检查网络/下载源后重试，或到下载页手动搜模组。");
+        } else if (payload?.["skipped"]) {
+          reasonBits.push("当前没有可自动补全的缺失依赖。");
+          planBits.push("若仍缺 jar，到下载页按模组名搜索安装。");
+        } else if (installed.length) {
+          reasonBits.push(`此前缺依赖，已尝试补全 ${installed.length} 个。`);
+          planBits.push("建议再说「再查依赖」确认是否还缺。");
+          if (fails.length) {
+            reasonBits.push(`另有 ${fails.length} 个未能自动下载。`);
+            planBits.push("失败项多半需手动处理（breaks/别名/无工程）。");
+          }
+        } else if ((card.result_zh ?? "").trim()) {
+          planBits.push((card.result_zh ?? "").trim().split("\n")[0]!.slice(0, 72));
+        }
+      } else if (card.status === "error") {
+        const line = ((card.result_zh ?? "").trim().split("\n")[0] ?? "").slice(0, 72);
+        reasonBits.push(line || `${card.title_zh || card.name}没成功。`);
+        planBits.push("展开工具卡看详情，或换个说法再试。");
+      } else if (card.status === "pending") {
+        reasonBits.push(`${card.title_zh || card.name}需要你确认后才会改动。`);
+        planBits.push("在工具卡上点确认/应用，或说「取消」。");
+      }
+    }
+
+    const uniq = (xs: string[]) => {
+      const out: string[] = [];
+      for (const x of xs) {
+        const t = x.trim();
+        if (t && !out.includes(t)) out.push(t);
+      }
+      return out;
+    };
+    const reason = uniq(reasonBits).join(" ");
+    const plan = uniq(planBits).join(" ");
+    if (!reason && !plan) {
+      if (!thin) return existingTrim;
+      if (tools.some((t) => t.status === "error")) {
+        return "原因：有步骤没做成。\n方案：展开上方工具卡看详情，或换个说法再试。";
+      }
+      if (tools.length) {
+        return "原因：已按你的请求跑完相关步骤。\n方案：需要细节可点开上方步骤摘要或工具卡。";
+      }
+      return existingTrim;
+    }
+    const lines: string[] = [];
+    if (reason) lines.push(`原因：${reason}`);
+    if (plan) lines.push(`方案：${plan}`);
+    const block = lines.join("\n");
+    if (!thin && !existingTrim.includes("原因") && existingTrim.length > 40) {
+      return `${existingTrim}\n\n${block}`;
+    }
+    return block;
   }
 
   private renderToolCard(turn: ChatTurn, index: number) {
@@ -2068,7 +2228,7 @@ ${extraContent}` : t.content,
                       <div class="avatar" aria-hidden="true">${t.role === "user" ? "你" : "助"}</div>
                       <div>
                         <div class="bubble">${t.content}</div>
-                        ${t.role === "assistant" ? this.renderStepAbstracts(t.steps) : nothing}
+                        ${t.role === "assistant" ? this.renderStepAbstracts(t.steps, t.mode !== "running") : nothing}
                         ${t.role === "assistant"
                           ? (t.tools?.length
                               ? html`<div class="tool-stack">${t.tools.map((tc) => this.renderToolCard({ ...t, tool: tc }, idx))}</div>`
