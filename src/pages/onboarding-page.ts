@@ -99,9 +99,48 @@ export class OnboardingPage extends LitElement {
     }
     .chrome-top { flex-shrink: 0; }
     .brand { font-weight: var(--easymc-weight-bold); font-size: var(--easymc-type-display); letter-spacing: -0.02em; margin-bottom: 4px; }
-    .steps { display: flex; gap: 6px; margin: 0 0 16px; }
-    .steps i { flex: 1; height: 4px; border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-surface-container-highest); }
-    .steps i.on { background: var(--md-sys-color-primary); }
+    .steps {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      gap: 8px;
+      margin: 0 0 16px;
+      list-style: none;
+      padding: 0;
+    }
+    .steps li {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .steps .bar {
+      height: 4px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-surface-container-highest);
+    }
+    .steps li.on .bar { background: var(--md-sys-color-primary); }
+    .steps li.current .bar { background: var(--md-sys-color-primary); }
+    .steps .lbl {
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+    .steps li.on .lbl, .steps li.current .lbl {
+      color: var(--md-sys-color-on-surface);
+      font-weight: var(--easymc-weight-medium);
+    }
+    .probe-banner {
+      display: flex; align-items: center; gap: 8px;
+      margin: 8px 0 4px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .mirror-row .lat { min-width: 4.5em; text-align: right; }
+    .actions-stack { margin-top: 16px; display: grid; gap: 10px; }
     .chrome-top h1 { margin: 0 0 6px; font-size: var(--easymc-type-display); }
     .chrome-top p.sub { margin: 0 0 12px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; }
     .scroll {
@@ -286,7 +325,6 @@ export class OnboardingPage extends LitElement {
       max-height: 120px;
       overflow: auto;
     }
-    .actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
     @media (prefers-reduced-motion: reduce) { button.opt { transition: none; } }
   `,
   ];
@@ -330,7 +368,27 @@ export class OnboardingPage extends LitElement {
   }
 
   private friendly(e: unknown): string {
-    return friendlyError(e);
+    return this.softenPlayerCopy(friendlyError(e));
+  }
+
+  /** Strip leftover ops jargon (Podman CLI, registries, raw URLs) for player UI. */
+  private softenPlayerCopy(s: string): string {
+    if (!s) return s;
+    return s
+      .replace(/\bpodman(?:-desktop)?(?:\.io)?\b/gi, "隔离组件")
+      .replace(/\bpodman\s+machine\s+\w+/gi, "完成官方安装包里的剩余步骤")
+      .replace(/\bpodman\s+info\b/gi, "检查隔离环境")
+      .replace(/apt(?:-get)?\s+install\s+podman[^\n]*/gi, "用系统软件源安装隔离组件")
+      .replace(/https?:\/\/\S*podman\S*/gi, "官方安装包下载页")
+      .replace(/registries\.conf/gi, "加速配置")
+      .replace(/\bcurl\s*\|\s*sh\b/gi, "一键脚本（本应用不会执行）")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  private softenProbeMessage(msg: string | null | undefined): string {
+    if (!msg) return "检测中…";
+    return this.softenPlayerCopy(friendlyError(msg, msg));
   }
 
   /** Short top toast so foot CTAs stay clickable; never stick across steps. */
@@ -528,11 +586,13 @@ export class OnboardingPage extends LitElement {
       });
       const result = await containerOneClickSetup(this.containerChina);
       this.containerProbe = result.probe;
-      const lines = [...(result.messages_zh || [])];
+      const lines = [...(result.messages_zh || [])].map((l) => this.softenPlayerCopy(l));
       for (const p of result.pending || []) {
-        lines.push(`${p.title_zh}：${p.detail_zh}`);
-        if (p.command) lines.push(`  $ ${p.command}`);
-        if (p.url) lines.push(`  ${p.url}`);
+        const detail = this.softenPlayerCopy(p.detail_zh || "");
+        lines.push(`${p.title_zh}：${detail}`);
+        if (p.command || p.url) {
+          lines.push("  需要时打开官方安装包，按提示完成剩余步骤即可（不用记命令）");
+        }
       }
       this.containerLog = lines.filter(Boolean).join("\n");
       const ready = (result.probe?.status || "") === "ready";
@@ -673,11 +733,7 @@ export class OnboardingPage extends LitElement {
       <div class="wrap">
         <div class="chrome-top">
           <div class="brand">EasyMC</div>
-          <div class="steps" aria-label=${`第 ${this.progressIndex()} 步，共 ${this.progressTotal()} 步`}>
-            ${Array.from({ length: this.progressTotal() }, (_, i) => i + 1).map(
-              (i) => html`<i class=${i <= this.progressIndex() ? "on" : ""}></i>`,
-            )}
-          </div>
+          ${this.renderSteps()}
           <h1>${title}</h1>
           <p class="sub">${sub}</p>
         </div>
@@ -690,19 +746,49 @@ export class OnboardingPage extends LitElement {
     `;
   }
 
-  /** Visible progress depends on mode: standard skips container. */
+  /** Agent path includes isolation; standard skips it. Use step===2 as fallback. */
+  private agentPath(): boolean {
+    return this.mode === "agent" || this.step === 2;
+  }
+
+  private progressLabels(): string[] {
+    return this.agentPath()
+      ? ["模式", "隔离", "环境", "登录", "账户"]
+      : ["模式", "环境", "登录", "账户"];
+  }
+
   private progressTotal(): number {
-    return this.mode === "agent" ? 5 : 4;
+    return this.progressLabels().length;
   }
 
   private progressIndex(): number {
-    // Logical order: mode(1) → [container(2)] → env(3) → login(4) → account(5)
-    if (this.mode === "agent") return this.step;
-    // standard: 1→1, 3→2, 4→3, 5→4 (step 2 unused)
+    // Logical: mode(1) → [isolation(2)] → env(3) → login(4) → account(5)
+    if (this.agentPath()) {
+      if (this.step <= 1) return 1;
+      return Math.min(this.step, 5);
+    }
     if (this.step <= 1) return 1;
     if (this.step === 3) return 2;
     if (this.step === 4) return 3;
     return 4;
+  }
+
+  private renderSteps() {
+    const labels = this.progressLabels();
+    const idx = this.progressIndex();
+    return html`
+      <ol class="steps" aria-label=${`第 ${idx} 步，共 ${labels.length} 步：${labels.join("、")}`}>
+        ${labels.map(
+          (label, i) => html`<li
+            class=${i + 1 < idx ? "on" : i + 1 === idx ? "on current" : ""}
+            aria-current=${i + 1 === idx ? "step" : "false"}
+          >
+            <span class="bar" aria-hidden="true"></span>
+            <span class="lbl">${label}</span>
+          </li>`,
+        )}
+      </ol>
+    `;
   }
 
   private stepChrome(): {
@@ -763,14 +849,14 @@ export class OnboardingPage extends LitElement {
           { id: "official", label_zh: "官方线路（海外）", region_zh: "全球", prefer_china: false, ok: false, latency_ms: null, error_zh: null, recommended: false, sample_image: "" },
         ];
     const body = unsupported
-      ? html`<div class="notice">${probe?.message_zh || "当前系统不走容器模式。"} 可直接跳过。</div>`
+      ? html`<div class="notice">${this.softenProbeMessage(probe?.message_zh) || "当前系统暂不支持隔离环境。"} 可直接跳过。</div>`
       : html`
           <div class="checklist">
             <div class="check ${ready ? "ok" : ""}">
               <span class="mark" aria-hidden="true">${ready ? "✓" : "·"}</span>
               <div>
                 <strong>隔离运行环境</strong>
-                <div class="meta">${probe?.message_zh || "检测中…"}</div>
+                <div class="meta">${this.softenProbeMessage(probe?.message_zh)}</div>
               </div>
             </div>
             <div class="check ok">
@@ -778,6 +864,9 @@ export class OnboardingPage extends LitElement {
               <div>
                 <strong>下载加速源</strong>
                 <div class="meta">国内网络建议选国内加速；测速后可自动选最快，也可自己点。</div>
+                ${this.registryProbeBusy
+                  ? html`<p class="probe-banner"><span class="probe-spin" aria-hidden="true"></span>正在测速加速线路…</p>`
+                  : nothing}
                 <div class="mirror-list" role="radiogroup" aria-label="下载加速源">
                   ${mirrors.map(
                     (m) => html`
@@ -795,7 +884,7 @@ export class OnboardingPage extends LitElement {
                           ${m.recommended ? html`<span class="badge">推荐</span>` : nothing}
                         </span>
                         <span class="lat">${this.registryProbeBusy && !m.ok && m.latency_ms == null && !m.error_zh
-                          ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                          ? "…"
                           : this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
                       </button>
                     `,
@@ -807,9 +896,7 @@ export class OnboardingPage extends LitElement {
                   ?disabled=${this.registryProbeBusy || this.containerBusy}
                   @click=${() => void this.runRegistryProbe(true)}
                 >
-                  ${this.registryProbeBusy
-                    ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
-                    : "测速并选用最快"}
+                  ${this.registryProbeBusy ? "测速中…" : "测速并选用最快"}
                 </button>
               </div>
             </div>
@@ -823,21 +910,18 @@ export class OnboardingPage extends LitElement {
         `;
     return {
       title: "要用隔离环境吗？（可选）",
-      sub: "完全可选。开启后每个版本的模组与存档分开存放；点「配置隔离环境」按提示完成即可。跳过也能继续开玩。",
+sub: "完全可选。开启后每个版本的模组与存档分开存放；点「配置隔离环境」按提示完成即可。不想装就点「暂不使用」。",
       body,
       footLeft: html`<button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => this.goStep(1)}>上一步</button>`,
       footRight: html`
         ${ready
-          ? html`
-              <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>已配置，下一步</button>
-              <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
-            `
-          : html`
-              <button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
-                ${this.containerBusy ? "正在配置…" : "配置隔离环境"}
-              </button>
-              <button class="btn ghost" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用，继续</button>
-            `}
+          ? html`<button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.acceptContainerAndContinue()}>已配置，下一步</button>`
+          : html`<button class="btn primary" ?disabled=${this.containerBusy} @click=${() => void this.runContainerSetup()}>
+                ${this.containerBusy
+                  ? html`<span class="probe-spin" aria-hidden="true"></span>正在配置…`
+                  : "配置隔离环境"}
+              </button>`}
+        <button class="btn ghost skip-cta" ?disabled=${this.containerBusy} @click=${() => void this.skipContainer()}>暂不使用</button>
       `,
     };
   }
@@ -873,6 +957,9 @@ export class OnboardingPage extends LitElement {
             <div>
               <strong>下载源</strong>
               <div class="meta">国内网络建议用加速源；可测速后自动选最快，也可手动指定。</div>
+              ${this.downloadProbeBusy
+                ? html`<p class="probe-banner"><span class="probe-spin" aria-hidden="true"></span>正在测速下载线路…</p>`
+                : nothing}
               <div class="mirror-list" role="radiogroup" aria-label="下载源">
                 ${dl.map(
                   (m) => html`
@@ -890,7 +977,7 @@ export class OnboardingPage extends LitElement {
                         ${m.recommended ? html`<span class="badge">推荐·最快</span>` : nothing}
                       </span>
                       <span class="lat">${this.downloadProbeBusy && !m.ok && m.latency_ms == null && !m.error_zh
-                        ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+                        ? "…"
                         : this.latencyLabel(!!m.ok, m.latency_ms, m.error_zh)}</span>
                     </button>
                   `,
@@ -902,9 +989,7 @@ export class OnboardingPage extends LitElement {
                 ?disabled=${this.downloadProbeBusy || this.envBusy}
                 @click=${() => void this.runDownloadProbe(true)}
               >
-                ${this.downloadProbeBusy
-                  ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
-                  : "测速并选用最快"}
+                ${this.downloadProbeBusy ? "测速中…" : "测速并选用最快"}
               </button>
             </div>
           </div>

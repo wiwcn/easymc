@@ -2080,8 +2080,19 @@ fn container_one_click_setup_cmd(
 }
 
 #[tauri::command]
-fn container_write_registries_cmd() -> Result<easymc_container::ChinaRegistriesResult, String> {
-    write_china_registries_config()
+fn container_write_registries_cmd(
+    state: State<'_, AppState>,
+) -> Result<easymc_container::ChinaRegistriesResult, String> {
+    let paths = state_paths(&state);
+    let profile = load_settings(paths)
+        .ok()
+        .and_then(|s| MirrorProfile::parse(&s.container_mirror_profile))
+        .unwrap_or_else(|| {
+            load_settings(paths)
+                .map(|s| MirrorProfile::from_prefer_china(s.container_china_mirrors))
+                .unwrap_or(MirrorProfile::Daocloud)
+        });
+    write_registries_config_for_profile(profile)
 }
 
 #[tauri::command]

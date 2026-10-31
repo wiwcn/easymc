@@ -16,6 +16,7 @@ import {
   msaStatus,
   setCurseforgeKey,
   updateSettings,
+  containerOneClickSetup,
   containerPreheat,
   containerPreheatStatus,
   containerProbe,
@@ -29,6 +30,7 @@ import {
 import type {
   AppMode,
   ContainerPreheatStatusDto,
+  ContainerRuntimeProbeDto,
   CurseForgeStatusDto,
   DownloadMirrorProbeDto,
   LlmConfigViewDto,
@@ -65,7 +67,10 @@ export class SettingsPage extends LitElement {
   @state() private mcDirs: MinecraftDirDto[] = [];
   @state() private javaBusy = false;
   @state() private preheatStatus: ContainerPreheatStatusDto | null = null;
+  @state() private containerRuntimeProbe: ContainerRuntimeProbeDto | null = null;
   @state() private containerBusy = false;
+  /** Which isolation CTA is running — drives per-button progress labels. */
+  @state() private containerBusyAction: "probe" | "setup" | "preheat" | "registries" | "repair" | null = null;
   @state() private downloadProbes: DownloadMirrorProbeDto[] = [];
   @state() private downloadProbeBusy = false;
   @state() private registryProbes: RegistryMirrorProbeDto[] = [];
@@ -416,6 +421,72 @@ export class SettingsPage extends LitElement {
     } catch {
       this.preheatStatus = null;
     }
+    try {
+      this.containerRuntimeProbe = await containerProbe();
+    } catch {
+      this.containerRuntimeProbe = null;
+    }
+  }
+
+  private softenPlayerCopy(s: string): string {
+    if (!s) return s;
+    return friendlyError(s, s)
+      .replace(/\bpodman(?:-desktop)?(?:\.io)?\b/gi, "隔离组件")
+      .replace(/\bpodman\s+machine\s+\w+/gi, "完成官方安装包里的剩余步骤")
+      .replace(/registries\.conf/gi, "加速配置")
+      .replace(/https?:\/\/\S*podman\S*/gi, "官方安装包下载页")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  private isolationStatusLine(): string {
+    const enabled = !!this.settings?.container_mode_enabled;
+    const switchPart = enabled ? "开关：已开启" : "开关：未开启";
+    const probe = this.containerRuntimeProbe;
+    const status = (probe?.status || "").toLowerCase();
+    let envPart: string;
+    if (status === "ready") {
+      envPart = "环境：已就绪";
+    } else if (this.preheatStatus?.warm) {
+      envPart = "环境：已准备好";
+    } else if (probe?.message_zh) {
+      envPart = "环境：" + this.softenPlayerCopy(probe.message_zh);
+    } else if (this.preheatStatus?.message_zh) {
+      envPart = "环境：" + this.softenPlayerCopy(this.preheatStatus.message_zh);
+    } else if (this.settings?.container_setup_done && !enabled) {
+      envPart = "环境：未使用（可随时开启）";
+    } else {
+      envPart = "环境：尚未检测 · 可点「检查隔离环境」";
+    }
+    return `${switchPart} · ${envPart}`;
+  }
+
+  private containerActionLabel(
+    action: NonNullable<SettingsPage["containerBusyAction"]>,
+    idle: string,
+    busy: string,
+  ) {
+    if (this.containerBusy && this.containerBusyAction === action) {
+      return html`<span class="probe-spin" aria-hidden="true"></span>${busy}`;
+    }
+    return idle;
+  }
+
+  private async runContainerAction(
+    action: NonNullable<SettingsPage["containerBusyAction"]>,
+    fn: () => Promise<void>,
+  ) {
+    if (this.containerBusy) return;
+    this.containerBusy = true;
+    this.containerBusyAction = action;
+    try {
+      await fn();
+    } catch (e) {
+      showToast(friendlyError(e));
+    } finally {
+      this.containerBusy = false;
+      this.containerBusyAction = null;
+    }
   }
 
   /** Newbie-friendly mirror labels (no DaoCloud / DockerProxy / BMCLAPI brand noise). */
@@ -503,7 +574,7 @@ export class SettingsPage extends LitElement {
     ];
     return html`
       <h1>设置</h1>
-      <p class="sub">先选使用模式，再配 Java、内存与助手连接。账户请到「账户」页。高级选项默认折叠。</p>
+      <p class="sub">先选使用模式，再按需开版本隔离，然后配 Java、内存与助手连接。账户请到「账户」页。</p>
       <div class="md-tabs" role="tablist" aria-label="设置分组">
         <span class="md-tab-ind" aria-hidden="true"></span>
         ${tabs.map(
@@ -531,7 +602,7 @@ export class SettingsPage extends LitElement {
     return html`
       <div class="card">
         <h2>使用模式</h2>
-        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。版本隔离在下方折叠区，需要时再开。</p>
+        <p>助手模式：侧栏有「助手」，适合不想折腾的玩家；标准模式：经典启动器布局，需要时仍可打开助手。需要时在下方「版本隔离」打开即可。</p>
         <div class="md-segmented" role="radiogroup" aria-label="使用模式">
           <span class="md-tab-ind" aria-hidden="true"></span>
           <button
@@ -554,7 +625,205 @@ export class SettingsPage extends LitElement {
           </button>
         </div>
       </div>
-<div class="card">
+      <div class="card" id="version-isolation">
+        <h2>版本隔离（可选）</h2>
+        <p>
+          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」；标准模式一般不用开。不装也完全能玩。
+        </p>
+        <p class="muted" style="margin:0 0 12px" aria-live="polite">
+          ${this.isolationStatusLine()}
+        </p>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${!!this.settings?.container_mode_enabled}
+              ?disabled=${this.containerBusy}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_mode_enabled: on });
+                showToast(
+                  on
+                    ? (this.settings?.container_setup_done
+                      ? "已开启版本隔离"
+                      : "已开启版本隔离 · 可点「配置隔离环境」完成安装")
+                    : "已关闭版本隔离",
+                );
+                await this.refreshPreheatStatus();
+              }}
+            />
+            开启版本隔离
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
+          <label for="ctr-mirror">隔离环境下载加速</label>
+          <select
+            id="ctr-mirror"
+            aria-label="隔离环境下载加速"
+            ?disabled=${this.containerBusy || this.registryProbeBusy}
+            .value=${this.settings?.container_mirror_profile
+              || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
+            @change=${async (e: Event) => {
+              const v = (e.target as HTMLSelectElement).value;
+              this.settings = await updateSettings({ container_mirror_profile: v });
+              const labels: Record<string, string> = {
+                daocloud: "国内线路 A",
+                dockerproxy: "国内线路 B",
+                onems: "国内线路 C",
+                official: "官方线路（海外）",
+              };
+              showToast(`已切换为${labels[v] || v}`);
+              await this.refreshPreheatStatus();
+            }}
+          >
+            <option value="daocloud">国内线路 A</option>
+            <option value="dockerproxy">国内线路 B</option>
+            <option value="onems">国内线路 C</option>
+            <option value="official">官方线路（海外）</option>
+          </select>
+          <button
+            class="btn ghost"
+            ?disabled=${this.registryProbeBusy || this.containerBusy}
+            @click=${() => void this.probeRegistries()}
+          >${this.registryProbeBusy
+            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
+            : "测速并选用最快"}</button>
+        </div>
+        ${this.registryProbes.length
+          ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
+              ${this.registryProbes.map(
+                (r) => html`<li>
+                  ${this.softMirrorLabel(r.id, r.label_zh)}（${r.region_zh}）—
+                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
+                  ${r.recommended ? " · 推荐" : ""}
+                </li>`,
+              )}
+            </ul>`
+          : nothing}
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_saves_require_propose !== false}
+              ?disabled=${this.containerBusy}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_saves_require_propose: on });
+                showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
+              }}
+            />
+            改存档前先问我一声（推荐）
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input
+              type="checkbox"
+              .checked=${this.settings?.container_auto_preheat !== false}
+              ?disabled=${this.containerBusy}
+              @change=${async (e: Event) => {
+                const on = (e.target as HTMLInputElement).checked;
+                this.settings = await updateSettings({ container_auto_preheat: on });
+                showToast(on ? "已开启后台提前准备" : "已关闭后台提前准备");
+              }}
+            />
+            后台先准备好，下次开玩更快
+          </label>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button
+            class=${this.settings?.container_mode_enabled && !this.settings?.container_setup_done ? "primary" : "tonal"}
+            type="button"
+            ?disabled=${this.containerBusy}
+            title="一键探测并配置隔离环境"
+            @click=${() =>
+              void this.runContainerAction("setup", async () => {
+                this.settings = await updateSettings({
+                  container_mode_enabled: true,
+                  container_china_mirrors: this.settings?.container_china_mirrors !== false,
+                  container_mirror_profile:
+                    this.settings?.container_mirror_profile
+                    || (this.settings?.container_china_mirrors === false ? "official" : "daocloud"),
+                });
+                const r = await containerOneClickSetup(
+                  this.settings?.container_china_mirrors !== false,
+                );
+                const ready = (r.probe?.status || "") === "ready";
+                this.settings = await updateSettings({
+                  container_mode_enabled: true,
+                  container_setup_done: ready || (r.pending?.length ?? 0) > 0,
+                });
+                const pending = (r.pending || [])
+                  .map((p) => p.title_zh)
+                  .filter(Boolean)
+                  .slice(0, 2);
+                const tip = this.softenPlayerCopy(
+                  (r.messages_zh || []).slice(-1)[0]
+                  || (ready ? "隔离环境已就绪" : pending.length ? pending.join("；") : "已记下配置"),
+                );
+                showToast(tip);
+                await this.refreshPreheatStatus();
+              })}
+          >
+            ${this.containerActionLabel("setup", "配置隔离环境", "正在配置…")}
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${() =>
+              void this.runContainerAction("probe", async () => {
+                const p = await containerProbe();
+                this.containerRuntimeProbe = p;
+                showToast(this.softenPlayerCopy(p.message_zh));
+                await this.refreshPreheatStatus();
+              })}
+          >
+            ${this.containerActionLabel("probe", "检查隔离环境", "检查中…")}
+          </button>
+          <button
+            class="tonal"
+            type="button"
+            ?disabled=${this.containerBusy || !this.settings?.container_mode_enabled}
+            title=${this.settings?.container_mode_enabled ? "现在就准备好" : "先开启版本隔离后再准备"}
+            @click=${() =>
+              void this.runContainerAction("preheat", async () => {
+                const r = await containerPreheat(true);
+                showToast(this.softenPlayerCopy(r.messages_zh.join("；") || (r.ok ? "准备完成" : "准备未完成")));
+                await this.refreshPreheatStatus();
+              })}
+          >
+            ${this.containerActionLabel("preheat", "现在就准备好", "正在准备…")}
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.containerBusy}
+            @click=${() =>
+              void this.runContainerAction("registries", async () => {
+                const r = await containerWriteRegistries();
+                showToast(this.softenPlayerCopy(r.message_zh));
+              })}
+          >
+            ${this.containerActionLabel("registries", "应用加速源配置", "正在应用…")}
+          </button>
+          <button
+            class=${this.settings?.container_mode_enabled ? "tonal" : "ghost"}
+            type="button"
+            ?disabled=${this.containerBusy || !this.settings?.container_mode_enabled}
+            title=${this.settings?.container_mode_enabled ? "修复隔离环境" : "先开启版本隔离后再修复"}
+            @click=${() =>
+              void this.runContainerAction("repair", async () => {
+                const r = await containerRepair({ reprovision: true });
+                showToast(this.softenPlayerCopy(r.messages_zh.slice(-2).join("；") || (r.ok ? "修复完成" : "修复未完成")));
+                await this.refreshPreheatStatus();
+              })}
+          >
+            ${this.containerActionLabel("repair", "修复隔离环境", "正在修复…")}
+          </button>
+        </div>
+      </div>
+      <div class="card">
         <h2>Java 运行环境</h2>
         <p>
           开玩 Minecraft 需要 Java。下面列出本机已检测到的版本；点一行即可设为全局首选（单个版本仍可在版本管理里单独指定）。没有合适版本时，点一次即可自动下载并交给 EasyMC 使用。
@@ -876,175 +1145,7 @@ export class SettingsPage extends LitElement {
           </button>
         </div>
       </details>
-      <details class="card" ?open=${!!this.settings?.container_mode_enabled}>
-        <summary>版本隔离（可选）</summary>
-        <p>
-          把每个版本的模组、配置分开存放，互不打架。更适合「助手模式」；标准模式一般不用开。不装也完全能玩。
-        </p>
-        <p class="muted" style="margin:0 0 12px">
-          ${this.preheatStatus
-            ? (this.preheatStatus.warm ? "状态：已准备好 · " : "状态：还没准备 · ") + this.preheatStatus.message_zh
-            : "状态：尚未检测"}
-        </p>
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${!!this.settings?.container_mode_enabled}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_mode_enabled: on });
-                showToast(on ? "已开启版本隔离" : "已关闭版本隔离");
-              }}
-            />
-            开启版本隔离
-          </label>
-        </div>
-        <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
-          <label for="ctr-mirror">隔离环境下载加速</label>
-          <select
-            id="ctr-mirror"
-            aria-label="容器下载加速源"
-            .value=${this.settings?.container_mirror_profile
-              || (this.settings?.container_china_mirrors === false ? "official" : "daocloud")}
-            @change=${async (e: Event) => {
-              const v = (e.target as HTMLSelectElement).value;
-              this.settings = await updateSettings({ container_mirror_profile: v });
-              const labels: Record<string, string> = {
-                daocloud: "国内线路 A",
-                dockerproxy: "国内线路 B",
-                onems: "国内线路 C",
-                official: "官方线路（海外）",
-              };
-              showToast(`已切换为${labels[v] || v}`);
-              await this.refreshPreheatStatus();
-            }}
-          >
-            <option value="daocloud">国内线路 A</option>
-            <option value="dockerproxy">国内线路 B</option>
-            <option value="onems">国内线路 C</option>
-            <option value="official">官方线路（海外）</option>
-          </select>
-          <button
-            class="btn ghost"
-            ?disabled=${this.registryProbeBusy}
-            @click=${() => void this.probeRegistries()}
-          >${this.registryProbeBusy
-            ? html`<span class="probe-spin" aria-hidden="true"></span>测速中…`
-            : "测速并选用最快"}</button>
-        </div>
-        ${this.registryProbes.length
-          ? html`<ul class="muted" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
-              ${this.registryProbes.map(
-                (r) => html`<li>
-                  ${this.softMirrorLabel(r.id, r.label_zh)}（${r.region_zh}）—
-                  ${r.ok && r.latency_ms != null ? `${r.latency_ms} ms` : r.error_zh || "失败"}
-                  ${r.recommended ? " · 推荐" : ""}
-                </li>`,
-              )}
-            </ul>`
-          : nothing}
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${this.settings?.container_saves_require_propose !== false}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_saves_require_propose: on });
-                showToast(on ? "存档修改需确认" : "存档可直接写入（不推荐）");
-              }}
-            />
-            改存档前先问我一声（推荐）
-          </label>
-        </div>
-        <div class="row" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input
-              type="checkbox"
-              .checked=${this.settings?.container_auto_preheat !== false}
-              @change=${async (e: Event) => {
-                const on = (e.target as HTMLInputElement).checked;
-                this.settings = await updateSettings({ container_auto_preheat: on });
-                showToast(on ? "已开启后台提前准备" : "已关闭后台提前准备");
-              }}
-            />
-            后台先准备好，下次开玩更快
-          </label>
-        </div>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button
-            class="ghost"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              try {
-                const p = await containerProbe();
-                showToast(p.message_zh);
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(friendlyError(e));
-              }
-            }}
-          >
-            检查隔离环境
-          </button>
-          <button
-            class="tonal"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              this.containerBusy = true;
-              try {
-                const r = await containerPreheat(true);
-                showToast(r.messages_zh.join("；") || (r.ok ? "准备完成" : "准备未完成"));
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(friendlyError(e));
-              } finally {
-                this.containerBusy = false;
-              }
-            }}
-          >
-            现在就准备好
-          </button>
-          <button
-            class="ghost"
-            type="button"
-            ?disabled=${this.containerBusy}
-            @click=${async () => {
-              try {
-                const r = await containerWriteRegistries();
-                showToast(r.message_zh);
-              } catch (e) {
-                showToast(friendlyError(e));
-              }
-            }}
-          >
-            应用加速源配置
-          </button>
-          <button
-            class=${this.settings?.container_mode_enabled ? "tonal" : "ghost"}
-            type="button"
-            ?disabled=${this.containerBusy || !this.settings?.container_mode_enabled}
-            title=${this.settings?.container_mode_enabled ? "修复隔离环境" : "先开启版本隔离后再修复"}
-            @click=${async () => {
-              this.containerBusy = true;
-              try {
-                const r = await containerRepair({ reprovision: true });
-                showToast(r.messages_zh.slice(-2).join("；") || (r.ok ? "修复完成" : "修复未完成"));
-                await this.refreshPreheatStatus();
-              } catch (e) {
-                showToast(friendlyError(e));
-              } finally {
-                this.containerBusy = false;
-              }
-            }}
-          >
-            修复隔离环境
-          </button>
-        </div>
-      </details>
+
 
 
     `;
@@ -1123,7 +1224,7 @@ export class SettingsPage extends LitElement {
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
-    showToast(m === "agent" ? "已切换到助手模式（需要时再到下方开版本隔离）" : "已切换到标准模式");
+    showToast(m === "agent" ? "已切换到助手模式（需要时打开下方版本隔离）" : "已切换到标准模式");
   }
 
   private renderOther() {

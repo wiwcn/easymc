@@ -209,7 +209,7 @@ pub fn probe_container_runtime() -> RuntimeProbe {
         },
         Some(info) if info.ready => RuntimeProbe {
             status: ProbeStatus::Ready,
-            // Player copy: never embed binary name / rootless / version string.
+// Player copy: never embed binary name / rootless / version string.
             message_zh: "隔离环境已就绪".into(),
             podman: Some(info),
             platform,

@@ -42,6 +42,7 @@ export function friendlyError(e: unknown, fallback = "操作没成功，请稍�
       .replace(/Podman\s*Desktop/gi, "官方安装包")
       .replace(/Podman\s*Machine/gi, "运行环境")
       .replace(/\bPodman\b/gi, "隔离组件")
+      .replace(/\bpodman\s+version\b/gi, "版本")
       .replace(/\bWSLg?\b/gi, "图形支持")
       .replace(/rootless/gi, "")
       .replace(/registries(\.conf)?/gi, "加速配置")
