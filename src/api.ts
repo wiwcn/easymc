@@ -1031,3 +1031,76 @@ export async function containerImportEnv(
 export async function containerReadEnvManifest(path: string) {
   return invokeOrThrow<import("./types").EnvManifestDto>("container_read_env_manifest_cmd", { path });
 }
+
+// ——— Skin wardrobe ———
+
+export async function wardrobeList() {
+  return (
+    (await invokeSafe<import("./types").WardrobeStateDto>("wardrobe_list_cmd")) ?? {
+      entries: [],
+      active_id: null,
+    }
+  );
+}
+
+export async function wardrobeSetActive(id: string | null) {
+  return invokeOrThrow<import("./types").WardrobeStateDto>("wardrobe_set_active_cmd", { id });
+}
+
+export async function wardrobeUpload(opts: {
+  skinPath: string;
+  capePath?: string | null;
+  name?: string | null;
+  model?: string | null;
+}) {
+  return invokeOrThrow<import("./types").WardrobeEntryDto>("wardrobe_upload_cmd", {
+    skinPath: opts.skinPath,
+    capePath: opts.capePath ?? null,
+    name: opts.name ?? null,
+    model: opts.model ?? null,
+  });
+}
+
+export async function wardrobeReplace(opts: {
+  id: string;
+  skinPath?: string | null;
+  capePath?: string | null;
+  name?: string | null;
+  model?: string | null;
+  clearCape?: boolean;
+}) {
+  return invokeOrThrow<import("./types").WardrobeEntryDto>("wardrobe_replace_cmd", {
+    id: opts.id,
+    skinPath: opts.skinPath ?? null,
+    capePath: opts.capePath ?? null,
+    name: opts.name ?? null,
+    model: opts.model ?? null,
+    clearCape: opts.clearCape ?? false,
+  });
+}
+
+export async function wardrobeRemove(id: string) {
+  return invokeOrThrow<import("./types").WardrobeStateDto>("wardrobe_remove_cmd", { id });
+}
+
+export async function skinFetchOfficial(query: string) {
+  return invokeOrThrow<import("./types").ResolvedSkinDto>("skin_fetch_official_cmd", { query });
+}
+
+export async function skinFetchLittleSkin(name: string) {
+  return invokeOrThrow<import("./types").ResolvedSkinDto>("skin_fetch_littleskin_cmd", { name });
+}
+
+export async function wardrobeImportOfficial(query: string, name?: string | null) {
+  return invokeOrThrow<import("./types").WardrobeEntryDto>("wardrobe_import_official_cmd", {
+    query,
+    name: name ?? null,
+  });
+}
+
+export async function wardrobeImportLittleSkin(player: string, name?: string | null) {
+  return invokeOrThrow<import("./types").WardrobeEntryDto>("wardrobe_import_littleskin_cmd", {
+    player,
+    name: name ?? null,
+  });
+}

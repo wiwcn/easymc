@@ -11,6 +11,7 @@ import "./pages/download-page";
 import "./pages/instance-page";
 import "./pages/multiplayer-page";
 import "./pages/accounts-page";
+import "./pages/wardrobe-page";
 import "./pages/settings-page";
 import "./pages/more-page";
 import "./pages/agent-page";
@@ -162,7 +163,7 @@ export class EasyMcApp extends LitElement {
     const navParam = new URLSearchParams(location.search).get("nav");
     const navAlias: Record<string, NavId> = { instance: "instances", library: "instances", store: "download" };
     const nav = (navAlias[navParam ?? ""] ?? navParam) as NavId | null;
-    if (nav && ["home", "download", "instances", "multiplayer", "accounts", "settings", "more", "agent"].includes(nav)) {
+    if (nav && ["home", "download", "instances", "multiplayer", "accounts", "wardrobe", "settings", "more", "agent"].includes(nav)) {
       this.route = nav;
     }
     this.ready = true;
@@ -270,6 +271,8 @@ export class EasyMcApp extends LitElement {
         return html`<easymc-multiplayer-page></easymc-multiplayer-page>`;
       case "accounts":
         return html`<easymc-accounts-page></easymc-accounts-page>`;
+      case "wardrobe":
+        return html`<easymc-wardrobe-page></easymc-wardrobe-page>`;
       case "settings":
         return html`<easymc-settings-page></easymc-settings-page>`;
       case "more":

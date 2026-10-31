@@ -33,3 +33,21 @@ export async function pickEnvPackFile(): Promise<string | null> {
   const t = typed?.trim();
   return t ? t : null;
 }
+
+/** Pick a Minecraft skin / cape PNG. Returns null if cancelled. */
+export async function pickSkinPng(title = "选择皮肤 PNG"): Promise<string | null> {
+  if (isTauri()) {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      title,
+      filters: [{ name: "Minecraft 皮肤", extensions: ["png"] }],
+    });
+    if (selected == null) return null;
+    if (Array.isArray(selected)) return selected[0] ?? null;
+    return selected;
+  }
+  const typed = window.prompt(`${title}（完整路径）`, "");
+  const t = typed?.trim();
+  return t ? t : null;
+}

@@ -1,4 +1,4 @@
-export type NavId = "home" | "download" | "instances" | "multiplayer" | "accounts" | "settings" | "more" | "agent";
+export type NavId = "home" | "download" | "instances" | "multiplayer" | "accounts" | "wardrobe" | "settings" | "more" | "agent";
 
 export interface InstanceDto {
   id: string;
@@ -591,4 +591,34 @@ export interface AgentWorkspaceDto {
   saves_require_propose: boolean;
   layer?: ContainerLayerStateDto | null;
   message_zh: string;
+}
+
+export interface WardrobeEntryDto {
+  id: string;
+  name: string;
+  model: SkinModelId | string;
+  source: string;
+  source_label: string;
+  has_cape: boolean;
+  skin_data_url: string;
+  cape_data_url?: string | null;
+  account_id?: string | null;
+  created_at: string;
+}
+
+export interface WardrobeStateDto {
+  entries: WardrobeEntryDto[];
+  active_id: string | null;
+}
+
+export interface ResolvedSkinDto {
+  name: string;
+  uuid?: string | null;
+  model: string;
+  skin_url: string;
+  cape_url?: string | null;
+  source: string;
+  source_label: string;
+  skin_data_url?: string | null;
+  cape_data_url?: string | null;
 }

@@ -41,3 +41,15 @@ EasyMC itself is MIT — see LICENSE.
    EasyMC emits its own TOML drop-in matching the documented schema shape;
    it does not copy Apache-licensed source files from that project.
 
+6) bs-community/skinview3d — 3D skin + cape viewer (MIT)
+   https://github.com/bs-community/skinview3d
+   Vendored as the npm dependency `skinview3d` (Three.js powered).
+   EasyMC wraps it in `src/components/skin-viewer.ts` for wardrobe preview.
+   License: MIT — see node_modules/skinview3d/LICENSE
+
+7) LittleSkin CSL public API — China-friendly skin library (service)
+   https://littleskin.cn/
+   EasyMC does not vendor LittleSkin; it calls the public CustomSkinLoader
+   JSON endpoint (`/csl/{name}.json`) and texture hashes for import/preview.
+   See: crates/easymc-core/src/skin.rs
+

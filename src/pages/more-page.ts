@@ -66,6 +66,10 @@ export class MorePage extends LitElement {
           <strong>回启动页</strong>
           <span>选版本、开游戏——最常用的入口</span>
         </button>
+        <button class="tile surf-outline" type="button" @click=${() => this.go("wardrobe")}>
+          <strong>皮肤衣柜</strong>
+          <span>三维预览、上传替换，正版 / LittleSkin 导入</span>
+        </button>
         <button class="tile surf-outline" type="button" @click=${() => this.go("instances")}>
           <strong>导出 / 管理版本</strong>
           <span>打开版本管理：导出给好友，或从启动页返回</span>

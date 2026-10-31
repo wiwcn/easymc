@@ -3,21 +3,23 @@
   "version": "0.1.14",
   "private": true,
   "type": "module",
-  "description": "EasyMC — open-source Minecraft Java Edition launcher (Tauri 2 + Lit)",
+  "description": "EasyMC \u2014 open-source Minecraft Java Edition launcher (Tauri 2 + Lit)",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test:ux": "node scripts/test-download-ux.mjs"
+    "test:ux": "node scripts/test-download-ux.mjs",
+    "test:skin": "node scripts/test-skin-wardrobe.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-shell": "^2",
     "lit": "^3.2.1",
-    "motion": "^14.6.0"
+    "motion": "^14.6.0",
+    "skinview3d": "3.4.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

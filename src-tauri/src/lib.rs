@@ -6,6 +6,19 @@ use easymc_core::{
     save_instances, save_settings, set_active_instance, update_instance_fields, upsert_instance,
     Account, AppMode, CreateInstanceOpts, DownloadSource, Instance, McVersion,
     MicrosoftAuthConfig, ModLoader, Paths, Settings,
+    fetch_littleskin_by_name,
+    fetch_official,
+    set_active_wardrobe,
+    wardrobe_import_resolved,
+    wardrobe_remove,
+    wardrobe_replace,
+    wardrobe_state,
+    wardrobe_upload,
+    ResolvedSkin,
+    WardrobeEntryDto,
+    WardrobeStateDto,
+    SkinModel,
+    read_local_file,
 };
 use easymc_launch_desktop::{
     detect_java, detect_minecraft_dirs, ensure_java, prepare_and_launch, write_launch_script, JavaInstall,
@@ -93,6 +106,167 @@ struct VersionListItem {
     version_type: String,
     url: String,
     installed: bool,
+}
+
+// ——— Skin wardrobe (3D preview data + official / LittleSkin import) ———
+
+#[tauri::command]
+fn wardrobe_list_cmd(state: State<'_, AppState>) -> Result<WardrobeStateDto, String> {
+    let paths = state_paths(&state);
+    let _ = ensure_defaults(paths);
+    wardrobe_state(paths).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_set_active_cmd(
+    state: State<'_, AppState>,
+    id: Option<String>,
+) -> Result<WardrobeStateDto, String> {
+    set_active_wardrobe(state_paths(&state), id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_upload_cmd(
+    state: State<'_, AppState>,
+    skin_path: String,
+    cape_path: Option<String>,
+    name: Option<String>,
+    model: Option<String>,
+) -> Result<WardrobeEntryDto, String> {
+    let paths = state_paths(&state);
+    let skin = read_local_file(&skin_path).map_err(|e| e.to_string())?;
+    let cape = match cape_path.as_deref() {
+        Some(p) if !p.is_empty() => Some(read_local_file(p).map_err(|e| e.to_string())?),
+        _ => None,
+    };
+    let m = model.map(|s| SkinModel::parse(&s));
+    wardrobe_upload(paths, &skin, cape.as_deref(), name.as_deref(), m).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_replace_cmd(
+    state: State<'_, AppState>,
+    id: String,
+    skin_path: Option<String>,
+    cape_path: Option<String>,
+    name: Option<String>,
+    model: Option<String>,
+    clear_cape: Option<bool>,
+) -> Result<WardrobeEntryDto, String> {
+    let paths = state_paths(&state);
+    let skin = match skin_path.as_deref() {
+        Some(p) if !p.is_empty() => Some(read_local_file(p).map_err(|e| e.to_string())?),
+        _ => None,
+    };
+    let cape = match cape_path.as_deref() {
+        Some(p) if !p.is_empty() => Some(read_local_file(p).map_err(|e| e.to_string())?),
+        _ => None,
+    };
+    let m = model.map(|s| SkinModel::parse(&s));
+    wardrobe_replace(
+        paths,
+        &id,
+        skin.as_deref(),
+        cape.as_deref(),
+        name.as_deref(),
+        m,
+        clear_cape.unwrap_or(false),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn wardrobe_remove_cmd(state: State<'_, AppState>, id: String) -> Result<WardrobeStateDto, String> {
+    wardrobe_remove(state_paths(&state), &id).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct ResolvedSkinDto {
+    name: String,
+    uuid: Option<String>,
+    model: String,
+    skin_url: String,
+    cape_url: Option<String>,
+    source: String,
+    source_label: String,
+    skin_data_url: Option<String>,
+    cape_data_url: Option<String>,
+}
+
+async fn resolved_to_dto(r: ResolvedSkin, with_bytes: bool) -> Result<ResolvedSkinDto, String> {
+    use base64::Engine;
+    let mut skin_data_url = None;
+    let mut cape_data_url = None;
+    if with_bytes {
+        let skin = easymc_core::download_texture_bytes(&r.skin_url)
+            .await
+            .map_err(|e| e.to_string())?;
+        skin_data_url = Some(format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(&skin)
+        ));
+        if let Some(ref u) = r.cape_url {
+            if let Ok(c) = easymc_core::download_texture_bytes(u).await {
+                cape_data_url = Some(format!(
+                    "data:image/png;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(&c)
+                ));
+            }
+        }
+    }
+    Ok(ResolvedSkinDto {
+        name: r.name,
+        uuid: r.uuid,
+        model: r.model.as_str().into(),
+        skin_url: r.skin_url,
+        cape_url: r.cape_url,
+        source: r.source.as_str().into(),
+        source_label: r.source.label_zh().into(),
+        skin_data_url,
+        cape_data_url,
+    })
+}
+
+#[tauri::command]
+async fn skin_fetch_official_cmd(query: String) -> Result<ResolvedSkinDto, String> {
+    let r = fetch_official(&query).await.map_err(|e| e.to_string())?;
+    resolved_to_dto(r, true).await
+}
+
+#[tauri::command]
+async fn skin_fetch_littleskin_cmd(name: String) -> Result<ResolvedSkinDto, String> {
+    let r = fetch_littleskin_by_name(&name)
+        .await
+        .map_err(|e| e.to_string())?;
+    resolved_to_dto(r, true).await
+}
+
+#[tauri::command]
+async fn wardrobe_import_official_cmd(
+    state: State<'_, AppState>,
+    query: String,
+    name: Option<String>,
+) -> Result<WardrobeEntryDto, String> {
+    let paths = state_paths(&state);
+    let r = fetch_official(&query).await.map_err(|e| e.to_string())?;
+    wardrobe_import_resolved(paths, &r, name.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn wardrobe_import_littleskin_cmd(
+    state: State<'_, AppState>,
+    player: String,
+    name: Option<String>,
+) -> Result<WardrobeEntryDto, String> {
+    let paths = state_paths(&state);
+    let r = fetch_littleskin_by_name(&player)
+        .await
+        .map_err(|e| e.to_string())?;
+    wardrobe_import_resolved(paths, &r, name.as_deref())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2474,6 +2648,15 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             container_export_env_cmd,
             container_import_env_cmd,
             container_read_env_manifest_cmd,
+            wardrobe_list_cmd,
+            wardrobe_set_active_cmd,
+            wardrobe_upload_cmd,
+            wardrobe_replace_cmd,
+            wardrobe_remove_cmd,
+            skin_fetch_official_cmd,
+            skin_fetch_littleskin_cmd,
+            wardrobe_import_official_cmd,
+            wardrobe_import_littleskin_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running EasyMC");

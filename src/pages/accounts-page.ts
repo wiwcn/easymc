@@ -346,7 +346,9 @@ export class AccountsPage extends LitElement {
   render() {
     return html`
       <h1>账户</h1>
-      <p class="sub">点选切换当前名字；可添加或删除。进正版服请用微软账户。</p>
+      <p class="sub">点选切换当前名字；可添加或删除。进正版服请用微软账户。
+        <button class="text" type="button" style="margin-left:8px" @click=${() => this.dispatchEvent(new CustomEvent("nav-change", { detail: "wardrobe", bubbles: true, composed: true }))}>皮肤衣柜 →</button>
+      </p>
       <div class="surf" ?aria-busy=${this.loading}>
         ${this.loading
           ? html`<div class="acct-list" aria-label="正在加载账户">
@@ -377,7 +379,7 @@ export class AccountsPage extends LitElement {
     showToast(`已切换到 ${a.username}`);
   }
 
-  private async remove(a: AccountDto) {
+  private async onRemoveAccount(a: AccountDto) {
     const tip =
       a.kind === "microsoft"
         ? `从本机删除「${a.username}」？微软账户本身不会被注销。`
@@ -432,7 +434,7 @@ export class AccountsPage extends LitElement {
                 class="danger"
                 type="button"
                 title="从本机删除此账户"
-                @click=${() => void this.remove(a)}
+                @click=${() => void this.onRemoveAccount(a)}
               >
                 删除
               </button>
