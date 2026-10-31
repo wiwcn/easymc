@@ -165,14 +165,14 @@ export class InstancePage extends LitElement {
       color: var(--md-sys-color-on-surface-variant);
     }
     .icon {
-      width: 40px; height: 40px; border-radius: var(--md-sys-shape-corner-medium);
+      width: 40px; height: 40px; aspect-ratio: 1 / 1; border-radius: var(--md-sys-shape-corner-medium);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       display: grid; place-items: center; font-weight: var(--easymc-weight-bold); flex-shrink: 0;
       overflow: hidden;
     }
     .icon img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
+      width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;
     }
     .meta { flex: 1; min-width: 0; }
     .meta .name {

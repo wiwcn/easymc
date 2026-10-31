@@ -193,7 +193,7 @@ export class HomePage extends LitElement {
       gap: var(--easymc-space-5);
       padding: var(--easymc-space-6) var(--easymc-space-6) var(--easymc-space-5);
       align-items: stretch;
-      min-height: 228px;
+      min-height: 208px; /* square 176 art + padding; do not crush title/chips */
       transition:
         padding var(--easymc-dur-med) var(--easymc-ease-out),
         min-height var(--easymc-dur-med) var(--easymc-ease-out),
@@ -202,12 +202,13 @@ export class HomePage extends LitElement {
     .featured.compact .featured-top {
       padding: var(--easymc-space-4) var(--easymc-space-4) var(--easymc-space-3);
       gap: var(--easymc-space-4);
-      min-height: 96px; /* keep title + art visible when list expands */
+      min-height: 104px; /* 72 square art + title row breathing room */
       align-items: center;
     }
     .art {
       width: 176px;
-      height: 196px;
+      height: 176px;
+      aspect-ratio: 1 / 1;
       border-radius: var(--md-sys-shape-corner-extra-large);
       flex-shrink: 0;
       align-self: center;
@@ -225,12 +226,14 @@ export class HomePage extends LitElement {
     .featured.compact .art {
       width: 72px;
       height: 72px;
+      aspect-ratio: 1 / 1;
       border-radius: var(--md-sys-shape-corner-medium);
     }
     .art img {
       width: 72%;
       height: 72%;
       object-fit: contain;
+      object-position: center;
       image-rendering: auto;
       filter: drop-shadow(0 6px 14px oklch(0.35 0.04 160 / 0.28));
     }
@@ -243,6 +246,7 @@ export class HomePage extends LitElement {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      object-position: center;
       border-radius: inherit;
       display: block;
     }
@@ -342,6 +346,8 @@ export class HomePage extends LitElement {
       gap: var(--easymc-space-3);
       flex-wrap: wrap;
       padding: var(--easymc-space-5) var(--easymc-space-6);
+      min-height: 64px; /* launch row — do not flatten under square art */
+      box-sizing: border-box;
       border-top: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       background: color-mix(in oklch, var(--md-sys-color-surface-container-low) 55%, transparent);
     }
@@ -501,8 +507,8 @@ export class HomePage extends LitElement {
     }
     /* Hero art shrinks only on very narrow page columns. */
     @container easymc-page (max-width: 560px) {
-      .art { width: 128px; height: 144px; }
-      .featured-top { min-height: 0; }
+      .art { width: 128px; height: 128px; aspect-ratio: 1 / 1; }
+      .featured-top { min-height: 160px; }
     }
     button.vcard {
       position: relative;
@@ -512,7 +518,7 @@ export class HomePage extends LitElement {
       gap: var(--easymc-space-4);
       text-align: left;
       padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
-      min-height: 88px;
+      min-height: 96px; /* keep title/meta/ready row from crushing beside square tile */
       border: 1.5px solid transparent;
       border-radius: var(--easymc-card-radius);
       background: var(--md-sys-color-surface-container-lowest);
@@ -550,10 +556,12 @@ export class HomePage extends LitElement {
     .tile {
       width: 48px;
       height: 48px;
+      aspect-ratio: 1 / 1;
       border-radius: var(--md-sys-shape-corner-medium);
       display: grid;
       place-items: center;
       flex-shrink: 0;
+      overflow: hidden;
     }
     .tile svg { width: 26px; height: 26px; }
     .vcard .title {
@@ -667,7 +675,7 @@ export class HomePage extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(min(var(--easymc-grid-min-tile), 100%), 1fr));
       gap: var(--easymc-grid-gap);
     }
-    .vcard-skel { height: 88px; border-radius: var(--md-sys-shape-corner-large); }
+    .vcard-skel { height: 96px; border-radius: var(--md-sys-shape-corner-large); }
     .muted { color: var(--md-sys-color-on-surface-variant); font-size: var(--easymc-type-meta); }
     .empty-wrap {
       flex: 1 1 auto;

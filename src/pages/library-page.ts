@@ -143,6 +143,7 @@ export class LibraryPage extends LitElement {
       gap: var(--easymc-space-2);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       min-width: 0;
+      min-height: 112px; /* square thumb + title/meta row breathing room */
       height: 100%;
       box-sizing: border-box;
     }
@@ -153,8 +154,10 @@ export class LibraryPage extends LitElement {
     .card-thumb {
       width: 48px;
       height: 48px;
+      aspect-ratio: 1 / 1;
       border-radius: var(--md-sys-shape-corner-medium);
       object-fit: cover;
+      object-position: center;
       flex-shrink: 0;
       background: var(--md-sys-color-surface-container);
       display: block;
@@ -162,6 +165,8 @@ export class LibraryPage extends LitElement {
     .card h3 {
       margin: 0;
       font-size: var(--easymc-type-body);
+      line-height: 1.3;
+      min-height: 1.3em;
     }
     .meta {
       font-size: var(--easymc-type-label);
