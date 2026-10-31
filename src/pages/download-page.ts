@@ -64,7 +64,9 @@ export class DownloadPage extends LitElement {
   @state() private cfKeyDraft = "";
   @state() private progress: InstallProgressDto | null = null;
   @state() private installingId: string | null = null;
-  @state() private expandedId: string | null = null;
+  /** Project open in the page-level version-pick view (null = market grid). */
+  @state() private pickProject: ModProjectDto | null = null;
+  @state() private pickVersionId: string | null = null;
   @state() private versions: ModVersionDto[] = [];
   @state() private versionsLoading = false;
   @state() private worldPick = "";
@@ -171,8 +173,6 @@ export class DownloadPage extends LitElement {
       font-size: var(--easymc-type-label); line-height: 1.4;
     }
     .need-inst .grow { flex: 1; min-width: 160px; }
-    .card-foot .bar { margin: 0; }
-    .card-foot button.primary { padding: 8px 14px; }
     .loader-cta-hint {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant);
       margin: var(--easymc-space-2) 0 0;
@@ -187,59 +187,165 @@ export class DownloadPage extends LitElement {
     }
     .market-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
       gap: var(--easymc-space-3);
+      align-items: stretch;
     }
     .card {
-      display: flex; flex-direction: column; gap: var(--easymc-space-3); padding: var(--easymc-space-4);
+      container-type: inline-size;
+      display: flex; flex-direction: column; gap: var(--easymc-space-3);
+      padding: var(--easymc-space-3) var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1); /* CF-1: elevation, no border */
-      align-items: stretch; min-height: 0;
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+      box-shadow: var(--md-sys-elevation-1); /* CF-1: elev, no border */
+      align-items: stretch; min-height: 0; height: 100%;
+      box-sizing: border-box;
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out),
+        box-shadow var(--easymc-dur-press) var(--easymc-ease-out);
     }
-    .card-top { display: flex; gap: var(--easymc-space-3); align-items: flex-start; }
+    .card:hover {
+      background: color-mix(in oklch, var(--md-sys-color-surface-container) 82%, transparent);
+      box-shadow: var(--md-sys-elevation-2);
+    }
+    .card-top { display: flex; gap: var(--easymc-space-3); align-items: flex-start; flex: 0 0 auto; }
     .card img, .card .ph {
-      width: 56px; height: 56px; border-radius: var(--md-sys-shape-corner-large); object-fit: cover;
-      background: var(--md-sys-color-primary-container); flex-shrink: 0;
+      width: 48px; height: 48px; border-radius: var(--md-sys-shape-corner-large); object-fit: cover;
+      background: color-mix(in oklch, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container));
+      flex-shrink: 0;
     }
     .card .body { flex: 1; min-width: 0; }
-    .card .name { font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-body); letter-spacing: -0.01em; }
+    .card .name {
+      font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-body); letter-spacing: -0.01em;
+      line-height: var(--easymc-leading-body, 1.35);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      overflow-wrap: break-word; word-break: normal;
+    }
     .card .desc {
       font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: 2px;
+      line-height: 1.4;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      overflow-wrap: break-word; word-break: normal;
     }
-    .tags { display: flex; flex-wrap: wrap; gap: var(--easymc-space-2); margin-top: var(--easymc-space-2); }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--easymc-space-2); }
     .tag {
       font-size: var(--easymc-type-meta); font-weight: var(--easymc-weight-medium); padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
-      background: var(--md-sys-color-secondary-container);
+      background: color-mix(in oklch, var(--md-sys-color-secondary-container) 65%, var(--md-sys-color-surface-container-lowest));
       color: var(--md-sys-color-on-secondary-container);
     }
     .card-foot {
-      display: flex; align-items: center; justify-content: space-between; gap: var(--easymc-space-2); margin-top: auto;
+      display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end;
+      gap: var(--easymc-space-2); margin-top: auto; padding-top: var(--easymc-space-1);
+      width: 100%;
     }
-    .dl-stat { font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
+    .dl-stat {
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant);
+      font-variant-numeric: tabular-nums; margin-right: auto; min-width: 0;
+    }
+    .card-foot button.primary {
+      padding: 6px 14px;
+      font-size: var(--easymc-type-label);
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .card, .pick-panel {
+        background: var(--md-sys-color-surface-container-lowest);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+      .card:hover {
+        background: var(--md-sys-color-surface-container);
+      }
+    }
     /* .muted → pageChromeStyles */
     .market-skel {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
       gap: var(--easymc-space-3);
       margin-bottom: var(--easymc-space-3);
     }
-    .card-skel { height: 140px; border-radius: var(--md-sys-shape-corner-large); }
+    .card-skel { height: 148px; border-radius: var(--md-sys-shape-corner-large); }
     .vanilla-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: var(--easymc-space-3); }
-    .ver-expand-skel { display: flex; flex-direction: column; gap: var(--easymc-space-2); padding: var(--easymc-space-2) 0; }
     .ver-skel { height: 72px; border-radius: var(--md-sys-shape-corner-large); }
-    /* MI-3: in-place disclosure expands from the card's top edge (restrained). */
-    .expand {
-      transform-origin: top;
-      animation: easymc-expand-in var(--easymc-dur-med) var(--easymc-ease-out) both;
+
+    /* Page-level version pick (leaves the card grid) */
+    .pick-panel {
+      display: flex; flex-direction: column; gap: var(--easymc-space-4);
+      padding: var(--easymc-space-5);
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+      box-shadow: var(--md-sys-elevation-1);
+      min-height: 280px;
+      animation: easymc-pick-in var(--easymc-dur-med) var(--easymc-ease-out) both;
     }
-    @keyframes easymc-expand-in {
-      from { opacity: 0; transform: translateY(-6px); }
+    @keyframes easymc-pick-in {
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .expand { animation: none; }
+      .pick-panel { animation: none; }
+    }
+    .pick-hero {
+      display: flex; gap: var(--easymc-space-4); align-items: flex-start;
+    }
+    .pick-hero img, .pick-hero .ph {
+      width: 64px; height: 64px; border-radius: var(--md-sys-shape-corner-large); object-fit: cover;
+      background: color-mix(in oklch, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container));
+      flex-shrink: 0;
+    }
+    .pick-hero .body { flex: 1; min-width: 0; }
+    .pick-hero .name {
+      font-size: var(--easymc-type-title); font-weight: var(--easymc-weight-medium);
+      letter-spacing: -0.01em; margin: 0 0 4px;
+    }
+    .pick-hero .desc {
+      margin: 0; font-size: var(--easymc-type-body); color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+      overflow-wrap: break-word; word-break: normal;
+    }
+    .pick-meta {
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant); margin-top: var(--easymc-space-2);
+    }
+    .pick-versions {
+      display: flex; flex-direction: column; gap: var(--easymc-space-2);
+      max-height: min(420px, 52vh); overflow: auto; scrollbar-gutter: stable;
+    }
+    button.pick-ver {
+      text-align: left; font: inherit; color: inherit; cursor: pointer;
+      display: flex; flex-direction: column; gap: 2px; align-items: stretch;
+      padding: var(--easymc-space-3) var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      box-shadow: none; /* CF-1: outline inside glass panel */
+      transition: background var(--easymc-dur-press) var(--easymc-ease-out),
+        border-color var(--easymc-dur-press) var(--easymc-ease-out);
+    }
+    button.pick-ver:hover { background: var(--md-sys-color-surface-container); }
+    button.pick-ver:focus-visible { outline: none; box-shadow: var(--easymc-focus-ring); }
+    button.pick-ver.on {
+      background: color-mix(in oklch, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface));
+      border-color: var(--md-sys-color-primary);
+    }
+    button.pick-ver .vid {
+      font-weight: var(--easymc-weight-medium); font-size: var(--easymc-type-body);
+      font-variant-numeric: tabular-nums;
+    }
+    button.pick-ver .vmeta {
+      font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pick-foot {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+      gap: var(--easymc-space-2); margin-top: auto; padding-top: var(--easymc-space-2);
+      border-top: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 50%, transparent);
+    }
+    .pick-foot .hint {
+      margin-right: auto; font-size: var(--easymc-type-meta); color: var(--md-sys-color-on-surface-variant);
     }
 
     .results-slot {
@@ -454,7 +560,8 @@ export class DownloadPage extends LitElement {
     if (t === "vanilla") this.vanillaStep = "version";
     this.results = [];
     this.error = "";
-    this.expandedId = null;
+    this.pickProject = null;
+    this.pickVersionId = null;
     if (t === "vanilla") await this.loadVanilla();
     else await this.onSearch(); // empty query → popular/hot
   }
@@ -491,16 +598,31 @@ export class DownloadPage extends LitElement {
     }
   }
 
-  private async onExpand(p: ModProjectDto) {
-    if (this.expandedId === p.id) {
-      this.expandedId = null;
+  private closePick() {
+    this.pickProject = null;
+    this.pickVersionId = null;
+    this.versions = [];
+  }
+
+  private async openPick(p: ModProjectDto) {
+    const needsInst = marketNeedsInstance(this.tab as MarketTab);
+    if (needsInst && !this.active) {
+      showToast("请先添加一个游戏版本");
       return;
     }
-    this.expandedId = p.id;
+    this.pickProject = p;
+    this.pickVersionId = null;
     this.versionsLoading = true;
+    this.versions = [];
     try {
       const game = this.active ? String(this.active.version) : null;
-      this.versions = await listModVersions(this.source, p.id, game, this.tab === "mod" ? this.active?.loader : null);
+      this.versions = await listModVersions(
+        this.source,
+        p.id,
+        game,
+        this.tab === "mod" ? this.active?.loader : null,
+      );
+      if (this.versions[0]) this.pickVersionId = this.versions[0].id;
     } catch (e) {
       showToast(friendlyError(e));
       this.versions = [];
@@ -512,6 +634,7 @@ export class DownloadPage extends LitElement {
   private async onInstall(p: ModProjectDto, versionId?: string | null) {
     this.installingId = p.id;
     this.progress = null;
+    let ok = false;
     try {
       if (this.tab === "modpack") {
         const r = await installModpack(this.source, p.id, { versionId });
@@ -520,6 +643,7 @@ export class DownloadPage extends LitElement {
         this.instances = st.instances;
         this.activeId = r.instance_id;
         await setActiveInstance(r.instance_id);
+        ok = true;
       } else if (this.tab === "mod") {
         if (!this.active) {
           showToast("请先在启动页选好要玩的版本");
@@ -527,6 +651,7 @@ export class DownloadPage extends LitElement {
         }
         const r = await installMod(this.source, p.id, versionId, this.active.id);
         showToast(r.skipped ? `已有 ${r.filename}` : `已装入 ${r.project_name}`);
+        ok = true;
       } else {
         if (!this.active) {
           showToast("请先在启动页选好要玩的版本");
@@ -541,18 +666,20 @@ export class DownloadPage extends LitElement {
           world: this.tab === "datapack" ? this.worldPick || null : null,
         });
         showToast(r.skipped ? `已有 ${r.filename}` : `已下载 ${r.project_name}`);
+        ok = true;
       }
     } catch (e) {
       showToast(friendlyError(e, "安装没成功，请稍后在桌面版重试"));
     } finally {
       this.installingId = null;
     }
+    if (ok && this.pickProject?.id === p.id) this.closePick();
   }
 
   render() {
     const tabs: { id: DlTab; label: string }[] = [
       { id: "vanilla", label: "原版" },
-      { id: "mod", label: "Mod" },
+      { id: "mod", label: "模组" },
       { id: "modpack", label: "整合包" },
       { id: "resourcepack", label: "资源包" },
       { id: "shader", label: "光影" },
@@ -783,6 +910,7 @@ export class DownloadPage extends LitElement {
   }
 
   private renderMarket() {
+    if (this.pickProject) return this.renderVersionPick(this.pickProject);
     const hint =
       this.tab === "mod"
         ? "为当前要玩的版本找模组"
@@ -913,36 +1041,87 @@ export class DownloadPage extends LitElement {
       </div>
       <div class="card-foot">
         <span class="dl-stat">${dl ? `↓ ${dl}` : ""}</span>
-        <div class="bar">
+        <button
+          class="primary"
+          type="button"
+          ?disabled=${!!busy || blocked}
+          title=${blocked ? "请先添加一个游戏版本" : ""}
+          @click=${() => void this.openPick(p)}
+        >${busy ? "安装中…" : cta}</button>
+      </div>
+    </div>`;
+  }
+
+  private renderVersionPick(p: ModProjectDto) {
+    const busy = this.installingId === p.id;
+    const needsInst = marketNeedsInstance(this.tab as MarketTab);
+    const tabLabel =
+      this.tab === "mod"
+        ? "模组"
+        : this.tab === "modpack"
+          ? "整合包"
+          : this.tab === "resourcepack"
+            ? "资源包"
+            : this.tab === "shader"
+              ? "光影"
+              : "数据包";
+    const gameBits = (v: ModVersionDto) => {
+      const gv = (v.game_versions || []).slice(0, 3).join(", ");
+      const ld = (v.loaders || []).slice(0, 2).join(", ");
+      const parts = [gv, ld].filter(Boolean);
+      return parts.length ? parts.join(" · ") : v.name;
+    };
+    return html`
+      <div class="crumb">
+        <button type="button" @click=${() => this.closePick()}>← 返回${tabLabel}列表</button>
+        <span>/</span>
+        <strong>${p.name}</strong>
+        <span>· 选择版本</span>
+      </div>
+      <div class="pick-panel">
+        <div class="pick-hero">
+          ${p.icon_url ? html`<img src=${p.icon_url} alt="" />` : html`<div class="ph" aria-hidden="true"></div>`}
+          <div class="body">
+            <h2 class="name">${p.name}</h2>
+            <p class="desc">${p.description || ""}</p>
+            <div class="pick-meta">
+              ${p.source}${p.author ? ` · ${p.author}` : ""}
+              ${this.active && needsInst ? html` · 将装进「${this.active.name}」` : nothing}
+            </div>
+          </div>
+        </div>
+        ${this.versionsLoading
+          ? html`<div class="pick-versions" aria-busy="true" aria-label="正在加载版本">
+              ${[1, 2, 3, 4].map(() => html`<div class="skel skel-block ver-skel"></div>`)}
+            </div>`
+          : this.versions.length === 0
+            ? html`<p class="muted">暂时没有可装的版本。换个来源或游戏版本再试。</p>`
+            : html`<div class="pick-versions" role="listbox" aria-label="可选版本">
+                ${this.versions.slice(0, 40).map(
+                  (v) => html`<button
+                    class="pick-ver ${this.pickVersionId === v.id ? "on" : ""}"
+                    type="button"
+                    role="option"
+                    aria-selected=${this.pickVersionId === v.id}
+                    @click=${() => (this.pickVersionId = v.id)}
+                  >
+                    <span class="vid">${v.version_number}</span>
+                    <span class="vmeta">${gameBits(v)}</span>
+                  </button>`,
+                )}
+              </div>`}
+        <div class="pick-foot">
+          <span class="hint">${this.pickVersionId ? "已选版本，确认后开始安装" : "先点选一个版本"}</span>
+          <button class="ghost" type="button" @click=${() => this.closePick()}>取消</button>
           <button
             class="primary"
             type="button"
-            ?disabled=${!!busy || blocked}
-            title=${blocked ? "请先添加一个游戏版本" : ""}
-            @click=${() => this.onInstall(p)}
-          >${busy ? "安装中…" : cta}</button>
-          <button class="ghost" type="button" @click=${() => this.onExpand(p)}>${this.expandedId === p.id ? "收起版本" : "选版本"}</button>
+            ?disabled=${!!busy || !this.pickVersionId || this.versionsLoading}
+            @click=${() => void this.onInstall(p, this.pickVersionId)}
+          >${busy ? "安装中…" : "确认安装"}</button>
         </div>
       </div>
-      ${this.expandedId === p.id
-        ? html`<div class="expand">
-            ${this.versionsLoading
-              ? html`<div class="ver-expand-skel" aria-busy="true" aria-label="正在加载版本">
-                  <div class="skel skel-line w60"></div>
-                  <div class="skel skel-line w80"></div>
-                  <div class="skel skel-line w40"></div>
-                </div>`
-              : this.versions.length === 0
-                ? html`<p class="muted">暂时没有可装的版本</p>`
-                : this.versions.slice(0, 12).map(
-                  (v) => html`<div class="bar">
-                    <span class="muted">${v.version_number} · ${v.name}</span>
-                    <button class="tonal" type="button" ?disabled=${!!busy || blocked} @click=${() => this.onInstall(p, v.id)}>用此版本</button>
-                  </div>`,
-                )}
-          </div>`
-        : nothing}
-    </div>`;
+    `;
   }
 }
 

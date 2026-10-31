@@ -2,20 +2,9 @@
 
 export type MarketTab = "mod" | "modpack" | "resourcepack" | "shader" | "datapack";
 
-/** Primary install button label — one clear verb per tab. */
-export function marketInstallCta(tab: MarketTab): string {
-  switch (tab) {
-    case "modpack":
-      return "安装整合包";
-    case "mod":
-      return "装进当前版本";
-    case "resourcepack":
-      return "下载资源包";
-    case "shader":
-      return "下载光影";
-    case "datapack":
-      return "下载数据包";
-  }
+/** Primary install button on market cards — opens version-pick panel. */
+export function marketInstallCta(_tab: MarketTab): string {
+  return "安装";
 }
 
 export function marketNeedsInstance(tab: MarketTab): boolean {

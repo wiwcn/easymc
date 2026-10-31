@@ -263,11 +263,13 @@ export class InstancePage extends LitElement {
     .field .muted { font-size: var(--easymc-type-meta); }
     .resource-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(208px, 100%), 1fr));
       gap: var(--easymc-space-3);
       margin-top: 4px;
+      align-items: stretch;
     }
     .res-card {
+      container-type: inline-size;
       display: flex;
       flex-direction: column;
       gap: var(--easymc-space-2);
@@ -276,28 +278,31 @@ export class InstancePage extends LitElement {
       background: var(--md-sys-color-surface);
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       box-shadow: none; /* CF-1: outline inside elev panel — no nested elev */
-      min-height: 148px;
+      min-height: 128px;
       height: 100%;
+      box-sizing: border-box;
     }
     .res-card.disabled { opacity: 0.62; }
     .res-card-top {
       display: flex;
       gap: var(--easymc-space-3);
       align-items: flex-start;
+      flex: 0 0 auto;
     }
     .res-card img, .res-card .ph {
       width: 48px;
       height: 48px;
       border-radius: var(--md-sys-shape-corner-large);
       object-fit: cover;
-      background: var(--md-sys-color-primary-container);
+      background: color-mix(in oklch, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-container));
       flex-shrink: 0;
     }
     .res-card .body { flex: 1; min-width: 0; }
     .res-card .name {
       font-weight: var(--easymc-weight-medium);
       font-size: var(--easymc-type-body);
-      word-break: break-word;
+      overflow-wrap: break-word;
+      word-break: normal;
       line-height: var(--easymc-leading-body, 1.35);
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -315,11 +320,20 @@ export class InstancePage extends LitElement {
     }
     .res-card-foot {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: var(--easymc-space-2);
       margin-top: auto;
       padding-top: var(--easymc-space-1);
       align-items: center;
+      justify-content: flex-end;
+    }
+    .res-card-foot button { white-space: nowrap; }
+    @container (max-width: 180px) {
+      .res-card-foot {
+        flex-wrap: wrap;
+        justify-content: stretch;
+      }
+      .res-card-foot button { flex: 1 1 auto; }
     }
     .local-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -803,8 +817,8 @@ export class InstancePage extends LitElement {
                         </div>
                       </div>
                       <div class="res-card-foot">
-                        <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m.filename, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
                         <button class="danger ghost" type="button" @click=${() => this.act(async () => { await removeMod(m.filename, d.id); await this.refreshTab(); showToast("已卸载"); })}>卸载</button>
+                        <button class="ghost" type="button" @click=${() => this.act(async () => { await setModDisabled(m.filename, !disabled, d.id); await this.refreshTab(); })}>${disabled ? "启用" : "禁用"}</button>
                       </div>
                     </div>`;
                   })}

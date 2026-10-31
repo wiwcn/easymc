@@ -79,6 +79,10 @@
     0 4px 12px oklch(0.24 0.015 185 / 0.12),
     0 2px 4px oklch(0.24 0.015 185 / 0.06);
 
+  /* ——— Glass (tasteful frosted surfaces; Operate — opt-in per surface) ——— */
+  --easymc-glass-blur: 12px;
+  --easymc-glass-surface: color-mix(in oklch, var(--md-sys-color-surface-container-lowest) 78%, transparent);
+
   /* ——— Motion (DESIGN §6.4 Operate · MD3 layered) ———
      MD3 命名层为权威值；既有 --easymc-* 作为别名映射过去（不删旧名，零回归）。
      弹簧曲线不落 token：由 `motion` 库运行时生成（docs/UI-MD3-MOTION-PLAN.md §4.8）。 */
@@ -280,4 +284,7 @@ html[data-theme="dark"] {
   --md-sys-elevation-3:
     0 4px 12px oklch(0 0 0 / 0.42),
     0 2px 4px oklch(0 0 0 / 0.24);
+
+  --easymc-glass-blur: 14px;
+  --easymc-glass-surface: color-mix(in oklch, var(--md-sys-color-surface-container-lowest) 70%, transparent);
 }

@@ -245,8 +245,8 @@ export const controlStyles = css`
     white-space: nowrap;
     padding: 8px 16px;
     /* Explicit line box: Latin and CJK labels otherwise get different "normal"
-       line heights, so a Latin tab ("Mod") would be a few px shorter than its
-       neighbours and the sliding indicator would jump height when it lands. */
+       line heights, so a short Latin tab would be a few px shorter than its
+       CJK neighbours and the sliding indicator would jump height when it lands. */
     line-height: 20px;
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant);

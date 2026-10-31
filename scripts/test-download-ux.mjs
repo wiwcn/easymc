@@ -40,9 +40,9 @@ if (build.status !== 0) {
 
 const mod = await import(out + `?t=${Date.now()}`);
 
-assert.equal(mod.marketInstallCta("mod"), "装进当前版本");
-assert.equal(mod.marketInstallCta("modpack"), "安装整合包");
-assert.equal(mod.marketInstallCta("shader"), "下载光影");
+assert.equal(mod.marketInstallCta("mod"), "安装");
+assert.equal(mod.marketInstallCta("modpack"), "安装");
+assert.equal(mod.marketInstallCta("shader"), "安装");
 assert.equal(mod.marketNeedsInstance("mod"), true);
 assert.equal(mod.marketNeedsInstance("modpack"), false);
 assert.equal(mod.marketEmptyTitle(" neo ").title.includes("搜到"), true);
