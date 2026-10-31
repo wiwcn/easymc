@@ -28,6 +28,7 @@ import {
 import { loaderLabel } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import "../components/empty-state";
 
 @customElement("easymc-library-page")
 export class LibraryPage extends LitElement {
@@ -63,7 +64,12 @@ export class LibraryPage extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 auto;
+      min-height: 100%;
+      width: 100%;
+      box-sizing: border-box;
     }
     .head {
       display: flex;
@@ -112,6 +118,8 @@ export class LibraryPage extends LitElement {
       font-size: var(--easymc-type-meta);
     }
     .grid {
+      flex: 1 1 auto;
+      min-height: 200px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 14px;
@@ -257,10 +265,21 @@ export class LibraryPage extends LitElement {
       font-size: var(--easymc-type-meta);
       color: var(--md-sys-color-on-surface-variant);
     }
-    .empty {
-      padding: 24px;
+    .empty-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      align-self: stretch;
+      min-height: 240px;
+      width: 100%;
+      grid-column: 1 / -1;
+    }
+    .ver-empty {
+      padding: 20px 12px;
       text-align: center;
       color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-label);
+      line-height: 1.5;
     }
     .progress-card {
       margin: 0 0 16px;
@@ -437,16 +456,13 @@ export class LibraryPage extends LitElement {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .mod-empty {
-      padding: 28px 20px;
-      text-align: center;
-      color: var(--md-sys-color-on-surface-variant);
-      line-height: 1.5;
+    .mod-empty-slot {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 200px;
       background: var(--md-sys-color-surface-container-lowest);
       border-radius: var(--md-sys-shape-corner-large);
-    }
-    .mod-empty p {
-      margin: 0 0 14px;
     }
     .card {
       cursor: pointer;
@@ -715,7 +731,7 @@ export class LibraryPage extends LitElement {
 
   private goStore() {
     this.dispatchEvent(
-      new CustomEvent("nav-change", { detail: "store", bubbles: true, composed: true }),
+      new CustomEvent("nav-change", { detail: "download", bubbles: true, composed: true }),
     );
   }
 
@@ -824,7 +840,20 @@ export class LibraryPage extends LitElement {
       <div class="grid">
         ${this.instances.map((inst) => this.renderCard(inst))}
         ${this.instances.length === 0
-          ? html`<div class="empty">还没有实例，点击「新建实例」开始。</div>`
+          ? html`<div class="empty-wrap">
+              <easymc-empty-state
+                variant="panel"
+                title="咦？似乎什么都没有…"
+                description="还没有版本呢。点「新建版本」，或去下载中心逛逛？"
+              >
+                <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
+                  新建版本
+                </button>
+                <button class="btn ghost" type="button" @click=${() => this.goStore()}>
+                  去下载中心
+                </button>
+              </easymc-empty-state>
+            </div>`
           : null}
       </div>
 
@@ -846,7 +875,7 @@ export class LibraryPage extends LitElement {
             </div>
           </div>
           <button class="btn ghost sm" type="button" @click=${() => this.goStore()}>
-            去商店下载
+            去下载中心
           </button>
         </div>
 
@@ -913,15 +942,20 @@ export class LibraryPage extends LitElement {
                   </div>`;
                 })}
               </div>`
-            : html`<div class="mod-empty">
-                <p>
+            : html`<div class="mod-empty-slot">
+                <easymc-empty-state
+                  variant="panel"
+                  title=${this.mods.length
+                    ? "没有符合筛选的模组"
+                    : "咦？还没有模组呢…"}
+                  description=${this.mods.length
+                    ? "换个筛选看看，或者清空后再试"
+                    : "去下载中心挑几个装上吧"}
+                >
                   ${this.mods.length
-                    ? "当前筛选下没有模组。"
-                    : "此实例还没有模组。到商店搜索并安装到该实例。"}
-                </p>
-                <button class="btn primary" type="button" @click=${() => this.goStore()}>
-                  去商店下载
-                </button>
+                    ? html`<button class="btn ghost" type="button" @click=${() => (this.modFilter = "all")}>清空筛选</button>`
+                    : html`<button class="btn primary" type="button" @click=${() => this.goStore()}>去下载中心</button>`}
+                </easymc-empty-state>
               </div>`}
       </section>
     `;
@@ -1022,7 +1056,7 @@ export class LibraryPage extends LitElement {
                       (this.newLoaderVersion = (e.target as HTMLSelectElement).value)}
                   >
                     ${this.loaderVersions.length === 0
-                      ? html`<option value="">暂无可用版本（或仍在准备）</option>`
+                      ? html`<option value="">还没有可选版本（稍等或换个加载器）</option>`
                       : this.loaderVersions.map(
                           (l) => html`
                             <option value=${l.version}>
@@ -1058,7 +1092,7 @@ export class LibraryPage extends LitElement {
           </div>
           <div class="ver-list">
             ${list.length === 0
-              ? html`<div class="empty">${this.versionsLoading ? "加载版本列表…" : "无匹配版本"}</div>`
+              ? html`<div class="ver-empty">${this.versionsLoading ? "正在加载版本…" : "咦？没有符合筛选的版本… 换个关键词试试"}</div>`
               : list.map(
                   (v) => html`
                     <button

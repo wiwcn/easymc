@@ -25,13 +25,14 @@ import type {
   ModVersionDto,
 } from "../types";
 import { loaderLabel, versionId } from "../types";
+import "../components/empty-state";
 
 @customElement("easymc-store-page")
 export class StorePage extends LitElement {
   @state() private source: ModSourceId = "modrinth";
   @state() private query = "";
   @state() private results: ModProjectDto[] = [];
-  @state() private loading = false;
+  @state() private loading = true;
   @state() private error = "";
   @state() private instances: InstanceDto[] = [];
   @state() private activeId: string | null = null;
@@ -49,8 +50,13 @@ export class StorePage extends LitElement {
     controlStyles,
     css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 auto;
+      min-height: 100%;
+      width: 100%;
       max-width: 960px;
+      box-sizing: border-box;
     }
     h1 {
       margin: 0 0 4px;
@@ -139,6 +145,14 @@ export class StorePage extends LitElement {
       display: flex;
       flex-direction: column;
       gap: var(--easymc-space-2);
+      flex: 1 1 auto;
+      min-height: 220px;
+    }
+    .results-slot {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 220px;
     }
     .card {
       display: grid;
@@ -358,11 +372,7 @@ export class StorePage extends LitElement {
         loader === "vanilla" ? null : loader,
         20,
       );
-      if (!this.results.length) {
-        this.error = this.query.trim()
-          ? "无结果。可换关键词或检查实例版本/加载器筛选。"
-          : "暂时没有热门结果，稍后再试或换个来源。";
-      }
+      // Empty results use EmptyState (not error banner); keep this.error for failures only.
     } catch (e) {
       this.error = friendlyError(e);
     } finally {
@@ -474,12 +484,12 @@ export class StorePage extends LitElement {
       </div>
 
       <div class="meta">
-        目标实例：
+        装进哪个版本：
         ${inst
           ? html`<strong>${inst.name}</strong> · ${versionId(inst.version)} ·
               ${loaderLabel(inst.loader)}`
-          : "（无实例）"}
-        · 筛选会按实例版本与加载器过滤
+          : "（还没有版本——先去下载装一个）"}
+        · 列表会按当前版本与加载器筛选
       </div>
 
       ${this.source === "curseforge" && this.cf && !this.cf.configured
@@ -518,13 +528,27 @@ export class StorePage extends LitElement {
           </div>`
         : null}
 
-      <div class="list">
-        ${this.results.map((p) => this.renderCard(p))}
-      </div>
+      ${!this.loading && !this.error && !this.results.length
+        ? html`<div class="results-slot">
+            <easymc-empty-state
+              variant="panel"
+              title=${this.query.trim() ? "咦？好像什么都没搜到…" : "咦？热门列表空空的…"}
+              description=${this.query.trim()
+                ? "换个关键词试试，或者清空后再看热门"
+                : "稍后再试，或换个来源看看"}
+            >
+              ${this.query.trim()
+                ? html`<button class="ghost" type="button" @click=${() => { this.query = ""; void this.onSearch(); }}>清空搜索</button>`
+                : null}
+            </easymc-empty-state>
+          </div>`
+        : html`<div class="list">
+            ${this.results.map((p) => this.renderCard(p))}
+          </div>`}
 
       <p class="hint">
-        已安装模组在「库」中按实例管理（启用 / 禁用 / 卸载）。
-        <button type="button" @click=${() => this.goLibrary()}>打开库</button>
+        已装好的模组可在「版本管理」里启用、禁用或卸载。
+        <button type="button" @click=${() => this.goLibrary()}>打开版本管理</button>
       </p>
     `;
   }
@@ -583,7 +607,7 @@ export class StorePage extends LitElement {
                         )}
                       </select>
                     `
-                  : html`<p class="meta">无匹配版本</p>`}
+                  : html`<p class="meta">咦？这个模组暂时没有合适的版本… 换个游戏版本或加载器再试试</p>`}
             </div>`
           : null}
       </div>
