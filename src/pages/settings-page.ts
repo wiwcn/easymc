@@ -46,6 +46,15 @@ import type {
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { syncIndicator } from "../lib/indicator";
+import {
+  ACCENT_PRESETS,
+  DEFAULT_ACCENT_HEX,
+  applyAppearance,
+  normalizeAccentHex,
+  normalizeUiTheme,
+  presetMatchingHex,
+  type UiThemeMode,
+} from "../lib/theme";
 
 const MEM_MIN = 512;
 const MEM_MAX = 16384;
@@ -69,6 +78,7 @@ export class SettingsPage extends LitElement {
   @state() private llmModel = "";
   @state() private llmBusy = false;
   @state() private section: "launch" | "multiplayer" | "personal" | "other" = "launch";
+  @state() private accentDraft = DEFAULT_ACCENT_HEX;
   @state() private javaList: JavaInstallDto[] = [];
   @state() private mcDirs: MinecraftDirDto[] = [];
   @state() private javaBusy = false;
@@ -262,6 +272,97 @@ export class SettingsPage extends LitElement {
         color: var(--md-sys-color-primary);
         font-weight: var(--easymc-weight-medium);
       }
+
+      .theme-seg {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 4px;
+        border-radius: var(--md-sys-shape-corner-full);
+        background: var(--md-sys-color-surface-container);
+      }
+      .theme-seg button {
+        border: none;
+        background: transparent;
+        color: var(--md-sys-color-on-surface-variant);
+        border-radius: var(--md-sys-shape-corner-full);
+        padding: 8px 14px;
+        font: inherit;
+        font-size: var(--easymc-type-label);
+        font-weight: var(--easymc-weight-medium);
+        cursor: pointer;
+      }
+      .theme-seg button.on {
+        background: var(--md-sys-color-primary);
+        color: var(--md-sys-color-on-primary);
+      }
+      .theme-seg button:focus-visible {
+        box-shadow: var(--easymc-focus-ring);
+      }
+      .accent-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin: 10px 0 8px;
+      }
+      button.accent-swatch {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        padding: 0;
+        cursor: pointer;
+        box-shadow: var(--md-sys-elevation-1);
+        position: relative;
+      }
+      button.accent-swatch.on {
+        border-color: var(--md-sys-color-on-surface);
+        box-shadow: var(--easymc-focus-ring);
+      }
+      button.accent-swatch:focus-visible {
+        box-shadow: var(--easymc-focus-ring);
+      }
+      button.accent-swatch .check {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+      }
+      .accent-custom {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .accent-custom input[type="color"] {
+        width: 40px;
+        height: 36px;
+        padding: 0;
+        border: 1px solid var(--md-sys-color-outline-variant);
+        border-radius: var(--md-sys-shape-corner-small);
+        background: transparent;
+        cursor: pointer;
+      }
+      .accent-custom input[type="text"] {
+        width: 7.5em;
+        font-variant-numeric: tabular-nums;
+      }
+      .accent-preview {
+        margin-top: 12px;
+        padding: var(--easymc-card-pad-y) var(--easymc-card-pad-x);
+        border-radius: var(--easymc-card-radius);
+        background: var(--easymc-glass-surface);
+        backdrop-filter: blur(var(--easymc-glass-blur));
+        -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+        border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+        box-shadow: var(--md-sys-elevation-1);
+      }
+      .accent-preview .row { margin-top: 8px; }
     `,
   ];
 
@@ -303,6 +404,7 @@ export class SettingsPage extends LitElement {
       portableStatus(),
     ]);
     this.settings = s;
+    this.accentDraft = normalizeAccentHex(s.accent_color) ?? DEFAULT_ACCENT_HEX;
     this.mem = Math.min(MEM_MAX, Math.max(MEM_MIN, s.memory_mb ?? 2048));
     this.cf = cf;
     this.msa = msa;
@@ -1228,10 +1330,150 @@ export class SettingsPage extends LitElement {
     </div>`;
   }
 
+  private currentUiTheme(): UiThemeMode {
+    return normalizeUiTheme(this.settings?.ui_theme);
+  }
+
+  private currentAccentHex(): string {
+    return normalizeAccentHex(this.settings?.accent_color) ?? DEFAULT_ACCENT_HEX;
+  }
+
+  private emitAppearance(ui_theme: string, accent_color: string | null) {
+    applyAppearance({ ui_theme, accent_color });
+    this.dispatchEvent(
+      new CustomEvent("appearance-change", {
+        detail: { ui_theme, accent_color },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private async setUiTheme(mode: UiThemeMode) {
+    const accent = this.currentAccentHex();
+    this.emitAppearance(mode, accent);
+    try {
+      this.settings = await updateSettings({ ui_theme: mode });
+      showToast(
+        mode === "dark" ? "已切换到深色" : mode === "system" ? "已跟随系统外观" : "已切换到浅色",
+      );
+    } catch (e) {
+      showToast(friendlyError(e));
+    }
+  }
+
+  private async setAccentHex(hex: string, toast = true) {
+    const normalized = normalizeAccentHex(hex) ?? DEFAULT_ACCENT_HEX;
+    this.accentDraft = normalized;
+    const theme = this.currentUiTheme();
+    // Default teal stored as null so upgrades keep the seed token defaults.
+    const persist =
+      normalized.toUpperCase() === DEFAULT_ACCENT_HEX.toUpperCase() ? null : normalized;
+    this.emitAppearance(theme, persist ?? DEFAULT_ACCENT_HEX);
+    try {
+      this.settings = await updateSettings({ accent_color: persist });
+      if (toast) {
+        const preset = presetMatchingHex(normalized);
+        showToast(preset ? `强调色：${preset.label_zh}` : `强调色：${normalized}`);
+      }
+    } catch (e) {
+      showToast(friendlyError(e));
+    }
+  }
+
   private renderPersonal() {
+    const theme = this.currentUiTheme();
+    const accent = this.currentAccentHex();
+    const matched = presetMatchingHex(accent);
+    const themes: { id: UiThemeMode; label: string }[] = [
+      { id: "light", label: "浅色" },
+      { id: "dark", label: "深色" },
+      { id: "system", label: "跟随系统" },
+    ];
     return html`<div class="card">
-        <h2>主题与动效</h2>
-        <p>当前为青绿主题。完整主题定制会在后续版本提供。动效已跟随系统「减少动态效果」设置。</p>
+        <h2>外观</h2>
+        <p>浅色或深色外壳；强调色会作用在侧栏选中、按钮、焦点环和卡片高亮上，玻璃面板保持克制。</p>
+        <div class="theme-seg" role="group" aria-label="外观模式">
+          ${themes.map(
+            (t) => html`<button
+              type="button"
+              class=${theme === t.id ? "on" : ""}
+              aria-pressed=${theme === t.id ? "true" : "false"}
+              @click=${() => void this.setUiTheme(t.id)}
+            >
+              ${t.label}
+            </button>`,
+          )}
+        </div>
+      </div>
+      <div class="card">
+        <h2>强调色</h2>
+        <p>点选预设，或自己填一个十六进制颜色。动效仍跟随系统「减少动态效果」。</p>
+        <div class="accent-grid" role="listbox" aria-label="强调色预设">
+          ${ACCENT_PRESETS.map(
+            (p) => html`<button
+              type="button"
+              class="accent-swatch ${matched?.id === p.id ? "on" : ""}"
+              style="background:${p.hex}"
+              title=${p.label_zh}
+              aria-label=${p.label_zh}
+              aria-selected=${matched?.id === p.id ? "true" : "false"}
+              role="option"
+              @click=${() => void this.setAccentHex(p.hex)}
+            >${matched?.id === p.id ? html`<span class="check">✓</span>` : nothing}</button>`,
+          )}
+        </div>
+        <div class="accent-custom">
+          <input
+            type="color"
+            aria-label="自定义强调色"
+            .value=${accent.toLowerCase()}
+            @input=${(e: Event) => {
+              const v = (e.target as HTMLInputElement).value;
+              this.accentDraft = normalizeAccentHex(v) ?? this.accentDraft;
+              this.emitAppearance(this.currentUiTheme(), this.accentDraft);
+            }}
+            @change=${(e: Event) => {
+              const v = (e.target as HTMLInputElement).value;
+              void this.setAccentHex(v);
+            }}
+          />
+          <input
+            type="text"
+            maxlength="7"
+            spellcheck="false"
+            aria-label="强调色十六进制"
+            placeholder="#0D6E67"
+            .value=${this.accentDraft}
+            @input=${(e: Event) => {
+              this.accentDraft = (e.target as HTMLInputElement).value;
+            }}
+            @change=${() => {
+              const n = normalizeAccentHex(this.accentDraft);
+              if (!n) {
+                showToast("请输入 #RRGGBB 颜色");
+                this.accentDraft = accent;
+                return;
+              }
+              void this.setAccentHex(n);
+            }}
+          />
+          <button
+            class="ghost"
+            type="button"
+            @click=${() => void this.setAccentHex(DEFAULT_ACCENT_HEX)}
+          >
+            恢复默认
+          </button>
+        </div>
+        <div class="accent-preview" aria-hidden="true">
+          <div class="muted">预览</div>
+          <div class="row">
+            <button class="primary" type="button" tabindex="-1">主要按钮</button>
+            <button class="tonal" type="button" tabindex="-1">次要</button>
+            <button class="ghost" type="button" tabindex="-1">描边</button>
+          </div>
+        </div>
       </div>
       <div class="card">
         <h2>使用模式</h2>

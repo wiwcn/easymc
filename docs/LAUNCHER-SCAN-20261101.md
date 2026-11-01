@@ -53,7 +53,7 @@
 | P2 | ~~批量模组更新~~ / 元数据驱动换 loader | Polymerium / XMCL | **批量更新已实现（0.1.8）**：检查/多选/版本选择/changelog；换 loader 仍延后 |
 | P3 | 资源硬链去重 | XMCL / Polymerium / shard | 延后 |
 | P3 | 扩展系统 / MCP 深度 | SJMCL | 部分有 Agent，扩展商店延后 |
-| P3 | 主题/强调色自由 | FCL / HMCL | 延后 |
+| P3 | ~~主题/强调色自由~~ | FCL / HMCL | **已实现（0.1.11）**：设置个性化 · 浅色/深色/系统 + 强调色预设/自定义 |
 | — | Android 真启动 | FCL | 另仓，本任务不做 |
 
 ## 本会话选型理由

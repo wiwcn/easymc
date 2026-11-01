@@ -529,6 +529,10 @@ struct UpdateSettingsPatch {
     /// Mirror profile id: daocloud | official (maps to container_china_mirrors).
     container_mirror_profile: Option<String>,
     disable_chat_reporting_default: Option<bool>,
+    /// light | dark | system
+    ui_theme: Option<String>,
+    /// #RRGGBB accent; empty string clears to default teal.
+    accent_color: Option<String>,
 }
 
 #[tauri::command]
@@ -582,6 +586,28 @@ fn update_settings_cmd(
     }
     if let Some(v) = patch.disable_chat_reporting_default {
         settings.disable_chat_reporting_default = v;
+    }
+    if let Some(theme) = patch.ui_theme.as_deref() {
+        let t = theme.trim().to_ascii_lowercase();
+        if matches!(t.as_str(), "light" | "dark" | "system") {
+            settings.ui_theme = t;
+        } else {
+            return Err(format!("未知外观模式: {theme}（light / dark / system）"));
+        }
+    }
+    if let Some(accent) = patch.accent_color {
+        let t = accent.trim().to_string();
+        if t.is_empty() {
+            settings.accent_color = None;
+        } else {
+            let normalized = if t.starts_with('#') { t } else { format!("#{t}") };
+            let ok = normalized.len() == 7
+                && normalized.bytes().skip(1).all(|b| b.is_ascii_hexdigit());
+            if !ok {
+                return Err(format!("强调色须为 #RRGGBB，收到: {normalized}"));
+            }
+            settings.accent_color = Some(normalized.to_ascii_uppercase());
+        }
     }
     if let Some(profile) = patch.container_mirror_profile.as_deref() {
         match MirrorProfile::parse(profile) {

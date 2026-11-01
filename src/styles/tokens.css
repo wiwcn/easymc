@@ -1,42 +1,48 @@
 /*
-  EasyMC MD3 tokens — OKLCH soft-teal seed (青绿).
+  EasyMC MD3 tokens — OKLCH accent seed (default 青绿).
   Operate mode: accent for action / selection / focus; neutrals carry hierarchy.
-  Seed hue ≈ 186.5 (from #0d6e67 / #4DB6AC family). Chroma reduced near white/black.
+  --easymc-accent-hue / --easymc-accent-chroma are set from Settings (theme.ts).
+  Default hue ≈ 186.5 (#0D6E67). Chroma capped so glass panels stay readable.
   Primitive → semantic mapping lives here; components must not hardcode brand hex.
 */
 :root {
-  /* ——— Brand / action ——— */
-  --md-sys-color-primary: oklch(0.48 0.09 186.5);
-  --md-sys-color-on-primary: oklch(0.99 0.01 186);
-  --md-sys-color-primary-container: oklch(0.90 0.045 186);
-  --md-sys-color-on-primary-container: oklch(0.28 0.06 185);
+  /* ——— Accent seed (overridable from settings → documentElement) ——— */
+  --easymc-accent-hue: 186.5;
+  --easymc-accent-chroma: 0.09;
+  --easymc-accent-seed: #0D6E67;
 
-  --md-sys-color-secondary: oklch(0.48 0.035 185);
-  --md-sys-color-on-secondary: oklch(0.99 0.01 185);
-  --md-sys-color-secondary-container: oklch(0.91 0.03 185);
-  --md-sys-color-on-secondary-container: oklch(0.26 0.035 185);
+  /* ——— Brand / action (L fixed for AA-ish contrast; H/C from accent) ——— */
+  --md-sys-color-primary: oklch(0.48 var(--easymc-accent-chroma) var(--easymc-accent-hue));
+  --md-sys-color-on-primary: oklch(0.99 0.01 var(--easymc-accent-hue));
+  --md-sys-color-primary-container: oklch(0.90 calc(var(--easymc-accent-chroma) * 0.5) var(--easymc-accent-hue));
+  --md-sys-color-on-primary-container: oklch(0.28 calc(var(--easymc-accent-chroma) * 0.7) var(--easymc-accent-hue));
+
+  --md-sys-color-secondary: oklch(0.48 calc(var(--easymc-accent-chroma) * 0.4) var(--easymc-accent-hue));
+  --md-sys-color-on-secondary: oklch(0.99 0.01 var(--easymc-accent-hue));
+  --md-sys-color-secondary-container: oklch(0.91 calc(var(--easymc-accent-chroma) * 0.35) var(--easymc-accent-hue));
+  --md-sys-color-on-secondary-container: oklch(0.26 calc(var(--easymc-accent-chroma) * 0.4) var(--easymc-accent-hue));
 
   --md-sys-color-tertiary: oklch(0.48 0.05 240);
   --md-sys-color-on-tertiary: oklch(0.99 0.01 240);
   --md-sys-color-tertiary-container: oklch(0.90 0.035 235);
   --md-sys-color-on-tertiary-container: oklch(0.28 0.04 235);
 
-  /* ——— Surfaces (cool teal-tinted neutrals; sidebar reads slightly cooler via container-low) ——— */
-  --md-sys-color-surface: oklch(0.97 0.008 186);
-  --md-sys-color-surface-dim: oklch(0.88 0.012 185);
-  --md-sys-color-surface-bright: oklch(0.985 0.004 185);
-  --md-sys-color-surface-container-lowest: oklch(0.995 0.003 185);
-  --md-sys-color-surface-container-low: oklch(0.955 0.01 188);
-  --md-sys-color-surface-container: oklch(0.935 0.012 186);
-  --md-sys-color-surface-container-high: oklch(0.915 0.014 186);
-  --md-sys-color-surface-container-highest: oklch(0.895 0.016 186);
-  --md-sys-color-on-surface: oklch(0.24 0.015 185);
-  --md-sys-color-on-surface-variant: oklch(0.38 0.02 185); /* A11Y-3: ~AA on surface */
-  --md-sys-color-outline: oklch(0.52 0.02 185);
-  --md-sys-color-outline-variant: oklch(0.80 0.018 185);
-  --md-sys-color-inverse-surface: oklch(0.28 0.015 185);
-  --md-sys-color-inverse-on-surface: oklch(0.94 0.01 185);
-  --md-sys-color-inverse-primary: oklch(0.78 0.08 186);
+  /* ——— Surfaces (restrained tint from accent; keep chroma low so glass stays clear) ——— */
+  --md-sys-color-surface: oklch(0.97 0.008 var(--easymc-accent-hue));
+  --md-sys-color-surface-dim: oklch(0.88 0.012 var(--easymc-accent-hue));
+  --md-sys-color-surface-bright: oklch(0.985 0.004 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-lowest: oklch(0.995 0.003 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-low: oklch(0.955 0.01 var(--easymc-accent-hue));
+  --md-sys-color-surface-container: oklch(0.935 0.012 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-high: oklch(0.915 0.014 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-highest: oklch(0.895 0.016 var(--easymc-accent-hue));
+  --md-sys-color-on-surface: oklch(0.24 0.015 var(--easymc-accent-hue));
+  --md-sys-color-on-surface-variant: oklch(0.38 0.02 var(--easymc-accent-hue)); /* A11Y-3: ~AA on surface */
+  --md-sys-color-outline: oklch(0.52 0.02 var(--easymc-accent-hue));
+  --md-sys-color-outline-variant: oklch(0.80 0.018 var(--easymc-accent-hue));
+  --md-sys-color-inverse-surface: oklch(0.28 0.015 var(--easymc-accent-hue));
+  --md-sys-color-inverse-on-surface: oklch(0.94 0.01 var(--easymc-accent-hue));
+  --md-sys-color-inverse-primary: oklch(0.78 calc(var(--easymc-accent-chroma) * 0.9) var(--easymc-accent-hue));
 
   /* ——— Semantic (full roles + containers) ——— */
   --md-sys-color-error: oklch(0.50 0.18 25);
@@ -70,14 +76,14 @@
 
   /* ——— Elevation (offset + soft blur; no zero-offset halo) ——— */
   --md-sys-elevation-1:
-    0 1px 2px oklch(0.24 0.015 185 / 0.06),
-    0 1px 3px oklch(0.24 0.015 185 / 0.08);
+    0 1px 2px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.06),
+    0 1px 3px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.08);
   --md-sys-elevation-2:
-    0 2px 6px oklch(0.24 0.015 185 / 0.10),
-    0 1px 2px oklch(0.24 0.015 185 / 0.06);
+    0 2px 6px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.10),
+    0 1px 2px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.06);
   --md-sys-elevation-3:
-    0 4px 12px oklch(0.24 0.015 185 / 0.12),
-    0 2px 4px oklch(0.24 0.015 185 / 0.06);
+    0 4px 12px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.12),
+    0 2px 4px oklch(0.24 0.015 var(--easymc-accent-hue) / 0.06);
 
   /* ——— Glass (tasteful frosted surfaces; Operate — opt-in per surface) ——— */
   --easymc-glass-blur: 12px;
@@ -170,9 +176,9 @@
   --easymc-caret: var(--md-sys-color-primary);
 
   /* ——— Signature / art (TOK-1) — launch CTA + home art only ——— */
-  --easymc-launch-from: oklch(0.52 0.09 186);
-  --easymc-launch-mid: oklch(0.50 0.11 165);
-  --easymc-launch-to: oklch(0.48 0.12 150);
+  --easymc-launch-from: oklch(0.52 var(--easymc-accent-chroma) var(--easymc-accent-hue));
+  --easymc-launch-mid: oklch(0.50 calc(var(--easymc-accent-chroma) + 0.02) calc(var(--easymc-accent-hue) - 21));
+  --easymc-launch-to: oklch(0.48 calc(var(--easymc-accent-chroma) + 0.03) calc(var(--easymc-accent-hue) - 36));
   --easymc-launch-gradient: linear-gradient(
     135deg,
     var(--easymc-launch-from) 0%,
@@ -180,16 +186,16 @@
     var(--easymc-launch-to) 100%
   );
   --easymc-art-glow: oklch(0.95 0.04 95);
-  --easymc-art-base-from: oklch(0.88 0.05 186);
-  --easymc-art-base-to: oklch(0.82 0.06 175);
+  --easymc-art-base-from: oklch(0.88 0.05 var(--easymc-accent-hue));
+  --easymc-art-base-to: oklch(0.82 0.06 calc(var(--easymc-accent-hue) - 11));
   --easymc-art-hill: oklch(0.55 0.08 160 / 0.55);
   --easymc-art-sun: oklch(0.92 0.06 95);
   --easymc-art-sun-halo: oklch(0.92 0.06 95 / 0.25);
 
   /* Avatar (topbar) — TOK-1 */
   --easymc-avatar-glow: oklch(0.92 0.03 80);
-  --easymc-avatar-base-from: oklch(0.55 0.08 186);
-  --easymc-avatar-base-to: oklch(0.42 0.06 186);
+  --easymc-avatar-base-from: oklch(0.55 calc(var(--easymc-accent-chroma) * 0.9) var(--easymc-accent-hue));
+  --easymc-avatar-base-to: oklch(0.42 calc(var(--easymc-accent-chroma) * 0.7) var(--easymc-accent-hue));
 
   /* Source brand dots (download) — specialty, not signature gradient */
   --easymc-brand-modrinth: oklch(0.62 0.14 150);
@@ -233,40 +239,41 @@
 
 
 /*
-  Optional dark theme — composed (not mechanical invert).
-  Opt in with html[data-theme="dark"] or class on :root.
+  Dark theme — composed (not mechanical invert).
+  html[data-theme="dark"] from Settings ui_theme (light|dark|system).
+  Accent hue/chroma inherit from :root / inline overrides.
 */
 html[data-theme="dark"] {
-  --md-sys-color-primary: oklch(0.78 0.09 186);
-  --md-sys-color-on-primary: oklch(0.22 0.04 185);
-  --md-sys-color-primary-container: oklch(0.36 0.07 186);
-  --md-sys-color-on-primary-container: oklch(0.90 0.04 188);
+  --md-sys-color-primary: oklch(0.78 var(--easymc-accent-chroma) var(--easymc-accent-hue));
+  --md-sys-color-on-primary: oklch(0.22 calc(var(--easymc-accent-chroma) * 0.45) var(--easymc-accent-hue));
+  --md-sys-color-primary-container: oklch(0.36 calc(var(--easymc-accent-chroma) * 0.8) var(--easymc-accent-hue));
+  --md-sys-color-on-primary-container: oklch(0.90 calc(var(--easymc-accent-chroma) * 0.45) var(--easymc-accent-hue));
 
-  --md-sys-color-secondary: oklch(0.78 0.03 185);
-  --md-sys-color-on-secondary: oklch(0.24 0.02 185);
-  --md-sys-color-secondary-container: oklch(0.34 0.03 185);
-  --md-sys-color-on-secondary-container: oklch(0.90 0.025 185);
+  --md-sys-color-secondary: oklch(0.78 calc(var(--easymc-accent-chroma) * 0.35) var(--easymc-accent-hue));
+  --md-sys-color-on-secondary: oklch(0.24 0.02 var(--easymc-accent-hue));
+  --md-sys-color-secondary-container: oklch(0.34 calc(var(--easymc-accent-chroma) * 0.35) var(--easymc-accent-hue));
+  --md-sys-color-on-secondary-container: oklch(0.90 calc(var(--easymc-accent-chroma) * 0.3) var(--easymc-accent-hue));
 
   --md-sys-color-tertiary: oklch(0.78 0.05 240);
   --md-sys-color-on-tertiary: oklch(0.24 0.03 240);
   --md-sys-color-tertiary-container: oklch(0.34 0.04 235);
   --md-sys-color-on-tertiary-container: oklch(0.90 0.03 235);
 
-  --md-sys-color-surface: oklch(0.20 0.015 185);
-  --md-sys-color-surface-dim: oklch(0.18 0.015 185);
-  --md-sys-color-surface-bright: oklch(0.28 0.018 185);
-  --md-sys-color-surface-container-lowest: oklch(0.16 0.012 185);
-  --md-sys-color-surface-container-low: oklch(0.22 0.016 188);
-  --md-sys-color-surface-container: oklch(0.25 0.016 186);
-  --md-sys-color-surface-container-high: oklch(0.28 0.018 186);
-  --md-sys-color-surface-container-highest: oklch(0.32 0.02 186);
-  --md-sys-color-on-surface: oklch(0.92 0.01 185);
-  --md-sys-color-on-surface-variant: oklch(0.72 0.02 185);
-  --md-sys-color-outline: oklch(0.58 0.02 185);
-  --md-sys-color-outline-variant: oklch(0.36 0.02 185);
-  --md-sys-color-inverse-surface: oklch(0.90 0.01 185);
-  --md-sys-color-inverse-on-surface: oklch(0.24 0.015 185);
-  --md-sys-color-inverse-primary: oklch(0.48 0.09 186.5);
+  --md-sys-color-surface: oklch(0.20 0.015 var(--easymc-accent-hue));
+  --md-sys-color-surface-dim: oklch(0.18 0.015 var(--easymc-accent-hue));
+  --md-sys-color-surface-bright: oklch(0.28 0.018 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-lowest: oklch(0.16 0.012 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-low: oklch(0.22 0.016 var(--easymc-accent-hue));
+  --md-sys-color-surface-container: oklch(0.25 0.016 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-high: oklch(0.28 0.018 var(--easymc-accent-hue));
+  --md-sys-color-surface-container-highest: oklch(0.32 0.02 var(--easymc-accent-hue));
+  --md-sys-color-on-surface: oklch(0.92 0.01 var(--easymc-accent-hue));
+  --md-sys-color-on-surface-variant: oklch(0.72 0.02 var(--easymc-accent-hue));
+  --md-sys-color-outline: oklch(0.58 0.02 var(--easymc-accent-hue));
+  --md-sys-color-outline-variant: oklch(0.36 0.02 var(--easymc-accent-hue));
+  --md-sys-color-inverse-surface: oklch(0.90 0.01 var(--easymc-accent-hue));
+  --md-sys-color-inverse-on-surface: oklch(0.24 0.015 var(--easymc-accent-hue));
+  --md-sys-color-inverse-primary: oklch(0.48 var(--easymc-accent-chroma) var(--easymc-accent-hue));
 
   --md-sys-color-error: oklch(0.78 0.12 25);
   --md-sys-color-on-error: oklch(0.25 0.08 25);

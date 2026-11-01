@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import type { AccountDto, AppMode, NavId } from "./types";
 import { getSettings, listAccountsState, wardrobeActive } from "./api";
+import { applyAppearance } from "./lib/theme";
 import "./pages/onboarding-page";
 import "./components/side-nav";
 import "./components/skin-avatar";
@@ -168,12 +169,14 @@ export class EasyMcApp extends LitElement {
     this.addEventListener("mode-change", this.onModeChange as EventListener);
     this.addEventListener("accounts-changed", this.onAccountsChanged as EventListener);
     this.addEventListener("wardrobe-changed", this.onWardrobeChanged as EventListener);
+    this.addEventListener("appearance-change", this.onAppearanceChange as EventListener);
     void this.loadSettings();
     void this.loadAccounts();
   }
 
   private async loadSettings() {
     const s = await getSettings();
+    applyAppearance({ ui_theme: s.ui_theme, accent_color: s.accent_color });
     this.onboarded = !!s.onboarding_complete;
     this.mode = s.mode === "agent" ? "agent" : "standard";
     const navParam = new URLSearchParams(location.search).get("nav");
@@ -208,7 +211,13 @@ export class EasyMcApp extends LitElement {
 
   private onWardrobeChanged = () => {
     void this.loadActiveSkin();
-  }
+  };
+
+  private onAppearanceChange = (e: Event) => {
+    const d = (e as CustomEvent<{ ui_theme?: string; accent_color?: string | null }>).detail;
+    if (d) applyAppearance({ ui_theme: d.ui_theme, accent_color: d.accent_color });
+  };
+
 
   private onOnboarded = () => {
     void this.loadSettings().then(() => {
@@ -233,6 +242,7 @@ export class EasyMcApp extends LitElement {
     this.removeEventListener("mode-change", this.onModeChange as EventListener);
     this.removeEventListener("accounts-changed", this.onAccountsChanged as EventListener);
     this.removeEventListener("wardrobe-changed", this.onWardrobeChanged as EventListener);
+    this.removeEventListener("appearance-change", this.onAppearanceChange as EventListener);
     super.disconnectedCallback();
   }
 

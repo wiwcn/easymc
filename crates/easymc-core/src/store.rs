@@ -133,6 +133,16 @@ pub struct Settings {
     /// Launch injects `-Dauthlibinjector.profileKey=disabled` when effective and MC ≥ 1.19.1.
     #[serde(default)]
     pub disable_chat_reporting_default: bool,
+    /// Appearance: `light` | `dark` | `system` (follow OS).
+    #[serde(default = "default_ui_theme")]
+    pub ui_theme: String,
+    /// Accent seed as `#RRGGBB`. None → default teal `#0D6E67`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_color: Option<String>,
+}
+
+fn default_ui_theme() -> String {
+    "light".into()
 }
 
 impl Default for Settings {
@@ -153,6 +163,8 @@ impl Default for Settings {
             container_saves_require_propose: true,
             container_auto_preheat: true,
             disable_chat_reporting_default: false,
+            ui_theme: default_ui_theme(),
+            accent_color: None,
         }
     }
 }

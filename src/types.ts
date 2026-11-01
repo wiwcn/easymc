@@ -578,6 +578,10 @@ export interface SettingsDto {
   container_auto_preheat?: boolean;
   /** Global default for reducing chat-report risk (instances may override). */
   disable_chat_reporting_default?: boolean;
+  /** Appearance: light | dark | system. */
+  ui_theme?: string;
+  /** Accent seed #RRGGBB; omit/null → default teal. */
+  accent_color?: string | null;
 }
 
 export interface MsaStatusDto {

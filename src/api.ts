@@ -707,6 +707,8 @@ function defaultPreviewSettings(): SettingsDto {
     container_saves_require_propose: true,
     container_auto_preheat: true,
     disable_chat_reporting_default: false,
+    ui_theme: "light",
+    accent_color: null,
   };
 }
 
@@ -758,6 +760,9 @@ export async function updateSettings(patch: {
   container_auto_preheat?: boolean;
   container_mirror_profile?: string;
   disable_chat_reporting_default?: boolean;
+  ui_theme?: string;
+  /** #RRGGBB or empty/null to reset default teal. */
+  accent_color?: string | null;
 }): Promise<SettingsDto> {
   try {
     return await invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
@@ -780,6 +785,10 @@ export async function updateSettings(patch: {
       ...(patch.container_mirror_profile != null ? { container_mirror_profile: patch.container_mirror_profile } : {}),
       ...(patch.disable_chat_reporting_default != null
         ? { disable_chat_reporting_default: !!patch.disable_chat_reporting_default }
+        : {}),
+      ...(patch.ui_theme != null ? { ui_theme: String(patch.ui_theme) } : {}),
+      ...(patch.accent_color !== undefined
+        ? { accent_color: (patch.accent_color ?? "").trim() || null }
         : {}),
       ...(patch.preferred_login !== undefined ? { preferred_login: patch.preferred_login as never } : {}),
       ...(patch.preferred_java !== undefined
