@@ -13,8 +13,11 @@ import {
   ensureJavaInstall,
   getSettings,
   listenLogs,
+  migrateToPortable,
   msaStatus,
+  portableStatus,
   setCurseforgeKey,
+  setPortableMode,
   updateSettings,
   containerOneClickSetup,
   containerPreheat,
@@ -36,6 +39,7 @@ import type {
   LlmConfigViewDto,
   LlmStatusDto,
   MsaStatusDto,
+  PortableStatusDto,
   RegistryMirrorProbeDto,
   SettingsDto,
 } from "../types";
@@ -56,6 +60,8 @@ export class SettingsPage extends LitElement {
   @state() private cfKeyDraft = "";
   @state() private msaDraft = "";
   @state() private dataDir = "";
+  @state() private portableInfo: PortableStatusDto | null = null;
+  @state() private portableBusy = false;
   @state() private llm: LlmStatusDto | null = null;
   @state() private llmCfg: LlmConfigViewDto | null = null;
   @state() private llmBase = "";
@@ -285,7 +291,7 @@ export class SettingsPage extends LitElement {
   }
 
   private async refresh() {
-    const [s, cf, msa, dir, llm, llmCfg, javas, mcDirs] = await Promise.all([
+    const [s, cf, msa, dir, llm, llmCfg, javas, mcDirs, portable] = await Promise.all([
       getSettings(),
       curseforgeConfigured(),
       msaStatus(),
@@ -294,12 +300,14 @@ export class SettingsPage extends LitElement {
       agentLlmConfigGet(),
       detectJava(),
       detectMinecraftDirs(),
+      portableStatus(),
     ]);
     this.settings = s;
     this.mem = Math.min(MEM_MAX, Math.max(MEM_MIN, s.memory_mb ?? 2048));
     this.cf = cf;
     this.msa = msa;
     this.dataDir = dir.path;
+    this.portableInfo = portable;
     this.llm = llm;
     this.llmCfg = llmCfg;
     this.llmBase = llmCfg.base_url || "";
@@ -1097,7 +1105,8 @@ export class SettingsPage extends LitElement {
       </div>
       <details class="card">
         <summary>高级</summary>
-        <p style="margin-top:12px">数据目录：<code>${this.dataDir || "（还没检测到）"}</code></p>
+        <p style="margin-top:12px">当前数据目录：<code>${this.dataDir || "（还没检测到）"}</code></p>
+        <p class="muted">${this.portableInfo?.message_zh || ""}</p>
         <p>
           微软登录客户端：${this.msa?.using_temporary_client_id
             ? "当前使用临时公共客户端，正式发布前会换成 EasyMC 自有。"
@@ -1242,6 +1251,54 @@ export class SettingsPage extends LitElement {
       </div>`;
   }
 
+
+  private async togglePortable(on: boolean) {
+    if (this.portableBusy) return;
+    this.portableBusy = true;
+    try {
+      if (on && this.portableInfo?.standard_has_data && !this.portableInfo?.portable_has_data) {
+        const ok = window.confirm(
+          "系统目录里已有 EasyMC 数据。\n\n开启便携后，新数据会写到程序旁边的 data/ 文件夹。\n是否先把旧数据安全复制过去？（不会删除原文件；复制后仍需重启）",
+        );
+        if (ok) {
+          const mig = await migrateToPortable();
+          showToast(mig.message_zh);
+        }
+      }
+      this.portableInfo = await setPortableMode(on);
+      showToast(
+        on
+          ? "已写入便携标记。请完全退出并重新打开 EasyMC 后生效。"
+          : "已去掉便携标记。请重启后回到系统默认数据目录（便携 data/ 里的文件不会自动删除）。",
+      );
+      await this.refresh();
+    } catch (e) {
+      showToast(friendlyError(e));
+      // Re-sync checkbox from reality
+      this.portableInfo = await portableStatus();
+    } finally {
+      this.portableBusy = false;
+    }
+  }
+
+  private async copyToPortable() {
+    if (this.portableBusy) return;
+    const ok = window.confirm(
+      "把系统数据目录里的内容复制到程序旁的 data/ 吗？\n\n这是安全复制，不会删除原来的文件。若目标已有同名文件且大小相同会跳过。",
+    );
+    if (!ok) return;
+    this.portableBusy = true;
+    try {
+      const mig = await migrateToPortable();
+      showToast(mig.message_zh);
+      this.portableInfo = await portableStatus();
+    } catch (e) {
+      showToast(friendlyError(e));
+    } finally {
+      this.portableBusy = false;
+    }
+  }
+
   private async setMode(m: AppMode) {
     this.settings = await updateSettings({ mode: m });
     this.dispatchEvent(new CustomEvent("mode-change", { detail: m, bubbles: true, composed: true }));
@@ -1249,7 +1306,69 @@ export class SettingsPage extends LitElement {
   }
 
   private renderOther() {
+    const p = this.portableInfo;
+    const markerOn = !!p?.portable_marker;
+    const envOn = !!p?.env_override;
     return html`
+      <div class="card">
+        <h2>便携模式（绿色目录）</h2>
+        <p>
+          开启后，版本、账户缓存、设置和下载都放在<strong>程序旁边的</strong>
+          <code>data/</code> 文件夹里，适合 U 盘或解压即用。关掉则继续用系统默认目录。
+        </p>
+        <p class="muted" style="margin:0 0 12px">
+          也可不点开关：把 <code>portable.txt</code> 或 <code>easymc-portable</code>
+          放到 <code>easymc-app.exe</code>（或安装目录里的主程序）旁边，重启即可。环境变量
+          <code>EASYMC_DATA_DIR</code> 优先级最高。
+        </p>
+        <p aria-live="polite" style="margin:0 0 12px">${p?.message_zh || "正在检测…"}</p>
+        ${p?.app_dir
+          ? html`<p class="muted" style="margin:0 0 8px">程序目录：<code class="path">${p.app_dir}</code></p>`
+          : nothing}
+        ${p?.portable_data_dir
+          ? html`<p class="muted" style="margin:0 0 8px">便携数据目录：<code class="path">${p.portable_data_dir}</code></p>`
+          : nothing}
+        ${p?.standard_data_dir
+          ? html`<p class="muted" style="margin:0 0 12px">系统数据目录：<code class="path">${p.standard_data_dir}</code></p>`
+          : nothing}
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:12px">
+          <input
+            type="checkbox"
+            .checked=${markerOn}
+            ?disabled=${this.portableBusy || envOn}
+            @change=${(e: Event) => {
+              const on = (e.target as HTMLInputElement).checked;
+              void this.togglePortable(on);
+            }}
+          />
+          <span>启用便携模式（写标记文件到程序旁）</span>
+        </label>
+        ${envOn
+          ? html`<p class="muted">当前被 <code>EASYMC_DATA_DIR</code> 覆盖，开关暂不可用。</p>`
+          : nothing}
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button
+            class="tonal"
+            type="button"
+            ?disabled=${this.portableBusy || envOn || !p?.standard_has_data}
+            title=${p?.standard_has_data ? "安全复制，不删除原文件" : "系统目录暂无数据可复制"}
+            @click=${() => void this.copyToPortable()}
+          >
+            复制系统数据到便携目录
+          </button>
+          <button
+            class="ghost"
+            type="button"
+            ?disabled=${this.portableBusy}
+            @click=${() => void this.refresh()}
+          >
+            刷新状态
+          </button>
+        </div>
+        <p class="muted" style="margin-top:12px">
+          切换标记后需要<strong>完全退出再打开</strong>才会换数据目录。复制是安全拷贝，不会清空原来的系统目录。
+        </p>
+      </div>
       <div class="card">
         <h2>欢迎引导</h2>
         <p>重新走一遍首次设置（模式与账户）。</p>
@@ -1270,7 +1389,7 @@ export class SettingsPage extends LitElement {
       <div class="card">
         <h2>关于</h2>
         <p>
-          EasyMC ${this.settings ? "0.1.0" : ""} · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
+          EasyMC · 开源 Minecraft Java 启动器。更多信息见「更多 → 关于」。
         </p>
       </div>
     `;

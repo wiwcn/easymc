@@ -534,6 +534,29 @@ export type PreferredLogin = "microsoft" | "offline" | "skin_station";
 
 export type DownloadSourceId = "official" | "bmclapi";
 
+
+export interface PortableStatusDto {
+  portable_marker: boolean;
+  marker_path?: string | null;
+  app_dir?: string | null;
+  active_data_dir: string;
+  portable_data_dir?: string | null;
+  standard_data_dir?: string | null;
+  env_override: boolean;
+  env_data_dir?: string | null;
+  standard_has_data: boolean;
+  portable_has_data: boolean;
+  message_zh: string;
+}
+
+export interface MigratePortableResultDto {
+  ok: boolean;
+  copied_entries: number;
+  source: string;
+  destination: string;
+  message_zh: string;
+}
+
 export interface SettingsDto {
   msa_client_id?: string | null;
   preferred_java?: string | null;

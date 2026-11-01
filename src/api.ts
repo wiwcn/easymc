@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, MigratePortableResultDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PortableStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -595,6 +595,28 @@ export async function agentAsk(
     rulesOnly: opts?.rulesOnly ?? false,
     history: opts?.history ?? [],
   });
+}
+
+
+export async function portableStatus(): Promise<PortableStatusDto> {
+  return (
+    (await invokeSafe<PortableStatusDto>("portable_status_cmd")) ?? {
+      portable_marker: false,
+      active_data_dir: "",
+      env_override: false,
+      standard_has_data: false,
+      portable_has_data: false,
+      message_zh: "（浏览器预览：便携模式需在桌面版使用）",
+    }
+  );
+}
+
+export async function setPortableMode(enable: boolean): Promise<PortableStatusDto> {
+  return invokeOrThrow<PortableStatusDto>("set_portable_mode_cmd", { enable });
+}
+
+export async function migrateToPortable(): Promise<MigratePortableResultDto> {
+  return invokeOrThrow<MigratePortableResultDto>("migrate_to_portable_cmd");
 }
 
 export async function agentDataDir(): Promise<{ path: string; message: string }> {

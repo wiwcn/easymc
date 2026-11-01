@@ -73,7 +73,7 @@ EasyMC 面向普通玩家：装好、启动、装模组、分享配置、排错�
 
 1. 打开 [Releases](https://github.com/wiwcn/easymc/releases) 下载最新 **`EasyMC_*_x64-setup.exe`**
 2. 安装并运行（未代码签名时，SmartScreen 可能提示「仍要运行」）
-3. 也可使用同版本附带的便携 **`easymc-app.exe`**
+3. 也可使用同版本附带的便携 **`easymc-app.exe`**（与 **`portable.txt`** 放在同一文件夹即可绿色运行，数据在旁路 `data/`）
 
 Linux / macOS：当前以从源码构建为主；CI 以 Windows NSIS 发布包为准。
 
@@ -110,7 +110,8 @@ cargo run -p easymc-cli -- launch default
 
 | 项 | 说明 |
 |----|------|
-| 数据目录 | `EASYMC_DATA_DIR` 或平台数据目录下的 `EasyMC` |
+| 数据目录 | `EASYMC_DATA_DIR`（优先）→ 便携：程序旁有 `portable.txt` / `easymc-portable` 时用 `<程序目录>/data` → 否则平台数据目录下的 `EasyMC` |
+| 便携模式 | 设置 → 其他 →「便携模式」；或手动放置标记文件；可从系统目录安全复制数据（不删原文件） |
 | 下载源 | 设置 → 下载源，或 `easymc download-source set bmclapi` |
 | CurseForge | 设置中粘贴 API Key，或 `EASYMC_CURSEFORGE_API_KEY` |
 | 微软登录 | `EASYMC_MSA_CLIENT_ID`（Azure 公共客户端） |

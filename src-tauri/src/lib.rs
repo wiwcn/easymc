@@ -6,7 +6,7 @@ use easymc_core::{
     save_instances, save_settings, set_active_instance, update_instance_fields, upsert_instance,
     add_instance_playtime,
     Account, AppMode, CreateInstanceOpts, DownloadSource, Instance, McVersion,
-    MicrosoftAuthConfig, ModLoader, Paths, Settings,
+    MicrosoftAuthConfig, ModLoader, Paths, PortableStatus, MigrateResult, portable_status, set_portable_marker, migrate_standard_to_portable, Settings,
     fetch_littleskin_by_name,
     fetch_official,
     set_active_wardrobe,
@@ -93,6 +93,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "edition": "Java",
         "milestone": "M1.8",
         "data_dir": state.paths.root,
+        "portable": portable_status(&state.paths.root),
         "msa_configured": msa.is_configured(),
         "msa_temporary_client": msa.using_temporary_client_id,
     })
@@ -2540,6 +2541,22 @@ async fn agent_ask(
     Ok(resp)
 }
 
+
+#[tauri::command]
+fn portable_status_cmd(state: State<'_, AppState>) -> PortableStatus {
+    portable_status(state_paths(&state).root.as_path())
+}
+
+#[tauri::command]
+fn set_portable_mode_cmd(enable: bool) -> Result<PortableStatus, String> {
+    set_portable_marker(enable).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn migrate_to_portable_cmd() -> Result<MigrateResult, String> {
+    migrate_standard_to_portable().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn agent_data_dir(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let ar = show_data_dir(&state.paths);
@@ -3338,6 +3355,9 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             agent_diagnose,
             agent_ask,
             agent_data_dir,
+            portable_status_cmd,
+            set_portable_mode_cmd,
+            migrate_to_portable_cmd,
             agent_bump_memory,
             agent_export_diagnostics,
             agent_apply_proposal,
