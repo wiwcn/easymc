@@ -41,7 +41,7 @@ import {
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
 import type { ContainerLayerStateDto, DepGraphReportDto, InstalledModEntryDto, InstanceDto, LoaderId, LocalEntryDto, ModUpdateCandidateDto, ModUpdateScanReportDto, VersionSummary } from "../types";
-import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
+import { instancePlayerLabel, loaderLabel, mcSupportsChatReporting, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { sortInstancesReadyFirst } from "../lib/download-ux";
@@ -106,6 +106,8 @@ export class InstancePage extends LitElement {
   @state() private catDraft = "";
   @state() private qpModeDraft: "" | "world" | "server" | "realms" = "";
   @state() private qpTargetDraft = "";
+  /** inherit | on | off — maps to Option<bool> / clear */
+  @state() private chatReportDraft: "inherit" | "on" | "off" = "inherit";
   @state() private showCreate = false;
   @state() private newName = "";
   @state() private newVersion = "1.21.1";
@@ -569,6 +571,9 @@ export class InstancePage extends LitElement {
       this.qpModeDraft = "";
       this.qpTargetDraft = "";
     }
+    if (d.disable_chat_reporting === true) this.chatReportDraft = "on";
+    else if (d.disable_chat_reporting === false) this.chatReportDraft = "off";
+    else this.chatReportDraft = "inherit";
     await this.refreshLayer(d.id);
     await this.refreshTab();
   }
@@ -932,6 +937,30 @@ export class InstancePage extends LitElement {
               ? html`<p class="muted" style="margin:0">当前：${this.qpModeDraft === "world" ? "世界" : this.qpModeDraft === "server" ? "服务器" : "Realms"} → ${this.qpTargetDraft.trim() || "（还没填目标）"}</p>`
               : nothing}
           </div>
+          <div class="field" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--md-sys-color-outline-variant)">
+            <label>减少聊天举报</label>
+            ${mcSupportsChatReporting(d.version)
+              ? html`
+                  <p class="muted" style="margin:4px 0 8px">
+                    适用于 Minecraft 1.19.1+。开启后，启动时会加入公开的
+                    <code>-Dauthlibinjector.profileKey=disabled</code>
+                    （对外置登录 / authlib-injector 有效）。正版微软账户若要彻底剥离聊天签名，请到模组页自行安装「No Chat Reports」；EasyMC
+                    <strong>不会</strong>静默劫持或改写网络协议。强制安全聊天的服务器仍可能要求签名。
+                  </p>
+                  <select
+                    aria-label="减少聊天举报"
+                    .value=${this.chatReportDraft}
+                    @change=${(e: Event) => {
+                      this.chatReportDraft = (e.target as HTMLSelectElement).value as typeof this.chatReportDraft;
+                    }}
+                  >
+                    <option value="inherit">跟随全局默认</option>
+                    <option value="on">开启</option>
+                    <option value="off">关闭</option>
+                  </select>
+                `
+              : html`<p class="muted" style="margin:4px 0 0">此版本（早于 1.19.1）没有玩家聊天举报，无需设置。</p>`}
+          </div>
           <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
             <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.saveSettings(d)}>保存</button>
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
@@ -1231,6 +1260,13 @@ export class InstancePage extends LitElement {
         patch.quick_play_target = this.qpTargetDraft.trim();
       } else {
         patch.clear_quick_play = true;
+      }
+      if (this.chatReportDraft === "inherit") {
+        patch.clear_disable_chat_reporting = true;
+      } else if (this.chatReportDraft === "on") {
+        patch.disable_chat_reporting = true;
+      } else {
+        patch.disable_chat_reporting = false;
       }
       await updateInstance(d.id, patch);
       await this.load();

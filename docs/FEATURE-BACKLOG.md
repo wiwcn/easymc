@@ -9,13 +9,14 @@
 |------|----------|------|
 | **快速进入（Quick Play）** | CMCL、Prism `--quickPlay*` | 版本设置可选世界 / 服务器 / Realms；世界页「设为快速进入」「直进」。1.20+ 用官方参数；更旧版本服务器回退 `--server`/`--port`。 |
 | **分享日志（mclo.gs）** | 多数启动器的日志上传 | 版本设置「分享最新日志」→ 上传 `latest.log`（或最新 crash-report）到 mclo.gs，复制链接。 |
+| **减少聊天举报（可选）** | BakaXL、authlib-injector | 全局默认 + 实例覆盖；1.19.1+ 注入公开 JVM 属性；诚实说明正版需模组配合，不改写网络。 |
 
 ## 高价值待做（未实现）
 
 | 优先级 | 功能 | 参照灵感 | 备注 |
 |--------|------|----------|------|
 | P1 | ~~桌面 / 开始菜单快捷方式~~ | Prism、MultiMC | **已实现（0.1.6）**：`create_desktop_shortcut` → 桌面 + 开始菜单 / applications；脚本含 Quick Play。 |
-| P1 | **禁用聊天举报（可选）** | BakaXL、部分 Prism 配置 | 以玩家可理解的开关呈现；实现需跟进当年 MC/加载器可行方式（JVM/模组），避免静默改协议。 |
+| P1 | ~~禁用聊天举报（可选）~~ | BakaXL、部分 Prism 配置 | **已实现（0.1.9）**：实例/全局「减少聊天举报」；≥1.19.1 启动注入 `-Dauthlibinjector.profileKey=disabled`；UI 如实说明外置登录与 No Chat Reports，不静默改协议。 |
 | P2 | ~~游玩时长统计~~ | LauncherX、HMCL 类 | **已实现（0.1.6）**：`total_play_secs` 会话累计；启动页 / 版本设置展示。 |
 | P2 | ~~启动后实时日志控制台~~ | Prism、MultiMC、Pandora | **已实现（0.1.7）**：启动页实时日志过滤/复制/mclo.gs；进程缓冲优先，空则回退 latest.log。 |
 | P2 | ~~批量模组更新~~ | Polymerium、XMCL | **已实现（0.1.8）**：实例模组页检查更新 / 多选 / 版本选择与 changelog；复用 Modrinth+CF 安装路径；无 Key 时 CF 优雅降级。 |

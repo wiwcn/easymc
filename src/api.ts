@@ -684,6 +684,7 @@ function defaultPreviewSettings(): SettingsDto {
     container_setup_done: false,
     container_saves_require_propose: true,
     container_auto_preheat: true,
+    disable_chat_reporting_default: false,
   };
 }
 
@@ -734,6 +735,7 @@ export async function updateSettings(patch: {
   container_saves_require_propose?: boolean;
   container_auto_preheat?: boolean;
   container_mirror_profile?: string;
+  disable_chat_reporting_default?: boolean;
 }): Promise<SettingsDto> {
   try {
     return await invokeOrThrow<SettingsDto>("update_settings_cmd", { patch });
@@ -754,6 +756,9 @@ export async function updateSettings(patch: {
         : {}),
       ...(patch.container_auto_preheat != null ? { container_auto_preheat: !!patch.container_auto_preheat } : {}),
       ...(patch.container_mirror_profile != null ? { container_mirror_profile: patch.container_mirror_profile } : {}),
+      ...(patch.disable_chat_reporting_default != null
+        ? { disable_chat_reporting_default: !!patch.disable_chat_reporting_default }
+        : {}),
       ...(patch.preferred_login !== undefined ? { preferred_login: patch.preferred_login as never } : {}),
       ...(patch.preferred_java !== undefined
         ? { preferred_java: (patch.preferred_java ?? "").trim() || null }

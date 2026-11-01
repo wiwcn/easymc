@@ -527,6 +527,7 @@ struct UpdateSettingsPatch {
     container_auto_preheat: Option<bool>,
     /// Mirror profile id: daocloud | official (maps to container_china_mirrors).
     container_mirror_profile: Option<String>,
+    disable_chat_reporting_default: Option<bool>,
 }
 
 #[tauri::command]
@@ -577,6 +578,9 @@ fn update_settings_cmd(
     }
     if let Some(v) = patch.container_auto_preheat {
         settings.container_auto_preheat = v;
+    }
+    if let Some(v) = patch.disable_chat_reporting_default {
+        settings.disable_chat_reporting_default = v;
     }
     if let Some(profile) = patch.container_mirror_profile.as_deref() {
         match MirrorProfile::parse(profile) {
@@ -2676,6 +2680,9 @@ struct InstancePatch {
     quick_play_mode: Option<String>,
     quick_play_target: Option<String>,
     clear_quick_play: Option<bool>,
+    /// Instance override for chat reporting. Use clear_disable_chat_reporting to inherit global.
+    disable_chat_reporting: Option<bool>,
+    clear_disable_chat_reporting: Option<bool>,
 }
 
 #[tauri::command]
@@ -2728,6 +2735,11 @@ fn update_instance_cmd(
                 _ => inst.quick_play.clone(),
             };
         }
+        if patch.clear_disable_chat_reporting == Some(true) {
+            inst.disable_chat_reporting = None;
+        } else if let Some(v) = patch.disable_chat_reporting {
+            inst.disable_chat_reporting = Some(v);
+        }
     }).map_err(|e| e.to_string())
 }
 
@@ -2738,6 +2750,7 @@ fn rename_instance_cmd(state: State<'_, AppState>, instance_id: String, name: St
         memory_mb: None, clear_memory: None, java_path: None, clear_java: None,
         width: None, height: None, clear_resolution: None, jvm_args: None, clear_jvm_args: None,
         account_id: None, quick_play_mode: None, quick_play_target: None, clear_quick_play: None,
+        disable_chat_reporting: None, clear_disable_chat_reporting: None,
     })
 }
 

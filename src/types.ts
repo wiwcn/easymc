@@ -42,6 +42,11 @@ export interface InstanceDto {
   jvm_args?: string | null;
   /** Direct-join world/server/Realms on launch. */
   quick_play?: QuickPlayDto | null;
+  /**
+   * Reduce chat-report risk (1.19.1+). null/undefined = inherit global default.
+   * Launch adds `-Dauthlibinjector.profileKey=disabled` when effective.
+   */
+  disable_chat_reporting?: boolean | null;
   /** Present when this version is container-backed (Podman). */
   container?: ContainerMetaDto | null;
 }
@@ -548,6 +553,8 @@ export interface SettingsDto {
   container_saves_require_propose?: boolean;
   /** Auto-preheat when container mode enabled (Slice E). */
   container_auto_preheat?: boolean;
+  /** Global default for reducing chat-report risk (instances may override). */
+  disable_chat_reporting_default?: boolean;
 }
 
 export interface MsaStatusDto {
@@ -750,3 +757,19 @@ export interface ResolvedSkinDto {
   skin_data_url?: string | null;
   cape_data_url?: string | null;
 }
+
+/** Minecraft 1.19.1+ has player chat reporting. */
+export function mcSupportsChatReporting(version: string | { 0: string } | null | undefined): boolean {
+  const raw = typeof version === "string" ? version : version && "0" in version ? version[0] : "";
+  const m = String(raw).match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!m) return false;
+  const major = Number(m[1] || 0);
+  const minor = Number(m[2] || 0);
+  const patch = Number(m[3] || 0);
+  if (major > 1) return true;
+  if (major < 1) return false;
+  if (minor > 19) return true;
+  if (minor < 19) return false;
+  return patch >= 1;
+}
+

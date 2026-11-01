@@ -972,6 +972,26 @@ export class SettingsPage extends LitElement {
         </div>
       </div>
       <div class="card">
+        <h2>减少聊天举报（默认）</h2>
+        <p>
+          新建或未单独设置的版本会跟随这里。开启后，在 Minecraft 1.19.1+ 启动时加入公开的
+          <code>-Dauthlibinjector.profileKey=disabled</code>
+          （对外置登录 / authlib-injector 有效）。正版微软账户请配合模组「No Chat Reports」；EasyMC 不会静默改写网络协议。
+        </p>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input
+            type="checkbox"
+            .checked=${!!this.settings?.disable_chat_reporting_default}
+            @change=${async (e: Event) => {
+              const on = (e.target as HTMLInputElement).checked;
+              this.settings = await updateSettings({ disable_chat_reporting_default: on });
+              showToast(on ? "已开启：新启动会尝试减少聊天举报" : "已关闭全局默认");
+            }}
+          />
+          <span>默认开启「减少聊天举报」</span>
+        </label>
+      </div>
+      <div class="card">
         <h2>下载源</h2>
         <p>游戏文件与版本列表的下载地址。可测速后选用最快源（国内加速）；失败时会自动回退官方源。</p>
         <div class="row" style="margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">

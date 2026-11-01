@@ -129,6 +129,10 @@ pub struct Settings {
     /// Auto-preheat container runtime when container mode is enabled (Slice E).
     #[serde(default = "default_true")]
     pub container_auto_preheat: bool,
+    /// Global default for 「减少聊天举报」 when an instance does not override.
+    /// Launch injects `-Dauthlibinjector.profileKey=disabled` when effective and MC ≥ 1.19.1.
+    #[serde(default)]
+    pub disable_chat_reporting_default: bool,
 }
 
 impl Default for Settings {
@@ -148,6 +152,7 @@ impl Default for Settings {
             container_setup_done: false,
             container_saves_require_propose: true,
             container_auto_preheat: true,
+            disable_chat_reporting_default: false,
         }
     }
 }
@@ -472,6 +477,7 @@ pub fn duplicate_instance(paths: &Paths, id: &str, new_name: Option<&str>) -> Re
     copy.height = src.height;
     copy.jvm_args = src.jvm_args.clone();
     copy.quick_play = src.quick_play.clone();
+    copy.disable_chat_reporting = src.disable_chat_reporting;
     // Container identity is per-version — duplicate stays native until re-attached.
     copy.container = None;
     copy.description = Some(format!("由「{}」复制", src.name));

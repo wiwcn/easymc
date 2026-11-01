@@ -1,6 +1,6 @@
 {
   "name": "easymc",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "description": "EasyMC \u2014 open-source Minecraft Java Edition launcher (Tauri 2 + Lit)",

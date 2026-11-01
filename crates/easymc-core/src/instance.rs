@@ -155,6 +155,11 @@ pub struct Instance {
     /// Skip title screen: join a world / server / Realms on launch (CMCL / Prism Quick Play).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quick_play: Option<QuickPlay>,
+    /// Reduce chat-report risk for 1.19.1+. `None` = inherit global Settings default.
+    /// When effective-on, launch injects the public authlib-injector JVM flag
+    /// `-Dauthlibinjector.profileKey=disabled` (no silent network/protocol rewrite).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_chat_reporting: Option<bool>,
     /// When set, this version runs via container mode (Podman). `None` = native.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<crate::ContainerMeta>,
@@ -183,6 +188,7 @@ impl Instance {
             height: None,
             jvm_args: None,
             quick_play: None,
+            disable_chat_reporting: None,
             container: None,
         }
     }
@@ -228,5 +234,83 @@ mod playtime_tests {
         let raw = r#"{"id":"a","name":"n","version":"1.21.1","game_dir":"/tmp","created_at":"2026-01-01T00:00:00Z"}"#;
         let inst: Instance = serde_json::from_str(raw).unwrap();
         assert_eq!(inst.total_play_secs, 0);
+    }
+}
+
+
+/// Minecraft 1.19.1 introduced player chat reporting. Versions below that have nothing to disable.
+pub fn chat_reporting_applies(mc_version: &str) -> bool {
+    mc_version_cmp_at_least(mc_version, &[1, 19, 1])
+}
+
+/// Compare dotted Minecraft version ids (`1.19.1`, `1.20`, `1.21.3-rc1`).
+/// Non-release ids that lack enough numeric components return false.
+pub fn mc_version_cmp_at_least(version: &str, want: &[u32]) -> bool {
+    let mut nums = Vec::new();
+    let mut cur = String::new();
+    for c in version.chars() {
+        if c.is_ascii_digit() {
+            cur.push(c);
+        } else if !cur.is_empty() {
+            if let Ok(n) = cur.parse::<u32>() {
+                nums.push(n);
+            }
+            cur.clear();
+            if c != '.' {
+                // Stop at first non-dot suffix after a component (e.g. `-rc1`, `w`).
+                break;
+            }
+        }
+    }
+    if !cur.is_empty() {
+        if let Ok(n) = cur.parse::<u32>() {
+            nums.push(n);
+        }
+    }
+    if nums.is_empty() {
+        return false;
+    }
+    for i in 0..want.len() {
+        let a = nums.get(i).copied().unwrap_or(0);
+        let b = want[i];
+        if a > b {
+            return true;
+        }
+        if a < b {
+            return false;
+        }
+    }
+    true
+}
+
+/// Effective chat-report preference: instance override, else global default.
+pub fn effective_disable_chat_reporting(
+    instance_override: Option<bool>,
+    global_default: bool,
+) -> bool {
+    instance_override.unwrap_or(global_default)
+}
+
+#[cfg(test)]
+mod chat_report_tests {
+    use super::*;
+
+    #[test]
+    fn applies_from_1_19_1() {
+        assert!(!chat_reporting_applies("1.18.2"));
+        assert!(!chat_reporting_applies("1.19"));
+        assert!(!chat_reporting_applies("1.19.0"));
+        assert!(chat_reporting_applies("1.19.1"));
+        assert!(chat_reporting_applies("1.19.4"));
+        assert!(chat_reporting_applies("1.20"));
+        assert!(chat_reporting_applies("1.21.1"));
+    }
+
+    #[test]
+    fn effective_inherits_global() {
+        assert!(!effective_disable_chat_reporting(None, false));
+        assert!(effective_disable_chat_reporting(None, true));
+        assert!(effective_disable_chat_reporting(Some(true), false));
+        assert!(!effective_disable_chat_reporting(Some(false), true));
     }
 }

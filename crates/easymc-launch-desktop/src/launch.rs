@@ -124,13 +124,19 @@ pub async fn prepare_and_launch(
     // Slice C: container-backed → JRE comes from the runtime image (no host Java required).
     if instance.container.is_some() {
         on_log(format!("容器模式将使用镜像内 Java（目标主版本 {required}）"));
+        if should_apply_chat_reporting_flag(instance, settings) {
+            on_log(
+                "已启用「减少聊天举报」：加入 -Dauthlibinjector.profileKey=disabled（外置登录 / authlib-injector 生效；正版微软账户请另装 No Chat Reports 模组，启动器不会改写网络协议）"
+                    .into(),
+            );
+        }
         let stub = JavaInstall {
             path: PathBuf::from("java"),
             major: required,
             version_string: format!("{required}+ (container)"),
             source: "container".into(),
         };
-        let args = build_jvm_and_game_args(paths, &info, instance, account, &stub, req)?;
+        let args = build_jvm_and_game_args(paths, &info, instance, account, &stub, req, settings)?;
         return launch_via_container(paths, instance, &args, settings, procs, on_log).await;
     }
 
@@ -148,8 +154,14 @@ pub async fn prepare_and_launch(
         }
     };
     on_log(format!("使用 Java {}: {}", java.major, java.path.display()));
+    if should_apply_chat_reporting_flag(instance, settings) {
+        on_log(
+            "已启用「减少聊天举报」：加入 -Dauthlibinjector.profileKey=disabled（外置登录 / authlib-injector 生效；正版微软账户请另装 No Chat Reports 模组，启动器不会改写网络协议）"
+                .into(),
+        );
+    }
 
-    let args = build_jvm_and_game_args(paths, &info, instance, account, &java, req)?;
+    let args = build_jvm_and_game_args(paths, &info, instance, account, &java, req, settings)?;
 
     procs
         .spawn(
@@ -215,6 +227,7 @@ pub fn build_jvm_and_game_args(
     account: &Account,
     java: &JavaInstall,
     req: &LaunchRequest,
+    settings: &Settings,
 ) -> Result<Vec<String>> {
     let _ = java;
     let natives = paths.natives_for_version(info.jar_id());
@@ -271,6 +284,7 @@ pub fn build_jvm_and_game_args(
     if let Some(extra) = instance.jvm_args.as_deref() {
         args.extend(extra.split_whitespace().map(String::from));
     }
+    append_chat_reporting_jvm_args(&mut args, instance, settings);
 
     if let Some(arguments) = &info.arguments {
         for item in &arguments.jvm {
@@ -458,7 +472,7 @@ pub fn write_launch_script(
         .map_err(|_| EasyMcError::msg(format!("还没有 Java {required}，先启动一次游戏让 EasyMC 自动准备")))?;
     let mut safe = account.clone();
     safe.access_token = "0".into();
-    let args = build_jvm_and_game_args(paths, &info, instance, &safe, &java, req)?;
+    let args = build_jvm_and_game_args(paths, &info, instance, &safe, &java, req, settings)?;
     let win = cfg!(windows);
     let quote = |s: &str| {
         if win {
@@ -586,6 +600,34 @@ pub fn create_desktop_shortcut(
 
 
 
+
+/// Documented authlib-injector property: skip signing profile keys used for chat reports.
+/// No-op when the authlib-injector agent is not present; does not rewrite Mojang hosts.
+pub const CHAT_REPORT_JVM_FLAG: &str = "-Dauthlibinjector.profileKey=disabled";
+
+/// Whether this instance should receive the chat-report JVM flag on launch.
+pub fn should_apply_chat_reporting_flag(instance: &Instance, settings: &Settings) -> bool {
+    if !easymc_core::effective_disable_chat_reporting(
+        instance.disable_chat_reporting,
+        settings.disable_chat_reporting_default,
+    ) {
+        return false;
+    }
+    easymc_core::chat_reporting_applies(instance.version.as_str())
+}
+
+/// Append the public authlib-injector profileKey disable flag when enabled and version ≥ 1.19.1.
+/// Skips if the same property is already present in args / instance jvm_args.
+pub fn append_chat_reporting_jvm_args(args: &mut Vec<String>, instance: &Instance, settings: &Settings) {
+    if !should_apply_chat_reporting_flag(instance, settings) {
+        return;
+    }
+    if args.iter().any(|a| a.contains("authlibinjector.profileKey")) {
+        return;
+    }
+    args.push(CHAT_REPORT_JVM_FLAG.into());
+}
+
 #[cfg(test)]
 mod quick_play_tests {
     use super::*;
@@ -648,6 +690,66 @@ mod quick_play_tests {
     }
 }
 
+
+
+#[cfg(test)]
+mod chat_reporting_launch_tests {
+    use super::*;
+
+    fn bare_instance(version: &str) -> Instance {
+        Instance::new("t", "t", easymc_core::McVersion(version.into()), "/tmp/t".into())
+    }
+
+    #[test]
+    fn injects_flag_when_enabled_and_supported() {
+        let mut inst = bare_instance("1.20.1");
+        inst.disable_chat_reporting = Some(true);
+        let settings = Settings::default();
+        let mut args = vec!["-Xmx2G".into()];
+        append_chat_reporting_jvm_args(&mut args, &inst, &settings);
+        assert!(args.iter().any(|a| a == CHAT_REPORT_JVM_FLAG));
+    }
+
+    #[test]
+    fn skips_below_1_19_1() {
+        let mut inst = bare_instance("1.19");
+        inst.disable_chat_reporting = Some(true);
+        let settings = Settings::default();
+        let mut args = vec![];
+        append_chat_reporting_jvm_args(&mut args, &inst, &settings);
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn respects_global_default() {
+        let inst = bare_instance("1.21.1");
+        let mut settings = Settings::default();
+        settings.disable_chat_reporting_default = true;
+        assert!(should_apply_chat_reporting_flag(&inst, &settings));
+        let mut args = vec![];
+        append_chat_reporting_jvm_args(&mut args, &inst, &settings);
+        assert_eq!(args, vec![CHAT_REPORT_JVM_FLAG]);
+    }
+
+    #[test]
+    fn does_not_duplicate() {
+        let mut inst = bare_instance("1.21.1");
+        inst.disable_chat_reporting = Some(true);
+        let settings = Settings::default();
+        let mut args = vec![CHAT_REPORT_JVM_FLAG.into()];
+        append_chat_reporting_jvm_args(&mut args, &inst, &settings);
+        assert_eq!(args.len(), 1);
+    }
+
+    #[test]
+    fn instance_false_overrides_global_true() {
+        let mut inst = bare_instance("1.21.1");
+        inst.disable_chat_reporting = Some(false);
+        let mut settings = Settings::default();
+        settings.disable_chat_reporting_default = true;
+        assert!(!should_apply_chat_reporting_flag(&inst, &settings));
+    }
+}
 
 #[cfg(test)]
 mod shortcut_tests {
