@@ -2259,7 +2259,7 @@ ${extraContent}` : t.content,
                 <easymc-empty-state
                   variant="panel"
                   title="有什么我能帮你的？"
-                  description="直接提问，或点下方「可以这样说」。窄屏时右侧工具会收起，快捷芯片仍可用。"
+                  description="直接提问，或点下方「可以这样说」。右侧有快捷工具；开始对话后底部也会出现快捷芯片。"
                 ></easymc-empty-state>
               </div>`
             : html`<div class="chat">
@@ -2317,15 +2317,17 @@ ${extraContent}` : t.content,
               </div>`
             : nothing}
 
-          <div class="quick-chips" role="group" aria-label="快捷工具">
-            <button class="chip primary" type="button" ?disabled=${this.busy} @click=${() => this.goDownloadCenter()}>去下载中心</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>一键查崩溃</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>导出整合包</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
-          </div>
+          ${chatEmpty
+            ? nothing
+            : html`<div class="quick-chips" role="group" aria-label="快捷工具">
+                <button class="chip primary" type="button" ?disabled=${this.busy} @click=${() => this.goDownloadCenter()}>去下载中心</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>一键查崩溃</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>导出整合包</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
+                <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
+              </div>`}
 
           <div class="composer">
             <input
