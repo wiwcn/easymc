@@ -118,12 +118,10 @@ const TOOL_TITLES: Record<string, string> = {
 /** Player-facing skill hints (mirror crates/easymc-agent skills index). */
 const SKILL_HINTS: { label: string; prompt: string; tool?: string }[] = [
   { label: "游戏崩了", prompt: "查看崩溃", tool: "diagnose" },
-  { label: "装个模组", prompt: "搜模组 sodium", tool: "search_mods" },
-  { label: "打开模组文件夹", prompt: "打开模组文件夹", tool: "open_mods" },
-  { label: "看看有哪些版本", prompt: "版本列表", tool: "list_instances" },
-  { label: "内存不够卡", prompt: "优化配置", tool: "propose_changes" },
-  { label: "禁用某个模组", prompt: "已装模组", tool: "check_mods" },
-  { label: "查缺依赖", prompt: "这个整合包好像缺依赖，你帮我查查能不能补上", tool: "check_mod_deps" },
+  { label: "搜模组", prompt: "搜模组 sodium", tool: "search_mods" },
+  { label: "版本列表", prompt: "版本列表", tool: "list_instances" },
+  { label: "查缺依赖", prompt: "查依赖", tool: "check_mod_deps" },
+  { label: "优化配置", prompt: "优化配置", tool: "propose_changes" },
 ];
 
 function runningTool(name: string, args: { key: string; label_zh: string; value: string }[] = []): ToolCallDto {
@@ -208,11 +206,13 @@ export class AgentPage extends LitElement {
       min-height: 480px;
     }
     .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 260px;
-      gap: var(--easymc-space-4);
+      display: flex;
+      flex-direction: column;
       height: 100%;
       min-height: 0;
+      max-width: 860px;
+      margin: 0 auto;
+      width: 100%;
     }
     .main-col {
       display: flex;
@@ -222,20 +222,36 @@ export class AgentPage extends LitElement {
     }
     .head {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       gap: var(--easymc-space-3);
       margin-bottom: var(--easymc-space-3);
+      flex-shrink: 0;
     }
-    h1 {
-      margin: 0;
+    .head-left {
       display: flex;
       align-items: center;
       gap: var(--easymc-space-3);
       flex-wrap: wrap;
+      min-width: 0;
+    }
+    h1 {
+      margin: 0;
+      font-size: var(--easymc-type-title);
+      font-weight: var(--easymc-weight-medium);
+      display: flex;
+      align-items: center;
+      gap: var(--easymc-space-2);
+      flex-wrap: wrap;
+    }
+    .head-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--easymc-space-2);
+      flex-shrink: 0;
     }
     .sub {
-      margin: var(--easymc-space-1) 0 0;
+      display: none;
     }
     .badge {
       display: inline-flex;
@@ -308,15 +324,21 @@ export class AgentPage extends LitElement {
     .chat-empty {
       flex: 1;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 240px;
+      gap: var(--easymc-space-4);
+      min-height: 200px;
       margin-bottom: var(--easymc-space-3);
-      padding: var(--easymc-space-4);
+      padding: var(--easymc-space-5) var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-lowest);
-      box-shadow: var(--md-sys-elevation-1);
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
       box-sizing: border-box;
+    }
+    .chat-empty easymc-empty-state {
+      width: min(100%, 420px);
     }
     .skills-hints {
       display: flex;
@@ -594,9 +616,7 @@ export class AgentPage extends LitElement {
       margin-top: var(--easymc-space-1);
     }
     .tool-card-expand-hint {
-      margin: 0 0 var(--easymc-space-3);
-      font-size: var(--easymc-type-meta);
-      color: var(--md-sys-color-on-surface-variant);
+      display: none;
     }
     .tool-chip {
       flex-shrink: 0;
@@ -770,17 +790,7 @@ export class AgentPage extends LitElement {
       font: inherit;
     }
     .tools {
-      display: flex;
-      flex-direction: column;
-      gap: var(--easymc-space-2);
-      padding: var(--easymc-space-4);
-      border-radius: var(--md-sys-shape-corner-extra-large);
-      background: var(--md-sys-color-surface-container-low);
-      box-shadow: var(--md-sys-elevation-1);
-      border: none;
-      align-self: start;
-      max-height: 100%;
-      overflow: auto;
+      display: none;
     }
     .tools h2 {
       margin: 0 0 var(--easymc-space-2);
@@ -857,13 +867,38 @@ export class AgentPage extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: var(--easymc-space-2);
+      margin-bottom: var(--easymc-space-2);
+      flex-shrink: 0;
+    }
+    .composer-block {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--easymc-space-2);
+    }
+    .conn-card {
       margin-bottom: var(--easymc-space-3);
+      padding: var(--easymc-space-4);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
+    }
+    .conn-card h3 {
+      margin: 0 0 6px;
+      font-size: var(--easymc-type-label);
+      font-weight: var(--easymc-weight-medium);
+    }
+    .conn-card .muted {
+      margin: 0 0 10px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.4;
     }
     /* Queried against the page column, so the sidebar drops out when the page
        itself gets narrow — not merely when the window does. */
     @container easymc-page (max-width: 820px) {
-      .layout { grid-template-columns: minmax(0, 1fr); }
-      .tools { display: none; }
+      .layout { max-width: 100%; }
     }
     .findings {
       display: flex;
@@ -900,13 +935,14 @@ export class AgentPage extends LitElement {
       button:active:not(:disabled), .chip:active { transform: none; }
     }
     .gate {
-      max-width: 520px;
+      max-width: 440px;
       width: 100%;
-      margin: 24px auto;
-      padding: var(--easymc-space-4);
+      margin: 0 auto;
+      padding: var(--easymc-space-5) var(--easymc-space-4);
       border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
-      box-shadow: var(--md-sys-elevation-1);
+      background: var(--easymc-glass-surface);
+      backdrop-filter: blur(var(--easymc-glass-blur));
+      -webkit-backdrop-filter: blur(var(--easymc-glass-blur));
       box-sizing: border-box;
     }
     .gate h2 {
@@ -994,7 +1030,7 @@ export class AgentPage extends LitElement {
   private requireCloud(): boolean {
     if (this.cloudReady) return true;
     this.showLlmForm = true;
-    this.error = "请先填好助手的接口地址和密钥，才能开始聊天哦。";
+    this.error = "请先连接助手。";
     return false;
   }
 
@@ -1573,7 +1609,7 @@ ${extraContent}` : t.content,
 
   private toolResultPreview(text: string | null | undefined, max = 120): string {
     const t = (text ?? "").replace(/\s+/g, " ").trim();
-    if (!t) return "点击展开查看步骤详情";
+    if (!t) return "展开查看详情";
     return t.length > max ? `${t.slice(0, max)}…` : t;
   }
 
@@ -1717,7 +1753,7 @@ ${extraContent}` : t.content,
       st === "running"
         ? null
         : st === "error"
-          ? "这次没做成，可以换个说法再试，或点快捷工具。"
+          ? "这次没做成，换个说法再试，或点下方快捷入口。"
           : st === "pending"
             ? "需要你确认后才会改动。"
             : "完成。";
@@ -1795,8 +1831,7 @@ ${extraContent}` : t.content,
           ? html`<div class="tool-progress"><span class="dot" aria-hidden="true"></span>进行中…</div>`
           : nothing}
         ${hasDetail && !expanded
-          ? html`<p class="tool-card-preview">${this.toolResultPreview(previewSource)}</p>
-              <p class="tool-card-expand-hint">点击标题展开具体步骤</p>`
+          ? html`<p class="tool-card-preview">${this.toolResultPreview(previewSource)}</p>`
           : nothing}
         ${hasDetail && expanded
           ? html`<div id=${`tool-detail-${expandKey}`}>${detailBody}</div>`
@@ -2013,27 +2048,25 @@ ${extraContent}` : t.content,
     void this.onAsk(hint.prompt, running);
   }
 
-  private modeMeta(mode?: string) {
-    if (!mode || mode === "running") return nothing;
-    if (mode.startsWith("llm")) return html`<div class="meta">云端助手</div>`;
-    return html`<div class="meta">本地助手</div>`;
+  private modeMeta(_mode?: string) {
+    return nothing;
   }
 
   private renderCloudGate() {
     return html`
       <div class="gate" role="dialog" aria-labelledby="llm-gate-title">
-        <h2 id="llm-gate-title">先连上助手</h2>
+        <h2 id="llm-gate-title">连接助手</h2>
         <p class="muted">
-          填好下面三项就能开聊。密钥只保存在本机，不会上传到别处。
+          填写接口地址、密钥与模型即可开始。密钥仅保存在本机。
           ${this.llmCfg?.api_key_set
-            ? html` · 已保存密钥：${this.llmCfg.api_key_hint}`
+            ? html`已保存：${this.llmCfg.api_key_hint}`
             : nothing}
         </p>
         ${this.error ? html`<p class="err">${this.error}</p>` : nothing}
         <label class="row">
-          <span>服务地址</span>
+          <span>地址</span>
           <input
-            placeholder="例如 https://api.deepseek.com/v1"
+            placeholder="https://api.deepseek.com/v1"
             .value=${this.llmBase}
             @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
           />
@@ -2043,7 +2076,7 @@ ${extraContent}` : t.content,
           <input
             type="password"
             autocomplete="off"
-            placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存的密钥" : "粘贴服务商给你的密钥"}
+            placeholder=${this.llmCfg?.api_key_set ? "留空保持已有密钥" : "粘贴 API 密钥"}
             .value=${this.llmKey}
             @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
           />
@@ -2051,7 +2084,7 @@ ${extraContent}` : t.content,
         <label class="row">
           <span>模型</span>
           <input
-            placeholder="例如 deepseek-chat"
+            placeholder="deepseek-chat"
             .value=${this.llmModel}
             @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
           />
@@ -2063,10 +2096,10 @@ ${extraContent}` : t.content,
             ?disabled=${this.llmBusy}
             @click=${() => void this.saveLlm()}
           >
-            保存并进入助手
+            保存并开始
           </button>
           <button class="ghost" type="button" @click=${() => this.goSettingsLlm()}>
-            去设置页
+            设置
           </button>
         </div>
       </div>
@@ -2075,19 +2108,18 @@ ${extraContent}` : t.content,
 
   render() {
     if (this.booting) {
-      return html`<p class="boot-muted" role="status">正在检查助手连接…</p>`;
+      return html`<p class="boot-muted" role="status">正在准备…</p>`;
     }
     const llmOn = this.cloudReady;
     if (!llmOn) {
       return html`
         <div class="gate-shell">
           <div class="head">
-            <div>
+            <div class="head-left">
               <h1>
                 助手
-                <span class="badge">还没连上</span>
+                <span class="badge">未连接</span>
               </h1>
-              <p class="sub">连上之后就能帮你看崩溃和启动问题。</p>
             </div>
           </div>
           <div class="gate-body">${this.renderCloudGate()}</div>
@@ -2099,32 +2131,15 @@ ${extraContent}` : t.content,
       <div class="layout">
         <div class="main-col">
           <div class="head">
-            <div>
+            <div class="head-left">
               <h1>
                 助手
-                <span class="badge on">云端助手已连接</span>
+                <span class="badge on">已连接</span>
               </h1>
-              <p class="sub">游戏崩了、启动不了？让助手帮你看看哪里坏了。</p>
-              <div class="row" style="margin-top:8px">
-                <button
-                  class="ghost"
-                  type="button"
-                  @click=${() => (this.showLlmForm = !this.showLlmForm)}
-                >
-                  ${this.showLlmForm ? "收起连接设置" : "更改连接"}
-                </button>
-                <button
-                  class="ghost"
-                  type="button"
-                  ?disabled=${this.llmBusy}
-                  @click=${() => void this.clearLlm()}
-                >
-                  清除配置
-                </button>
-              </div>
             </div>
-            <label class="row" style="margin:0">
+            <div class="head-actions">
               <select
+                aria-label="作用版本"
                 .value=${this.instanceId ?? ""}
                 @change=${(e: Event) => {
                   this.instanceId = (e.target as HTMLSelectElement).value || null;
@@ -2135,45 +2150,53 @@ ${extraContent}` : t.content,
                   (i) => html`<option value=${i.id}>${i.name}</option>`,
                 )}
               </select>
-            </label>
+              <button
+                class="ghost"
+                type="button"
+                title="连接设置"
+                @click=${() => (this.showLlmForm = !this.showLlmForm)}
+              >
+                ${this.showLlmForm ? "收起" : "连接"}
+              </button>
+            </div>
           </div>
 
           ${this.error ? html`<p class="err">${this.error}</p>` : null}
 
           ${this.showLlmForm
-            ? html`<div class="card" style="margin-bottom:12px">
-                <h3 style="margin:0 0 6px">助手连接</h3>
-                <p class="muted" style="margin:0 0 10px">
-                  改完点保存即可，密钥只留在本机。
+            ? html`<div class="conn-card">
+                <h3>连接设置</h3>
+                <p class="muted">
+                  改完点保存即可。密钥只留在本机。
                   ${this.llmCfg?.api_key_set
-                    ? html`当前密钥：${this.llmCfg.api_key_hint}`
+                    ? html`当前：${this.llmCfg.api_key_hint}`
                     : nothing}
                 </p>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">服务地址</span>
+                  <span style="min-width:3.5em">地址</span>
                   <input
                     style="flex:1"
-                    placeholder="例如 https://api.deepseek.com/v1"
+                    placeholder="https://api.deepseek.com/v1"
                     .value=${this.llmBase}
                     @input=${(e: Event) => (this.llmBase = (e.target as HTMLInputElement).value)}
                   />
                 </label>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">密钥</span>
+                  <span style="min-width:3.5em">密钥</span>
                   <input
                     style="flex:1"
                     type="password"
                     autocomplete="off"
-                    placeholder=${this.llmCfg?.api_key_set ? "留空则保持已保存的密钥" : "粘贴服务商给你的密钥"}
+                    placeholder=${this.llmCfg?.api_key_set ? "留空保持已有密钥" : "粘贴 API 密钥"}
                     .value=${this.llmKey}
                     @input=${(e: Event) => (this.llmKey = (e.target as HTMLInputElement).value)}
                   />
                 </label>
                 <label class="row" style="width:100%; margin-bottom:8px">
-                  <span style="min-width:5.5em">模型</span>
+                  <span style="min-width:3.5em">模型</span>
                   <input
                     style="flex:1"
-                    placeholder="例如 deepseek-chat"
+                    placeholder="deepseek-chat"
                     .value=${this.llmModel}
                     @input=${(e: Event) => (this.llmModel = (e.target as HTMLInputElement).value)}
                   />
@@ -2186,6 +2209,14 @@ ${extraContent}` : t.content,
                     @click=${() => void this.saveLlm()}
                   >
                     保存
+                  </button>
+                  <button
+                    class="ghost"
+                    type="button"
+                    ?disabled=${this.llmBusy}
+                    @click=${() => void this.clearLlm()}
+                  >
+                    清除
                   </button>
                 </div>
               </div>`
@@ -2217,9 +2248,25 @@ ${extraContent}` : t.content,
             ? html`<div class="chat-empty">
                 <easymc-empty-state
                   variant="panel"
-                  title="有什么我能帮你的？"
-                  description="直接提问，或点下方「可以这样说」。窄屏时右侧工具会收起，快捷芯片仍可用。"
+                  title="有什么可以帮你？"
+                  description="直接提问，或点下面的快捷说法。"
                 ></easymc-empty-state>
+                <div class="skills-hints" role="group" aria-label="可以这样说">
+                  <div class="hint-row">
+                    ${SKILL_HINTS.map(
+                      (h) => html`
+                        <button
+                          class="chip"
+                          type="button"
+                          ?disabled=${this.busy}
+                          @click=${() => this.onSkillHint(h)}
+                        >
+                          ${h.label}
+                        </button>
+                      `,
+                    )}
+                  </div>
+                </div>
               </div>`
             : html`<div class="chat">
                 ${this.turns.map(
@@ -2251,134 +2298,40 @@ ${extraContent}` : t.content,
                   ?disabled=${this.busy}
                   @click=${() => this.goDownloadSearch(this.pendingStoreQuery || "")}
                 >
-                  去下载页搜索「${this.pendingStoreQuery}」
+                  去下载「${this.pendingStoreQuery}」
                 </button>
               </div>`
             : null}
 
-          ${chatEmpty
-            ? html`<div class="skills-hints" role="group" aria-label="可以这样说">
-                <p class="hint-label">可以这样说</p>
-                <div class="hint-row">
-                  ${SKILL_HINTS.map(
-                    (h) => html`
-                      <button
-                        class="chip"
-                        type="button"
-                        ?disabled=${this.busy}
-                        @click=${() => this.onSkillHint(h)}
-                      >
-                        ${h.label}
-                      </button>
-                    `,
-                  )}
-                </div>
-              </div>`
-            : nothing}
-
-          <div class="quick-chips" role="group" aria-label="快捷工具">
-            <button class="chip primary" type="button" ?disabled=${this.busy} @click=${() => this.goDownloadCenter()}>去下载中心</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>一键查崩溃</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>导出整合包</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
-            <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onBumpMem()}>内存 4 GB</button>
-          </div>
-
-          <div class="composer">
-            <input
-              placeholder="说说遇到什么问题…"
-              .value=${this.input}
-              ?disabled=${this.busy}
-              @input=${(e: Event) => {
-                this.input = (e.target as HTMLInputElement).value;
-              }}
-              @keydown=${(e: KeyboardEvent) => {
-                if (e.key === "Enter") void this.onAsk();
-              }}
-            />
-            <button class="primary" ?disabled=${this.busy} @click=${() => this.onAsk()}>发送</button>
+          <div class="composer-block">
+            ${!chatEmpty
+              ? html`<div class="quick-chips" role="group" aria-label="快捷">
+                  <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>查崩溃</button>
+                  <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>搜模组</button>
+                  <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>优化配置</button>
+                  <button class="chip" type="button" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>一键环境</button>
+                </div>`
+              : nothing}
+            <div class="composer">
+              <input
+                placeholder="说说遇到什么问题…"
+                .value=${this.input}
+                ?disabled=${this.busy}
+                @input=${(e: Event) => {
+                  this.input = (e.target as HTMLInputElement).value;
+                }}
+                @keydown=${(e: KeyboardEvent) => {
+                  if (e.key === "Enter") void this.onAsk();
+                }}
+              />
+              <button class="primary" ?disabled=${this.busy} @click=${() => this.onAsk()}>发送</button>
+            </div>
           </div>
         </div>
-
-        <aside class="tools" aria-label="快捷工具">
-          <h2>快捷工具</h2>
-          <div class="tool-stack">
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSetupEnv()}>
-              <span class="tool-copy"><strong>一键环境</strong><span>准备 Java，汇报内存与下载源</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onDiagnose()}>
-              <span class="tool-copy"><strong>一键查崩溃</strong><span>分析崩溃 / 启动日志，给出修法</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSearchModsPrompt()}>
-              <span class="tool-copy"><strong>搜模组</strong><span>在 Modrinth 搜索，结果可再说「装 xxx」</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onSuggestMods()}>
-              <span class="tool-copy"><strong>推荐模组</strong><span>按生存 / 科技 / 魔法 / 性能主题推荐</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onTuneConfig()}>
-              <span class="tool-copy"><strong>优化配置</strong><span>建议内存与 JVM，确认后应用</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBuildPack()}>
-              <span class="tool-copy"><strong>导出整合包</strong><span>制作当前版本 Modrinth .mrpack</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button
-              class="tool"
-              ?disabled=${this.busy}
-              @click=${() => this.onAsk("版本列表", runningTool("list_instances"))}
-            >
-              <span class="tool-copy"><strong>版本列表</strong><span>看看已安装了哪些版本</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button
-              class="tool"
-              ?disabled=${this.busy}
-              @click=${() => this.onAsk("打开日志", runningTool("open_latest_log"))}
-            >
-              <span class="tool-copy"><strong>打开日志</strong><span>定位 latest.log / 崩溃报告</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button
-              class="tool"
-              ?disabled=${this.busy}
-              @click=${() => this.onAsk("账户列表", runningTool("list_accounts"))}
-            >
-              <span class="tool-copy"><strong>账户列表</strong><span>看看已保存的正版 / 离线账号</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>
-              <span class="tool-copy"><strong>切换 BMCLAPI 加速</strong><span>国内镜像下载游戏文件</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onOpenInstanceDir()}>
-              <span class="tool-copy"><strong>打开版本文件夹</strong><span>去改配置或找存档</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button class="tool" ?disabled=${this.busy} @click=${() => this.onCheckMods()}>
-              <span class="tool-copy"><strong>已装模组</strong><span>列出当前版本 mods 文件夹</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-            <button
-              class="tool"
-              ?disabled=${this.busy}
-              @click=${() => this.onAsk("查依赖", runningTool("check_mod_deps"))}
-            >
-              <span class="tool-copy"><strong>查依赖</strong><span>分析缺失依赖与冲突，可一键补全</span></span>
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
-          </div>
-          <p class="note">「优化配置」只给出建议，点「应用更改」后才会改动；「撤销」可恢复。都在你这台电脑上完成。</p>
-        </aside>
       </div>
     `;
   }
+
 }
 
 declare global {

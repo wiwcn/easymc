@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-  <strong>开源 Minecraft Java Edition 启动器</strong><br />
-  Open-source Minecraft Java Edition launcher<br />
-  Tauri 2 · Lit · Vite · Rust
+  <strong>开源 · 桌面优先的 Minecraft Java Edition 启动器</strong><br />
+  Open-source, desktop-first Minecraft Java Edition launcher<br />
+  <sub>Tauri 2 · Lit · Vite · Rust</sub>
 </p>
 
 <p align="center">
@@ -16,180 +16,160 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-teal" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/wiwcn/easymc/releases/latest"><strong>下载 Windows 安装包</strong></a>
+  ·
+  <a href="#easymc-english">English</a>
+</p>
+
 ---
 
 **中文** | [English](#easymc-english)
 
-EasyMC 面向普通玩家：装好、启动、装模组、分享配置、排错——不是服务器运维面板。  
-**桌面优先**（Windows / Linux / macOS）；Android 姊妹项目另见 `easymc-android`（真启动仍在推进）。只做 **Java Edition**。
+EasyMC 帮普通玩家把「装版本 → 起游戏 → 装模组 → 换皮肤 → 排错」收成一条清晰路径。  
+界面克制、信息够用；复杂能力留给需要时再展开。只做 **Java Edition**；桌面端（Windows / Linux / macOS）优先。
 
 | | |
 |---|---|
 | **仓库** | https://github.com/wiwcn/easymc |
 | **许可** | [LGPL-3.0-or-later](./LICENSE)（见 [COPYING](./COPYING) / [NOTICE](./NOTICE)） |
-| **版本** | 0.1.2 |
+| **当前版本** | **0.2.0** |
 
-## 功能概览
+## 界面预览
 
-按当前桌面端实际能力整理（不虚构未完成项）：
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="EasyMC 启动页" width="720" />
+  <br /><em>启动页 — 选版本，大按钮开玩</em>
+</p>
 
-### 启动与版本
-- 多实例 / 版本管理（对齐 HMCL 思路：选版本 → 大按钮启动）
-- 原版安装：客户端、依赖库、natives、游戏资源；支持「快速安装（无资源）」
-- 加载器：**Fabric / Quilt / Forge / NeoForge**（官方安装器路径）
-- 系统 Java 检测；缺失时可下载 Temurin 到 `runtimes/`；设置里可选首选 Java
-- **快速进入（Quick Play）**：世界 / 服务器 / Realms（1.20+ 官方参数；旧版服务器回退 `--server`/`--port`）
+<p align="center">
+  <img src="docs/screenshots/instances.png" alt="EasyMC 实例管理" width="720" />
+  <br /><em>实例 — 多版本并列管理</em>
+</p>
 
-### 下载
-- 下载源：**官方** 或 **BMCLAPI**（失败回退官方）；镜像 HTTPS 测速
-- 模组商店：**Modrinth + CurseForge**（搜索 / 版本 / 安装）；已装模组在「库」里启用、禁用、卸载
-- 整合包：Modrinth `.mrpack`、CurseForge 清单；下载中心可装整合包项目
+<p align="center">
+  <img src="docs/screenshots/download.png" alt="EasyMC 下载中心" width="720" />
+  <br /><em>下载 — 原版 / 模组 / 整合包</em>
+</p>
 
-### 账户与皮肤
-- 离线账户；微软正版 Device Code 流程（需自备 `EASYMC_MSA_CLIENT_ID` 才完整可用）
-- **皮肤衣柜**：3D 预览（skinview3d）、本地上传、正版名 / LittleSkin 导入；启动可套用当前皮肤
-- 第三方皮肤站表单占位（完整 Authlib/Nide8 登录仍在规划）
+<p align="center">
+  <img src="docs/screenshots/agent.png" alt="EasyMC 助手" width="720" />
+  <br /><em>助手 — 对话式排错与工具卡（0.2.0 起单栏精简）</em>
+</p>
 
-### 助手（Agent）
-- 默认 **本地规则引擎**（读日志 / 崩溃报告，中文诊断与修复建议）
-- 可选 OpenAI 兼容 LLM（`EASYMC_LLM_*`）；危险操作 propose/confirm
-- 工具卡：确保 Java、改内存、导出诊断包等
+## 为什么选 EasyMC
 
-### 分享与排错
-- 导出 / 导入：`.mrpack`、EasyMC share JSON / zip
-- **mclo.gs**：一键上传 `latest.log` 或最新崩溃报告并复制链接
-- 环境包 `.easymc-env`（容器相关配置导入导出，不含存档）
+- **装完就能玩**：原版与 Fabric / Quilt / Forge / NeoForge，系统 Java 检测与 Temurin 下载
+- **模组不绕路**：Modrinth + CurseForge 搜索安装；库内启用 / 禁用 / 卸载；**批量更新**
+- **皮肤衣柜**：3D 预览、本地上传、正版名 / LittleSkin；启动可套用当前皮肤
+- **助手帮你看日志**：中文步骤摘要、折叠过程、工具确认；可选 OpenAI 兼容云端模型
+- **便携与数据可控**：`portable.txt` 绿色目录；游玩时长、桌面快捷方式、实时启动控制台
+- **开源可审计**：LGPL-3.0-or-later，桌面逻辑以本仓库为准
 
-### 容器模式（可选）
-- 默认仍是 **原生启动**；可在引导 / 设置中启用 Podman 容器隔离
-- 探测、中国友好 registry 镜像、预热、可写层 Apply/Discard；Windows 依赖 WSL/WSLg，实机 GUI 可能仍受限  
-  详见 [`docs/CONTAINER-MODE.md`](./docs/CONTAINER-MODE.md)
+## 功能一览
 
-### UI
-- Material Design 3 软青绿主题；侧栏：启动 / 下载 / 助手 / 联机 / 衣柜 / 设置 / 更多
-- 产品设计见 [`DESIGN.md`](./DESIGN.md)
+### 启动与实例
+- 多实例管理；大按钮启动；**快速进入**（世界 / 服务器 / Realms，1.20+）
+- 原版安装（客户端、库、natives、资源；可选快速安装）
+- 加载器安装走官方安装器路径
+- **实时启动控制台**；游玩时长统计；可选桌面快捷方式
 
-## 安装（Windows）
+### 下载与模组
+- 下载源：官方或 BMCLAPI（失败回退）
+- Modrinth + CurseForge；`.mrpack` / CurseForge 清单整合包
+- 实例内 **模组批量更新**
 
-1. 打开 [Releases](https://github.com/wiwcn/easymc/releases) 下载最新 **`EasyMC_*_x64-setup.exe`**
+### 账户与衣柜
+- 离线账户；微软 Device Code（需自备 `EASYMC_MSA_CLIENT_ID`）
+- **衣柜**：skinview3d 预览与导入
+
+### 助手
+- 连接门闩（未配置 API 时引导填写）；单栏对话
+- 步骤摘要完成即折叠；工具卡 / 提案确认
+- 本地规则诊断 + 可选云端 LLM（密钥仅存本机）
+
+### 其它
+- 导出 / 导入分享包；mclo.gs 上传日志
+- **便携模式**（设置或旁路标记文件）
+- 主题：浅色 / 深色 + 自定义强调色
+- 可选容器模式（Podman）；见 [`docs/CONTAINER-MODE.md`](./docs/CONTAINER-MODE.md)
+
+## 快速开始（Windows）
+
+1. 打开 [Releases](https://github.com/wiwcn/easymc/releases) → 下载 **`EasyMC_0.2.0_x64-setup.exe`**
 2. 安装并运行（未代码签名时，SmartScreen 可能提示「仍要运行」）
-3. 也可使用同版本附带的便携 **`easymc-app.exe`**（与 **`portable.txt`** 放在同一文件夹即可绿色运行，数据在旁路 `data/`）
+3. 或使用便携包：**`easymc-app.exe`** 与同目录的 **`portable.txt`**，数据落在旁路 `data/`
 
-Linux / macOS：当前以从源码构建为主；CI 以 Windows NSIS 发布包为准。
+Linux / macOS：当前以从源码构建为主；正式安装包以 Windows CI 为准。
 
 ## 从源码构建
 
-需要：**Node 20+**、**pnpm**、**Rust ≥ 1.90**，以及 [Tauri 2 系统依赖](https://v2.tauri.app/start/prerequisites/)。
-
 ```bash
-git clone https://github.com/wiwcn/easymc.git
-cd easymc
 pnpm install
-pnpm build
-cargo check --workspace
-
-# 开发 UI
+pnpm tauri build
+# 开发
 pnpm tauri dev
-
-# 生产包（示例：NSIS）
-pnpm tauri build --bundles nsis
 ```
 
-无头 CLI：
-
-```bash
-export EASYMC_DATA_DIR=/tmp/easymc-data   # 可选
-cargo run -p easymc-cli -- ensure-java 21
-cargo run -p easymc-cli -- install 1.21.1
-cargo run -p easymc-cli -- launch default
-```
-
-更多 CLI（加载器、模组、Agent、分享）见下方 English 节与 `cargo run -p easymc-cli -- --help`。
+环境：Node 22+、pnpm、Rust stable。更多 CLI：`cargo run -p easymc-cli -- --help`。
 
 ## 配置要点
 
 | 项 | 说明 |
-|----|------|
-| 数据目录 | `EASYMC_DATA_DIR`（优先）→ 便携：程序旁有 `portable.txt` / `easymc-portable` 时用 `<程序目录>/data` → 否则平台数据目录下的 `EasyMC` |
-| 便携模式 | 设置 → 其他 →「便携模式」；或手动放置标记文件；可从系统目录安全复制数据（不删原文件） |
-| 下载源 | 设置 → 下载源，或 `easymc download-source set bmclapi` |
-| CurseForge | 设置中粘贴 API Key，或 `EASYMC_CURSEFORGE_API_KEY` |
-| 微软登录 | `EASYMC_MSA_CLIENT_ID`（Azure 公共客户端） |
-| Agent LLM | `~/.config/easymc/llm.env` 或 `EASYMC_LLM_BASE_URL` / `API_KEY` / `MODEL` |
+|---|---|
+| 数据目录 | `EASYMC_DATA_DIR` → 便携标记旁路 `data/` → 平台默认 `EasyMC` |
+| 助手 LLM | 设置 / 助手页填写 Base URL、密钥、模型；或环境变量 `EASYMC_LLM_*` |
+| 微软登录 | `EASYMC_MSA_CLIENT_ID` |
 
 ## 仓库结构（简）
 
-| 路径 | 角色 |
-|------|------|
-| `crates/easymc-core` | 类型、路径、账户、衣柜、设置 |
-| `crates/easymc-meta` | 版本元数据与加载器安装 |
-| `crates/easymc-launch-desktop` | Java、参数、进程 |
-| `crates/easymc-mods` | Modrinth / CurseForge |
-| `crates/easymc-agent` | 本地诊断 + 可选 LLM |
-| `crates/easymc-share` | 分享 / `.mrpack` |
-| `crates/easymc-container` | 可选 Podman 容器模式 |
-| `crates/easymc-cli` | 无头 CLI |
-| `src-tauri` | Tauri 应用 |
-| `src/` | Lit 前端 |
+| 路径 | 内容 |
+|---|---|
+| `src/` | Lit 前端（页面、主题、组件） |
+| `src-tauri/` | Tauri 壳与命令 |
+| `crates/*` | 核心、元数据、模组、助手、启动、分享、容器、CLI |
 
-## 已知缺口（诚实列表）
+## 已知缺口
 
-- 完整微软登录依赖你自备 Azure Client ID；皮肤站完整协议登录尚未完成
-- NeoForge 对 MC 1.20.1 过渡坐标未接线（该版本请用 Forge）
-- 容器模式在 Windows 上依赖 WSL 图形栈，体验因环境而异
-- Android 真启动不在本仓库里程碑内
+- Android 姊妹项目另库；桌面才是完整启动路径
+- 第三方皮肤站完整 Authlib / Nide8 登录仍在规划
+- 未代码签名：Windows 首次运行可能被 SmartScreen 拦截
 
-## 贡献
+## 贡献与许可
 
-欢迎 Issue / PR。改 UI 请遵循 `DESIGN.md` 的玩家文案与 MD3 约束；大功能先对一下 `docs/FEATURE-BACKLOG.md`。提交说明可用中英双语。
-
-## 许可
-
-Copyright (c) 2026 EasyMC Contributors.
-
-本项目以 **GNU Lesser General Public License v3.0 or later**（`LGPL-3.0-or-later`）发布：见 [LICENSE](./LICENSE)。LGPL 引用的 GPL-3.0 全文见 [COPYING](./COPYING)。
-
-第三方依赖与模式复用保持其原许可（例如 npm 包 `skinview3d` 为 MIT）——详见 [NOTICE](./NOTICE)。
+Issue / PR 欢迎。许可为 [LGPL-3.0-or-later](./LICENSE)。产品设计见 [`DESIGN.md`](./DESIGN.md)。
 
 ---
 
-<a id="easymc-english"></a>
-
 ## EasyMC (English)
 
-Open-source **Minecraft Java Edition** launcher (Tauri 2 + Lit + Vite + Rust). Built for players who want to install, launch, mod, share packs, and fix crashes—not run a server farm.
+**EasyMC** is an open-source, desktop-first **Minecraft Java Edition** launcher (Tauri 2 + Lit + Rust). Install versions, launch, manage mods, wardrobe skins, and troubleshoot with a calm Chinese-first Agent UI — without turning into a server ops console.
 
-- **Desktop-first** (Windows / Linux / macOS). Android is a sibling track (`easymc-android`); real mobile launch is not claimed here.
-- **Java Edition only.**
+**License:** [LGPL-3.0-or-later](./LICENSE) · **Version:** 0.2.0 · **Repo:** https://github.com/wiwcn/easymc
 
-### Highlights (shipped)
+### Screenshots
 
-- Multi-instance install & launch; Fabric / Quilt / Forge / NeoForge; Temurin/Java helpers  
-- Download mirrors (official / BMCLAPI); Modrinth + CurseForge store; `.mrpack` / share import-export  
-- Offline accounts; Microsoft device-code path (needs your `EASYMC_MSA_CLIENT_ID`); skin wardrobe with 3D preview  
-- Local Agent diagnostics (+ optional OpenAI-compatible LLM); mclo.gs log upload; Quick Play  
-- Optional Podman **container mode** (native launch remains default)—see `docs/CONTAINER-MODE.md`
+Same captures as above: [home](docs/screenshots/home.png) · [instances](docs/screenshots/instances.png) · [download](docs/screenshots/download.png) · [agent](docs/screenshots/agent.png)
 
-### Install
+### Highlights
 
-Download the Windows NSIS installer from [Releases](https://github.com/wiwcn/easymc/releases) (`EasyMC_*_x64-setup.exe`). Unsigned builds may trip SmartScreen once.
+- Multi-instance launch, Fabric / Quilt / Forge / NeoForge, Java detect + Temurin download, Quick Play
+- Modrinth + CurseForge, modpacks, **batch mod updates**, live launch console, playtime, desktop shortcuts
+- Skin **wardrobe** (skinview3d), portable/`portable.txt` data dir, theme + accent color
+- **Agent**: config gate, single-column chat, foldable step abstracts, tool cards; optional OpenAI-compatible LLM (keys stay local)
 
-### Build from source
+### Install (Windows)
 
-Node 20+, pnpm, Rust ≥ 1.90, Tauri prerequisites:
+Download **`EasyMC_0.2.0_x64-setup.exe`** from [Releases](https://github.com/wiwcn/easymc/releases/latest). Portable: place `easymc-app.exe` next to `portable.txt`. Unsigned builds may trigger SmartScreen — choose “Run anyway”.
+
+### Build
 
 ```bash
-pnpm install && pnpm build
-cargo check --workspace
-pnpm tauri dev
+pnpm install && pnpm tauri build
 ```
-
-### License
-
-**LGPL-3.0-or-later** — [LICENSE](./LICENSE), [COPYING](./COPYING). Third-party notices: [NOTICE](./NOTICE).
 
 ### Links
 
-- Repository: https://github.com/wiwcn/easymc  
-- Design: [`DESIGN.md`](./DESIGN.md)  
+- Releases: https://github.com/wiwcn/easymc/releases
+- Design notes: [`DESIGN.md`](./DESIGN.md)
 - Container mode: [`docs/CONTAINER-MODE.md`](./docs/CONTAINER-MODE.md)
