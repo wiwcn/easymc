@@ -323,6 +323,8 @@ export class AgentPage extends LitElement {
       flex-direction: column;
       gap: var(--easymc-space-2);
       margin-bottom: var(--easymc-space-3);
+      min-width: 0;
+      max-width: 100%;
     }
     .skills-hints .hint-label {
       margin: 0;
@@ -330,10 +332,16 @@ export class AgentPage extends LitElement {
       font-weight: var(--easymc-weight-medium);
       color: var(--md-sys-color-on-surface-variant);
     }
+    /* 「可以这样说」: always one horizontal row; scroll sideways, never wrap. */
     .skills-hints .hint-row {
       display: flex;
+      flex-flow: row nowrap;
       flex-wrap: nowrap;
+      align-items: center;
       gap: var(--easymc-space-2);
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
@@ -343,6 +351,7 @@ export class AgentPage extends LitElement {
     }
     .skills-hints .hint-row .chip {
       flex: 0 0 auto;
+      white-space: nowrap;
     }
     .tool-card.pending {
       outline-color: color-mix(in oklch, var(--md-sys-color-tertiary, var(--md-sys-color-secondary)) 45%, transparent);
@@ -872,9 +881,14 @@ export class AgentPage extends LitElement {
     }
     .quick-chips {
       display: flex;
+      flex-flow: row nowrap;
       flex-wrap: nowrap;
+      align-items: center;
       gap: var(--easymc-space-2);
       margin-bottom: var(--easymc-space-3);
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
@@ -884,6 +898,7 @@ export class AgentPage extends LitElement {
     }
     .quick-chips .chip {
       flex: 0 0 auto;
+      white-space: nowrap;
     }
     /* Queried against the page column, so the sidebar drops out when the page
        itself gets narrow — not merely when the window does. */
