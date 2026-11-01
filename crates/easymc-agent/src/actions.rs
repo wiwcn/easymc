@@ -450,6 +450,125 @@ pub fn fetch_missing_mod_deps_action(
 }
 
 
+
+/// Host-deferred: ask Tauri to scan for newer compatible mod versions.
+pub fn check_mod_updates_action(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "check_mod_updates".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "check_mod_updates".into(),
+            message_zh: "还没有选版本，没法检查模组更新。请先选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "check_mod_updates".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    let n = easymc_mods::list_installed_mod_entries(inst)
+        .map(|v| v.len())
+        .unwrap_or(0);
+    ActionResult {
+        ok: true,
+        action: "check_mod_updates".into(),
+        message_zh: format!(
+            "准备检查「{}」的 {} 个模组是否有兼容更新…",
+            inst.name, n
+        ),
+        path: Some(PathBuf::from(&inst.game_dir).join("mods").display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "mod_count": n,
+            "deferred": true,
+        })),
+    }
+}
+
+/// Host-deferred: apply selected (or all updatable) mod updates.
+pub fn update_mods_action(
+    paths: &Paths,
+    instance_id: Option<&str>,
+    filenames: Option<Vec<String>>,
+) -> ActionResult {
+    let store = match load_instances(paths) {
+        Ok(s) => s,
+        Err(e) => {
+            return ActionResult {
+                ok: false,
+                action: "update_mods".into(),
+                message_zh: format!("读取版本列表失败：{e}"),
+                path: None,
+                value: None,
+            };
+        }
+    };
+    let id = instance_id
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or(store.active_id.clone());
+    let Some(id) = id else {
+        return ActionResult {
+            ok: false,
+            action: "update_mods".into(),
+            message_zh: "还没有选版本，没法更新模组。请先选一个版本。".into(),
+            path: None,
+            value: None,
+        };
+    };
+    let Some(inst) = store.instances.iter().find(|i| i.id == id) else {
+        return ActionResult {
+            ok: false,
+            action: "update_mods".into(),
+            message_zh: format!("找不到版本 {id}"),
+            path: None,
+            value: None,
+        };
+    };
+    ActionResult {
+        ok: true,
+        action: "update_mods".into(),
+        message_zh: format!(
+            "准备为「{}」更新模组{}…",
+            inst.name,
+            filenames
+                .as_ref()
+                .filter(|f| !f.is_empty())
+                .map(|f| format!("（指定 {} 个）", f.len()))
+                .unwrap_or_else(|| "（有更新的项）".into())
+        ),
+        path: Some(PathBuf::from(&inst.game_dir).join("mods").display().to_string()),
+        value: Some(serde_json::json!({
+            "instance_id": inst.id,
+            "instance_name": inst.name,
+            "filenames": filenames,
+            "deferred": true,
+        })),
+    }
+}
+
 pub fn write_diagnostic_bundle(paths: &Paths, report: &DiagnoseReport) -> Result<ActionResult> {
     let dir = paths.root.join("diagnostics");
     fs::create_dir_all(&dir)?;

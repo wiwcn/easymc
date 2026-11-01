@@ -35,6 +35,13 @@ pub enum Intent {
         /// Optional subset of mod ids; None = all missing.
         only_ids: Option<Vec<String>>,
     },
+    /// Scan installed mods for newer compatible marketplace versions.
+    CheckModUpdates { instance_id: Option<String> },
+    /// Apply selected mod updates (host downloads; filenames optional = all with updates).
+    UpdateMods {
+        instance_id: Option<String>,
+        filenames: Option<Vec<String>>,
+    },
     /// Enable / disable a mod jar (PCL/HMCL-style rename).
     ToggleMod {
         query: String,
@@ -1024,6 +1031,47 @@ let log_file_keys = [
     }
 
 
+    // batch mod updates (before dep fetch / check mods)
+    let update_apply_keys = [
+        "更新模组",
+        "批量更新模组",
+        "一键更新模组",
+        "升级模组",
+        "update mods",
+        "batch update mods",
+    ];
+    for k in update_apply_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::UpdateMods {
+                    instance_id: None,
+                    filenames: None,
+                },
+                confidence: 0.93,
+                matched: k.into(),
+                reply_zh: "正在更新可升级的模组…".into(),
+            };
+        }
+    }
+    let update_check_keys = [
+        "检查模组更新",
+        "模组更新",
+        "有没有模组更新",
+        "查模组更新",
+        "check mod updates",
+        "mod updates",
+    ];
+    for k in update_check_keys {
+        if t.contains(k) {
+            return IntentResult {
+                intent: Intent::CheckModUpdates { instance_id: None },
+                confidence: 0.93,
+                matched: k.into(),
+                reply_zh: "正在检查模组是否有更新…".into(),
+            };
+        }
+    }
+
     // mod dependency graph / fetch missing (before plain "检查模组")
     let dep_fetch_keys = [
         "补全缺失依赖",
@@ -1429,6 +1477,11 @@ mod tests {
             Intent::FetchMissingModDeps { .. }
         ));
         assert!(matches!(route("查依赖").intent, Intent::CheckModDeps { .. }));
+        assert!(matches!(
+            route("检查模组更新").intent,
+            Intent::CheckModUpdates { .. }
+        ));
+        assert!(matches!(route("批量更新模组").intent, Intent::UpdateMods { .. }));
         match route("禁用 sodium").intent {
             Intent::ToggleMod { query, enable, .. } => {
                 assert!(query.contains("sodium"));

@@ -44,6 +44,10 @@ pub struct InstalledModEntry {
     pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_number: Option<String>,
 }
 
 fn read_mod_index(instance: &Instance) -> serde_json::Value {
@@ -56,10 +60,19 @@ fn read_mod_index(instance: &Instance) -> serde_json::Value {
         .unwrap_or_else(|_| json!({ "mods": [] }))
 }
 
-fn index_icon_for(root: &serde_json::Value, filename: &str) -> (Option<String>, Option<String>, Option<String>) {
+fn index_meta_for(
+    root: &serde_json::Value,
+    filename: &str,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let stem = filename.strip_suffix(".disabled").unwrap_or(filename);
     let Some(arr) = root.get("mods").and_then(|m| m.as_array()) else {
-        return (None, None, None);
+        return (None, None, None, None, None);
     };
     for m in arr {
         let f = m.get("filename").and_then(|v| v.as_str()).unwrap_or("");
@@ -79,10 +92,18 @@ fn index_icon_for(root: &serde_json::Value, filename: &str) -> (Option<String>, 
                 .get("project_id")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            return (icon, source, project_id);
+            let version_id = m
+                .get("version_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let version_number = m
+                .get("version_number")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            return (icon, source, project_id, version_id, version_number);
         }
     }
-    (None, None, None)
+    (None, None, None, None, None)
 }
 
 pub fn list_installed_mod_entries(instance: &Instance) -> Result<Vec<InstalledModEntry>> {
@@ -100,7 +121,8 @@ pub fn list_installed_mod_entries(instance: &Instance) -> Result<Vec<InstalledMo
         }
         let meta = ent.metadata()?;
         let disabled = name.ends_with(".jar.disabled");
-        let (cached_icon, source, project_id) = index_icon_for(&index, &name);
+        let (cached_icon, source, project_id, version_id, version_number) =
+            index_meta_for(&index, &name);
         let icon_url = cached_icon.or_else(|| crate::icon::extract_local_icon(&ent.path()));
         out.push(InstalledModEntry {
             filename: name,
@@ -109,6 +131,8 @@ pub fn list_installed_mod_entries(instance: &Instance) -> Result<Vec<InstalledMo
             icon_url,
             source,
             project_id,
+            version_id,
+            version_number,
         });
     }
     out.sort_by(|a, b| a.filename.to_lowercase().cmp(&b.filename.to_lowercase()));
@@ -306,12 +330,14 @@ pub async fn install_mod(
         if skipped { 0 } else { 1 },
     );
 
+    let version_number = version.version_number.clone();
+    let project_name = project.name.clone();
     let result = ModInstallResult {
         source,
         project_id: project.id.clone(),
-        project_name: project.name,
+        project_name: project_name.clone(),
         version_id: version.id.clone(),
-        version_number: version.version_number,
+        version_number: version_number.clone(),
         filename: file.filename.clone(),
         path: dest.to_string_lossy().into_owned(),
         skipped,
@@ -322,6 +348,8 @@ pub async fn install_mod(
         source,
         &project.id,
         &version.id,
+        Some(version_number.as_str()),
+        Some(project_name.as_str()),
         file.sha1.as_deref(),
         project.icon_url.as_deref(),
     );
@@ -334,6 +362,8 @@ fn write_mod_index_entry(
     source: ModSource,
     project_id: &str,
     version_id: &str,
+    version_number: Option<&str>,
+    project_name: Option<&str>,
     sha1: Option<&str>,
     icon_url: Option<&str>,
 ) -> Result<()> {
@@ -352,6 +382,8 @@ fn write_mod_index_entry(
         "source": source.as_str(),
         "project_id": project_id,
         "version_id": version_id,
+        "version_number": version_number,
+        "project_name": project_name,
         "icon_url": icon_url,
     });
     let mods = root

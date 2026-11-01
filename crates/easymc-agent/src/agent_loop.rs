@@ -131,6 +131,8 @@ pub fn tool_start_summary_zh(name: &str) -> String {
     match name {
         "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => "正在检查模组依赖…".into(),
         "fetch_missing_mod_deps" | "install_missing_deps" => "正在补全缺失依赖…".into(),
+        "check_mod_updates" => "正在检查模组更新…".into(),
+        "update_mods" | "batch_update_mods" => "正在更新模组…".into(),
         "list_installed_mods" | "check_mods" => "正在查看已装模组…".into(),
         "install_mod" => "正在安装模组…".into(),
         "search_mods" => "正在搜索模组…".into(),
@@ -567,6 +569,9 @@ fn is_host_deferred_tool(name: &str) -> bool {
             | "import_modpack"
             | "fetch_missing_mod_deps"
             | "install_missing_deps"
+            | "check_mod_updates"
+            | "update_mods"
+            | "batch_update_mods"
     )
 }
 

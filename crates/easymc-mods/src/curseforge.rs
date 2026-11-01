@@ -233,6 +233,7 @@ fn map_file(f: CfFile) -> ModVersion {
             sha1,
             sha512: None,
         }],
+        changelog: None,
     }
 }
 

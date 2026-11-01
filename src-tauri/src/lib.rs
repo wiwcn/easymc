@@ -55,12 +55,14 @@ use easymc_container::{
     EnvExportOptions, EnvImportOptions, EnvPackMode, MirrorProfile,
 };
 use easymc_mods::{
-    api_key, api_key_source, build_dep_graph, delete_local, fetch_missing_deps, install_content,
-    install_mod, install_modpack, list_installed_mod_entries, list_local, list_mod_versions, local_dir,
-    remove_mod, resolve_instance_icon, search_and_install_best, search_mods, set_mod_disabled,
-    sync_api_key_from_settings, ApiKeySource, ContentInstallResult, DepGraphReport, FetchMissingResult,
-    InstalledModEntry, LocalEntry, ModInstallResult, ModProject, ModSource, ModVersion,
-    ModpackInstallResult, ProjectType, SearchQuery, API_KEY_ENV, CONSOLE_URL,
+    api_key, api_key_source, apply_mod_updates, build_dep_graph, check_mod_updates, delete_local,
+    fetch_missing_deps, install_content, install_mod, install_modpack, list_installed_mod_entries,
+    list_local, list_mod_versions, local_dir, remove_mod, resolve_instance_icon,
+    search_and_install_best, search_mods, set_mod_disabled, sync_api_key_from_settings, ApiKeySource,
+    ContentInstallResult, DepGraphReport, FetchMissingResult, InstalledModEntry, LocalEntry,
+    ModInstallResult, ModProject, ModSource, ModUpdateApplyItem, ModUpdateApplyResult,
+    ModUpdateScanReport, ModVersion, ModpackInstallResult, ProjectType, SearchQuery, API_KEY_ENV,
+    CONSOLE_URL,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -1269,6 +1271,58 @@ async fn fetch_missing_mod_deps_cmd(
     .map_err(|e| e.to_string())
 }
 
+
+#[tauri::command]
+async fn check_mod_updates_cmd(
+    state: State<'_, AppState>,
+    instance_id: Option<String>,
+) -> Result<ModUpdateScanReport, String> {
+    let paths = state_paths(&state);
+    if let Ok(settings) = load_settings(paths) {
+        sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+    }
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .clone();
+    check_mod_updates(&inst).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn apply_mod_updates_cmd(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    items: Vec<ModUpdateApplyItem>,
+    instance_id: Option<String>,
+) -> Result<ModUpdateApplyResult, String> {
+    let paths = state_paths(&state);
+    if let Ok(settings) = load_settings(paths) {
+        sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+    }
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let id = instance_id
+        .or(store.active_id.clone())
+        .ok_or_else(|| "无活动实例".to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .clone();
+    let app2 = app.clone();
+    apply_mod_updates(&inst, &items, move |p| {
+        let _ = app2.emit("install-progress", &p);
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn version_installed(state: State<'_, AppState>, version: String) -> bool {
     is_version_installed(state_paths(&state), &version)
@@ -1942,6 +1996,289 @@ async fn agent_ask(
             }
         }
     }
+
+    // check_mod_updates: host-deferred scan
+    if let Some(action) = resp.action.clone() {
+        if action.action == "check_mod_updates" {
+            let skipped = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("skipped"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !skipped {
+                let store = match load_instances(&state.paths) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let msg = format!("读取版本列表失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "check_mod_updates".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: None,
+                        });
+                        return Ok(resp);
+                    }
+                };
+                let id = action
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.get("instance_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .or(instance_id.clone())
+                    .or(store.active_id.clone());
+                let Some(id) = id else {
+                    let msg = "还没有选版本，没法检查模组更新。".to_string();
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "check_mod_updates".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: None,
+                    });
+                    return Ok(resp);
+                };
+                let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                    let msg = format!("找不到版本 {id}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "check_mod_updates".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "instance_id": id })),
+                    });
+                    return Ok(resp);
+                };
+                if let Ok(settings) = load_settings(&state.paths) {
+                    sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                }
+                match check_mod_updates(&inst).await {
+                    Ok(r) => {
+                        let msg = r.summary_zh.clone();
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: true,
+                            action: "check_mod_updates".into(),
+                            message_zh: msg,
+                            path: Some(
+                                std::path::PathBuf::from(&inst.game_dir)
+                                    .join("mods")
+                                    .display()
+                                    .to_string(),
+                            ),
+                            value: Some(serde_json::to_value(&r).unwrap_or_else(|_| {
+                                serde_json::json!({
+                                    "instance_id": r.instance_id,
+                                    "update_count": r.update_count,
+                                    "summary_zh": r.summary_zh,
+                                })
+                            })),
+                        });
+                    }
+                    Err(e) => {
+                        let msg = format!("检查模组更新失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "check_mod_updates".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({ "instance_id": inst.id })),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // update_mods: host-deferred apply (all has_update, or filenames filter)
+    if let Some(action) = resp.action.clone() {
+        if action.action == "update_mods" {
+            let skipped = action
+                .value
+                .as_ref()
+                .and_then(|v| v.get("skipped"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !skipped {
+                let store = match load_instances(&state.paths) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let msg = format!("读取版本列表失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "update_mods".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: None,
+                        });
+                        return Ok(resp);
+                    }
+                };
+                let id = action
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.get("instance_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+                    .or(instance_id.clone())
+                    .or(store.active_id.clone());
+                let Some(id) = id else {
+                    let msg = "还没有选版本，没法更新模组。".to_string();
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "update_mods".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: None,
+                    });
+                    return Ok(resp);
+                };
+                let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
+                    let msg = format!("找不到版本 {id}");
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: false,
+                        action: "update_mods".into(),
+                        message_zh: msg,
+                        path: None,
+                        value: Some(serde_json::json!({ "instance_id": id })),
+                    });
+                    return Ok(resp);
+                };
+                if let Ok(settings) = load_settings(&state.paths) {
+                    sync_api_key_from_settings(settings.curseforge_api_key.as_deref());
+                }
+                let filenames: Option<Vec<String>> = action
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.get("filenames"))
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .filter(|s| !s.is_empty())
+                            .collect::<Vec<_>>()
+                    })
+                    .filter(|v| !v.is_empty());
+                let scan = match check_mod_updates(&inst).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        let msg = format!("检查模组更新失败：{e}");
+                        resp.reply_zh = msg.clone();
+                        resp.action = Some(ActionResult {
+                            ok: false,
+                            action: "update_mods".into(),
+                            message_zh: msg,
+                            path: None,
+                            value: Some(serde_json::json!({ "instance_id": inst.id })),
+                        });
+                        return Ok(resp);
+                    }
+                };
+                let mut items: Vec<ModUpdateApplyItem> = Vec::new();
+                for c in &scan.candidates {
+                    if c.status != easymc_mods::ModUpdateStatus::HasUpdate {
+                        continue;
+                    }
+                    let Some(source) = c.source.as_ref() else { continue };
+                    let Some(project_id) = c.project_id.as_ref() else { continue };
+                    if let Some(ref want) = filenames {
+                        if !want.iter().any(|f| f == &c.filename) {
+                            continue;
+                        }
+                    }
+                    items.push(ModUpdateApplyItem {
+                        filename: c.filename.clone(),
+                        source: source.clone(),
+                        project_id: project_id.clone(),
+                        version_id: c.latest_version_id.clone(),
+                    });
+                }
+                if items.is_empty() {
+                    let msg = if scan.update_count == 0 {
+                        format!("「{}」没有可更新的模组。{}", inst.name, scan.summary_zh)
+                    } else {
+                        format!(
+                            "「{}」有 {} 个可更新，但未匹配到指定文件。{}",
+                            inst.name, scan.update_count, scan.summary_zh
+                        )
+                    };
+                    resp.reply_zh = msg.clone();
+                    resp.action = Some(ActionResult {
+                        ok: true,
+                        action: "update_mods".into(),
+                        message_zh: msg,
+                        path: Some(
+                            std::path::PathBuf::from(&inst.game_dir)
+                                .join("mods")
+                                .display()
+                                .to_string(),
+                        ),
+                        value: Some(serde_json::json!({
+                            "instance_id": inst.id,
+                            "skipped": true,
+                            "update_count": scan.update_count,
+                            "summary_zh": scan.summary_zh,
+                        })),
+                    });
+                } else {
+                    let app2 = app.clone();
+                    match apply_mod_updates(&inst, &items, move |p| {
+                        let _ = app2.emit("install-progress", &p);
+                    })
+                    .await
+                    {
+                        Ok(r) => {
+                            let msg = r.message_zh.clone();
+                            resp.reply_zh = msg.clone();
+                            resp.action = Some(ActionResult {
+                                ok: r.failed.is_empty() || !r.updated.is_empty(),
+                                action: "update_mods".into(),
+                                message_zh: msg,
+                                path: Some(
+                                    std::path::PathBuf::from(&inst.game_dir)
+                                        .join("mods")
+                                        .display()
+                                        .to_string(),
+                                ),
+                                value: Some(serde_json::to_value(&r).unwrap_or_else(|_| {
+                                    serde_json::json!({
+                                        "instance_id": inst.id,
+                                        "attempted": r.attempted,
+                                        "updated": r.updated,
+                                        "failed": r.failed,
+                                        "suggest_dep_check": r.suggest_dep_check,
+                                    })
+                                })),
+                            });
+                        }
+                        Err(e) => {
+                            let msg = format!("批量更新模组失败：{e}");
+                            resp.reply_zh = msg.clone();
+                            resp.action = Some(ActionResult {
+                                ok: false,
+                                action: "update_mods".into(),
+                                message_zh: msg,
+                                path: None,
+                                value: Some(serde_json::json!({ "instance_id": inst.id })),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // setup_env: compose ensure_java + status already in action.message
     if let Some(action) = resp.action.clone() {
         if action.action == "setup_env" {
@@ -2977,6 +3314,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             list_installed_mods_cmd,
             mod_dep_graph_cmd,
             fetch_missing_mod_deps_cmd,
+            check_mod_updates_cmd,
+            apply_mod_updates_cmd,
             remove_mod_cmd,
             set_mod_disabled_cmd,
             agent_llm_status,

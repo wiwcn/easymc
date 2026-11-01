@@ -45,6 +45,8 @@ struct VersionDto {
     date_published: Option<String>,
     #[serde(default)]
     files: Vec<FileDto>,
+    #[serde(default)]
+    changelog: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,6 +105,7 @@ fn map_version(v: VersionDto) -> ModVersion {
                 sha512: f.hashes.sha512,
             })
             .collect(),
+        changelog: v.changelog.filter(|s| !s.trim().is_empty()),
     }
 }
 
@@ -195,6 +198,15 @@ pub async fn list_versions(
     game_version: Option<&str>,
     loader: Option<&str>,
 ) -> Result<Vec<ModVersion>> {
+    list_versions_detailed(id_or_slug, game_version, loader, false).await
+}
+
+pub async fn list_versions_detailed(
+    id_or_slug: &str,
+    game_version: Option<&str>,
+    loader: Option<&str>,
+    include_changelog: bool,
+) -> Result<Vec<ModVersion>> {
     let client = modrinth_client()?;
     let mut req = client.get(format!("{BASE}/project/{id_or_slug}/version"));
     if let Some(gv) = game_version.filter(|s| !s.is_empty()) {
@@ -205,7 +217,10 @@ pub async fn list_versions(
         let arr = serde_json::to_string(&vec![ld]).unwrap();
         req = req.query(&[("loaders", arr)]);
     }
-    req = req.query(&[("include_changelog", "false")]);
+    req = req.query(&[(
+        "include_changelog",
+        if include_changelog { "true" } else { "false" },
+    )]);
     let list: Vec<VersionDto> = req
         .send()
         .await

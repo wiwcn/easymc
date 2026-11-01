@@ -10,6 +10,7 @@ mod install;
 mod metadata;
 mod modrinth;
 mod types;
+mod update;
 
 pub use curseforge::{
     api_key, api_key_from_env, api_key_source, require_api_key, set_stored_api_key,
@@ -35,6 +36,10 @@ pub use deps::{
     FetchMissingResult,
 };
 
+pub use update::{
+    apply_mod_updates, check_mod_updates, ModUpdateApplyItem, ModUpdateApplyResult,
+    ModUpdateCandidate, ModUpdateFail, ModUpdateScanReport, ModUpdateStatus, ModVersionOption,
+};
 pub use modrinth::HashLookup;
 
 pub async fn lookup_modrinth_by_sha1(sha1_hex: &str) -> easymc_core::Result<Option<HashLookup>> {

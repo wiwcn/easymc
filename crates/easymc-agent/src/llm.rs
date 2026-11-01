@@ -365,6 +365,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「已装模组」/ list_installed_mods — 列出当前版本 mods；\
 · 「缺依赖」/ check_mod_deps — 分析依赖树，报告缺失与冲突；\
 · 「补全缺失依赖」/ fetch_missing_mod_deps — 从 Modrinth 自动补缺失依赖；\
+· 「检查模组更新」/ check_mod_updates — 扫描可升级模组；「批量更新模组」/ update_mods — 下载安装所选更新；\
 · 「推荐模组 科技|魔法|生存|性能」/ suggest_mods — 按主题推荐互补模组；\
 · 「制作整合包」/ create_modpack — 从当前版本导出 Modrinth `.mrpack` 整合包；\
 · 「导入整合包 <路径>」/ import_mrpack — 把本地 `.mrpack` 装成新版本；\
@@ -379,7 +380,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
-不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。你可多步调用工具：先看（诊断/日志/模组列表/依赖树）→ 再做（建议更改、补全依赖等）→ 再验证（再查依赖或再诊断）。当玩家说「缺依赖」「缺啥」「能不能玩」「整合包好像缺东西」「能不能补上」时：必须先 list_installed_mods 或直接 check_mod_deps，再根据缺失结果调用 fetch_missing_mod_deps 或明确列出缺失项让玩家确认；不要只列模组就说「好了」。删除版本/模组、启用禁用模组、直接改内存等危险操作不会自动执行，需玩家确认。"
+不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。你可多步调用工具：先看（诊断/日志/模组列表/依赖树）→ 再做（建议更改、补全依赖等）→ 再验证（再查依赖或再诊断）。当玩家说「模组更新」「有没有更新」「升级模组」时：先 check_mod_updates，再按需 update_mods。当玩家说「缺依赖」「缺啥」「能不能玩」「整合包好像缺东西」「能不能补上」时：必须先 list_installed_mods 或直接 check_mod_deps，再根据缺失结果调用 fetch_missing_mod_deps 或明确列出缺失项让玩家确认；不要只列模组就说「好了」。删除版本/模组、启用禁用模组、直接改内存等危险操作不会自动执行，需玩家确认。"
 }
 
 /// OpenAI-compatible tool definitions the cloud model may call (host still executes).
@@ -454,6 +455,31 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
                             "type": "array",
                             "items": { "type": "string" },
                             "description": "可选：只补这些 mod id；省略则补全部缺失项"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "check_mod_updates",
+                "description": "检查当前版本已装模组是否有兼容当前 MC+加载器的新版本（Modrinth / CurseForge）。玩家问有没有模组更新时用。",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "update_mods",
+                "description": "批量更新有新版本的模组。可先 check_mod_updates；可指定 filenames，省略则更新全部可升级项。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filenames": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "可选：只更新这些 jar 文件名"
                         }
                     }
                 }
@@ -713,6 +739,18 @@ pub fn tool_call_to_utterance(name: &str, args: &serde_json::Value) -> String {
         },
         "fetch_missing_mod_deps" | "install_missing_deps" | "resolve_deps" => {
             "补全缺失依赖".into()
+        },
+        "check_mod_updates" => "检查模组更新".into(),
+        "update_mods" | "batch_update_mods" => {
+            if let Some(arr) = args.get("filenames").and_then(|x| x.as_array()) {
+                if !arr.is_empty() {
+                    format!("更新模组 {} 个", arr.len())
+                } else {
+                    "批量更新模组".into()
+                }
+            } else {
+                "批量更新模组".into()
+            }
         },
         "suggest_mods" => {
             let th = args

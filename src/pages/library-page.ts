@@ -17,6 +17,8 @@ import {
   listInstalledMods,
   removeMod,
   setModDisabled,
+  checkModUpdates,
+  applyModUpdates,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import {
@@ -29,6 +31,7 @@ import { loaderLabel } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { instanceIconUrl } from "../lib/instance-icon";
+import { buildApplyItems, defaultSelectedFilenames } from "../lib/mod-updates";
 import "../components/empty-state";
 
 @customElement("easymc-library-page")
@@ -57,6 +60,8 @@ export class LibraryPage extends LitElement {
   @state() private detailId: string | null = null;
   @state() private mods: InstalledModEntryDto[] = [];
   @state() private modsLoading = false;
+  @state() private updateBusy = false;
+  @state() private updateHint = "";
   @state() private busyMod: string | null = null;
   @state() private modFilter: "all" | "enabled" | "disabled" = "all";
   @state() private removingMod: string | null = null;
@@ -918,6 +923,32 @@ export class LibraryPage extends LitElement {
     `;
   }
 
+
+  private async onCheckModUpdates(inst: InstanceDto) {
+    if (this.updateBusy) return;
+    this.updateBusy = true;
+    this.updateHint = "正在检查模组更新…";
+    try {
+      const r = await checkModUpdates(inst.id);
+      this.updateHint = r.summary_zh;
+      showToast(r.summary_zh);
+      const selected = defaultSelectedFilenames(r.candidates);
+      if (!selected.length) return;
+      const ok = window.confirm(`${r.summary_zh}\n\n是否立即更新 ${selected.length} 个可升级模组？`);
+      if (!ok) return;
+      const items = buildApplyItems(r.candidates, selected, {});
+      const applied = await applyModUpdates(items, inst.id);
+      this.updateHint = applied.message_zh;
+      showToast(applied.message_zh);
+      await this.refreshMods();
+    } catch (e) {
+      this.updateHint = friendlyError(e);
+      showToast(this.updateHint);
+    } finally {
+      this.updateBusy = false;
+    }
+  }
+
   private renderMods(inst: InstanceDto) {
     const list = this.filteredMods();
     const ver = versionId(inst.version);
@@ -934,7 +965,16 @@ export class LibraryPage extends LitElement {
           <button class="btn ghost sm" type="button" @click=${() => this.goStore()}>
             去下载中心
           </button>
+          <button
+            class="btn primary sm"
+            type="button"
+            ?disabled=${this.updateBusy || this.modsLoading}
+            @click=${() => this.onCheckModUpdates(inst)}
+          >
+            ${this.updateBusy ? "检查中…" : "检查更新"}
+          </button>
         </div>
+        ${this.updateHint ? html`<p class="meta" style="margin:0 0 8px">${this.updateHint}</p>` : null}
 
         <div class="mod-toolbar">
           <button

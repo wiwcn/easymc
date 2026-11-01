@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -516,6 +516,24 @@ export async function fetchMissingModDeps(
   return invokeOrThrow<import("./types").FetchMissingResultDto>("fetch_missing_mod_deps_cmd", {
     instanceId: instanceId || null,
     onlyIds: onlyIds ?? null,
+  });
+}
+
+export async function checkModUpdates(
+  instanceId?: string | null,
+): Promise<ModUpdateScanReportDto> {
+  return invokeOrThrow<ModUpdateScanReportDto>("check_mod_updates_cmd", {
+    instanceId: instanceId || null,
+  });
+}
+
+export async function applyModUpdates(
+  items: ModUpdateApplyItemDto[],
+  instanceId?: string | null,
+): Promise<ModUpdateApplyResultDto> {
+  return invokeOrThrow<ModUpdateApplyResultDto>("apply_mod_updates_cmd", {
+    items,
+    instanceId: instanceId || null,
   });
 }
 

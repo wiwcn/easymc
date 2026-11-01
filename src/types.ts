@@ -126,6 +126,8 @@ export interface InstalledModEntryDto {
   icon_url?: string | null;
   source?: string | null;
   project_id?: string | null;
+  version_id?: string | null;
+  version_number?: string | null;
 }
 
 export interface ContentInstallResultDto {
@@ -239,7 +241,76 @@ export interface ModVersionDto {
   loaders: string[];
   downloads: number;
   date_published?: string | null;
+  changelog?: string | null;
   files: { filename: string; url: string; size?: number | null; primary: boolean; sha1?: string | null }[];
+}
+
+export type ModUpdateStatusId =
+  | "has_update"
+  | "up_to_date"
+  | "no_compatible"
+  | "unknown_source"
+  | "cf_needs_key"
+  | "lookup_failed";
+
+export interface ModVersionOptionDto {
+  id: string;
+  version_number: string;
+  name: string;
+  date_published?: string | null;
+  changelog_snippet?: string | null;
+}
+
+export interface ModUpdateCandidateDto {
+  filename: string;
+  disabled: boolean;
+  icon_url?: string | null;
+  source?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  current_version_id?: string | null;
+  current_version_number?: string | null;
+  latest_version_id?: string | null;
+  latest_version_number?: string | null;
+  latest_filename?: string | null;
+  changelog_snippet?: string | null;
+  alternates: ModVersionOptionDto[];
+  status: ModUpdateStatusId;
+  error_zh?: string | null;
+}
+
+export interface ModUpdateScanReportDto {
+  instance_id: string;
+  game_version: string;
+  loader: string;
+  candidates: ModUpdateCandidateDto[];
+  update_count: number;
+  up_to_date_count: number;
+  skipped_cf_no_key: number;
+  unknown_count: number;
+  summary_zh: string;
+}
+
+export interface ModUpdateApplyItemDto {
+  filename: string;
+  source: string;
+  project_id: string;
+  version_id?: string | null;
+}
+
+export interface ModUpdateFailDto {
+  filename: string;
+  error_zh: string;
+  reason: string;
+}
+
+export interface ModUpdateApplyResultDto {
+  attempted: number;
+  updated: string[];
+  skipped: string[];
+  failed: ModUpdateFailDto[];
+  message_zh: string;
+  suggest_dep_check: boolean;
 }
 
 export interface ModInstallResultDto {

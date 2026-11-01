@@ -3,11 +3,12 @@
 use easymc_core::{load_settings, Paths, Result};
 
 use crate::actions::{
-    bump_memory, check_mod_deps, check_mods, delete_instance, delete_mod, duplicate_version,
-    env_status_summary, fetch_missing_mod_deps_action, list_accounts, list_instances,
-    open_game_folder, open_latest_log, open_screenshots, rename_instance, select_account,
-    select_instance, set_download_source, show_data_dir, show_instance_dir, suggest_memory_text,
-    toggle_mod, write_diagnostic_bundle, ActionResult,
+    bump_memory, check_mod_deps, check_mod_updates_action, check_mods, delete_instance,
+    delete_mod, duplicate_version, env_status_summary, fetch_missing_mod_deps_action,
+    list_accounts, list_instances, open_game_folder, open_latest_log, open_screenshots,
+    rename_instance, select_account, select_instance, set_download_source, show_data_dir,
+    show_instance_dir, suggest_memory_text, toggle_mod, update_mods_action,
+    write_diagnostic_bundle, ActionResult,
 };
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
@@ -254,6 +255,19 @@ pub async fn execute_intent(
         } => {
             let id = iid.clone().or(instance_id);
             let ar = fetch_missing_mod_deps_action(paths, id.as_deref(), only_ids.clone());
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::CheckModUpdates { instance_id: iid } => {
+            let id = iid.clone().or(instance_id);
+            let ar = check_mod_updates_action(paths, id.as_deref());
+            Ok((ar.message_zh.clone(), None, Some(ar)))
+        }
+        Intent::UpdateMods {
+            instance_id: iid,
+            filenames,
+        } => {
+            let id = iid.clone().or(instance_id);
+            let ar = update_mods_action(paths, id.as_deref(), filenames.clone());
             Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::ToggleMod {

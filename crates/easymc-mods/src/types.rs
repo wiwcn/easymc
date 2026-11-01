@@ -62,6 +62,9 @@ pub struct ModVersion {
     pub downloads: u64,
     pub date_published: Option<String>,
     pub files: Vec<ModFile>,
+    /// Optional release notes (Modrinth changelog); omitted/empty for CF.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

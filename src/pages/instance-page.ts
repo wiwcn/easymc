@@ -14,6 +14,8 @@ import {
   listInstalledMods,
   modDepGraph,
   fetchMissingModDeps,
+  checkModUpdates,
+  applyModUpdates,
   listInstancesState,
   listLoaderVersions,
   listLocalContent,
@@ -38,7 +40,7 @@ import {
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import { listenInstallProgress } from "../api";
-import type { ContainerLayerStateDto, DepGraphReportDto, InstalledModEntryDto, InstanceDto, LoaderId, LocalEntryDto, VersionSummary } from "../types";
+import type { ContainerLayerStateDto, DepGraphReportDto, InstalledModEntryDto, InstanceDto, LoaderId, LocalEntryDto, ModUpdateCandidateDto, ModUpdateScanReportDto, VersionSummary } from "../types";
 import { instancePlayerLabel, loaderLabel, playerVersionLabel, versionId, versionType } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
@@ -46,6 +48,15 @@ import { sortInstancesReadyFirst } from "../lib/download-ux";
 import { instanceIconUrl } from "../lib/instance-icon";
 import { pickEnvPackFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
+import {
+  buildApplyItems,
+  changelogPreview,
+  defaultSelectedFilenames,
+  failReasonLabelZh,
+  isSelectableUpdate,
+  statusLabelZh,
+  versionArrowLabel,
+} from "../lib/mod-updates";
 import "../components/install-progress";
 import "../components/empty-state";
 import "../components/dep-tree";
@@ -76,6 +87,12 @@ export class InstancePage extends LitElement {
   @state() private depGraph: DepGraphReportDto | null = null;
   @state() private depBusy = false;
   @state() private depMsg = "";
+  @state() private updateReport: ModUpdateScanReportDto | null = null;
+  @state() private updateSelected: string[] = [];
+  @state() private updatePicks: Record<string, string> = {};
+  @state() private updateBusy = false;
+  @state() private updateMsg = "";
+  @state() private updateShowAll = false;
   @state() private layerState: ContainerLayerStateDto | null = null;
   @state() private workspaceHint = "";
   @state() private locals: LocalEntryDto[] = [];
@@ -410,6 +427,78 @@ export class InstancePage extends LitElement {
       border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
       box-shadow: none; /* CF-1: outline only inside elev panel */
     }
+
+    .update-panel {
+      margin: 0 0 var(--easymc-space-4);
+      padding: var(--easymc-space-3);
+      border-radius: var(--md-sys-shape-corner-large);
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 55%, transparent);
+      display: flex;
+      flex-direction: column;
+      gap: var(--easymc-space-2);
+    }
+    .update-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--easymc-space-2);
+      align-items: center;
+    }
+    .update-head h3 {
+      margin: 0;
+      flex: 1 1 auto;
+      font-size: var(--easymc-type-title-sm, 1rem);
+      font-weight: var(--easymc-weight-medium);
+    }
+    .update-summary {
+      margin: 0;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--easymc-type-meta);
+    }
+    .update-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 420px;
+      overflow: auto;
+    }
+    .update-row {
+      display: grid;
+      grid-template-columns: auto auto 1fr auto;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 10px;
+      border-radius: var(--md-sys-shape-corner-medium);
+      background: var(--md-sys-color-surface-container-lowest);
+      border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 40%, transparent);
+    }
+    .update-row.muted { opacity: 0.72; }
+    .update-row img, .update-row .ph {
+      width: 36px; height: 36px; border-radius: 8px; object-fit: cover;
+      background: var(--md-sys-color-surface-container);
+    }
+    .update-row .body { min-width: 0; }
+    .update-row .name {
+      font-weight: var(--easymc-weight-medium);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .update-row .meta {
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .update-row .changelog {
+      margin-top: 4px;
+      font-size: var(--easymc-type-meta);
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.35;
+    }
+    .update-row .status {
+      font-size: var(--easymc-type-meta);
+      white-space: nowrap;
+      color: var(--md-sys-color-primary);
+    }
+    .update-row select { max-width: 160px; margin-top: 4px; }
+
     @media (prefers-reduced-motion: reduce) {
       .row-item { transition: none; }
       .menu-panel, .menu-panel.open { transition: none; transform: none; }
@@ -523,6 +612,99 @@ export class InstancePage extends LitElement {
       showToast(this.depMsg);
     } finally {
       this.depBusy = false;
+    }
+  }
+
+
+  private async checkUpdates(instanceId: string) {
+    if (this.updateBusy) return;
+    this.updateBusy = true;
+    this.updateMsg = "正在检查模组更新…";
+    try {
+      const r = await checkModUpdates(instanceId);
+      this.updateReport = r;
+      this.updateSelected = defaultSelectedFilenames(r.candidates);
+      this.updatePicks = {};
+      this.updateMsg = r.summary_zh;
+      showToast(r.summary_zh);
+    } catch (e) {
+      this.updateMsg = friendlyError(e);
+      showToast(this.updateMsg);
+    } finally {
+      this.updateBusy = false;
+    }
+  }
+
+  private toggleUpdateAll(on: boolean) {
+    const list = this.updateReport?.candidates ?? [];
+    this.updateSelected = on ? defaultSelectedFilenames(list) : [];
+  }
+
+  private toggleUpdateOne(filename: string, on: boolean) {
+    const set = new Set(this.updateSelected);
+    if (on) set.add(filename);
+    else set.delete(filename);
+    this.updateSelected = [...set];
+  }
+
+  private setUpdatePick(filename: string, versionId: string) {
+    this.updatePicks = { ...this.updatePicks, [filename]: versionId };
+  }
+
+  private visibleUpdateCandidates(): ModUpdateCandidateDto[] {
+    const all = this.updateReport?.candidates ?? [];
+    if (this.updateShowAll) return all;
+    return all.filter(
+      (c) =>
+        c.status === "has_update" ||
+        c.status === "cf_needs_key" ||
+        c.status === "lookup_failed" ||
+        c.status === "no_compatible",
+    );
+  }
+
+  private async applySelectedUpdates(instanceId: string) {
+    if (this.updateBusy || !this.updateReport) return;
+    const items = buildApplyItems(this.updateReport.candidates, this.updateSelected, this.updatePicks);
+    if (!items.length) {
+      showToast("请先勾选要更新的模组");
+      return;
+    }
+    this.updateBusy = true;
+    this.updateMsg = `正在更新 ${items.length} 个模组…`;
+    try {
+      const r = await applyModUpdates(items, instanceId);
+      this.updateMsg = r.message_zh;
+      showToast(r.message_zh);
+      this.mods = await listInstalledMods(instanceId);
+      if (r.suggest_dep_check) {
+        try {
+          this.depGraph = await modDepGraph(instanceId);
+          this.depMsg = this.depGraph.summary_zh;
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        const again = await checkModUpdates(instanceId);
+        this.updateReport = again;
+        this.updateSelected = defaultSelectedFilenames(again.candidates);
+        this.updatePicks = {};
+        if (!r.failed.length) this.updateMsg = `${r.message_zh} · ${again.summary_zh}`;
+        else {
+          const fails = r.failed
+            .map((f) => `${f.filename}: ${failReasonLabelZh(f.reason)} — ${f.error_zh}`)
+            .join("；");
+          this.updateMsg = `${r.message_zh}（${fails}）`;
+        }
+      } catch {
+        /* keep apply message */
+      }
+    } catch (e) {
+      this.updateMsg = friendlyError(e);
+      showToast(this.updateMsg);
+    } finally {
+      this.updateBusy = false;
     }
   }
 
@@ -829,6 +1011,79 @@ export class InstancePage extends LitElement {
                 <button class="primary" type="button" @click=${() => this.goDownload("mod")}>去下载模组</button>
               </easymc-empty-state></div>`
             : html`
+                <div class="update-panel">
+                  <div class="update-head">
+                    <h3>模组更新</h3>
+                    <button class="ghost" type="button" ?disabled=${this.updateBusy} @click=${() => this.checkUpdates(d.id)}>
+                      ${this.updateBusy && !this.updateReport ? "检查中…" : "检查更新"}
+                    </button>
+                    <button
+                      class="primary"
+                      type="button"
+                      ?disabled=${this.updateBusy || !this.updateSelected.length}
+                      @click=${() => this.applySelectedUpdates(d.id)}
+                    >${this.updateBusy && this.updateSelected.length ? "更新中…" : `更新所选（${this.updateSelected.length}）`}</button>
+                  </div>
+                  <p class="update-summary">${this.updateMsg || "对照当前游戏版本与加载器，检查 Modrinth / CurseForge 上是否有兼容新版本。"}</p>
+                  ${this.updateReport
+                    ? html`
+                        <div class="update-head">
+                          <label style="display:flex;align-items:center;gap:6px;font-size:var(--easymc-type-meta)">
+                            <input
+                              type="checkbox"
+                              .checked=${this.updateSelected.length > 0 && this.updateSelected.length === defaultSelectedFilenames(this.updateReport.candidates).length}
+                              @change=${(e: Event) => this.toggleUpdateAll((e.target as HTMLInputElement).checked)}
+                            />
+                            全选可更新
+                          </label>
+                          <label style="display:flex;align-items:center;gap:6px;font-size:var(--easymc-type-meta)">
+                            <input
+                              type="checkbox"
+                              .checked=${this.updateShowAll}
+                              @change=${(e: Event) => { this.updateShowAll = (e.target as HTMLInputElement).checked; }}
+                            />
+                            显示全部检查结果
+                          </label>
+                        </div>
+                        <div class="update-list">
+                          ${this.visibleUpdateCandidates().map((c) => {
+                            const sel = isSelectableUpdate(c);
+                            const checked = this.updateSelected.includes(c.filename);
+                            const pick = this.updatePicks[c.filename] || c.latest_version_id || "";
+                            const label = (c.project_name || c.filename).replace(/\.jar(\.disabled)?$/i, "");
+                            const tip = changelogPreview(c.changelog_snippet);
+                            return html`<div class="update-row ${sel ? "" : "muted"}">
+                              <input
+                                type="checkbox"
+                                .checked=${checked}
+                                ?disabled=${!sel || this.updateBusy}
+                                @change=${(e: Event) => this.toggleUpdateOne(c.filename, (e.target as HTMLInputElement).checked)}
+                              />
+                              ${c.icon_url
+                                ? html`<img src=${c.icon_url} alt="" loading="lazy" />`
+                                : html`<div class="ph" aria-hidden="true"></div>`}
+                              <div class="body">
+                                <div class="name" title=${c.filename}>${label}</div>
+                                <div class="meta">${versionArrowLabel(c, pick)}${c.source ? ` · ${c.source}` : ""}</div>
+                                ${sel && c.alternates?.length
+                                  ? html`<select
+                                      .value=${pick}
+                                      ?disabled=${this.updateBusy}
+                                      @change=${(e: Event) => this.setUpdatePick(c.filename, (e.target as HTMLSelectElement).value)}
+                                    >
+                                      ${c.alternates.map((a) => html`<option value=${a.id}>${a.version_number || a.name}</option>`)}
+                                    </select>`
+                                  : nothing}
+                                ${tip ? html`<div class="changelog" title=${c.changelog_snippet || ""}>${tip}</div>` : nothing}
+                                ${c.error_zh ? html`<div class="meta" style="color:var(--md-sys-color-error)">${c.error_zh}</div>` : nothing}
+                              </div>
+                              <div class="status">${statusLabelZh(c.status)}</div>
+                            </div>`;
+                          })}
+                        </div>
+                      `
+                    : nothing}
+                </div>
                 <div class="resource-grid">
                   ${this.mods.map((m) => {
                     const disabled = m.disabled;
@@ -841,7 +1096,7 @@ export class InstancePage extends LitElement {
                           : html`<div class="ph" aria-hidden="true"></div>`}
                         <div class="body">
                           <div class="name" title=${m.filename}>${label}</div>
-                          <div class="meta">${kb} KB${disabled ? " · 已禁用" : ""}${m.source ? ` · ${m.source}` : ""}</div>
+                          <div class="meta">${kb} KB${disabled ? " · 已禁用" : ""}${m.source ? ` · ${m.source}` : ""}${m.version_number ? ` · ${m.version_number}` : ""}</div>
                         </div>
                       </div>
                       <div class="res-card-foot">

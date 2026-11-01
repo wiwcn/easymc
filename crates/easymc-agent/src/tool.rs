@@ -81,6 +81,8 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "check_mods" | "list_installed_mods" => ("已装模组", Some("模组")),
         "check_mod_deps" | "mod_dep_graph" | "analyze_mod_deps" => ("模组依赖", Some("依赖")),
         "fetch_missing_mod_deps" | "install_missing_deps" => ("补全依赖", Some("依赖")),
+        "check_mod_updates" => ("检查模组更新", Some("模组")),
+        "update_mods" | "batch_update_mods" => ("更新模组", Some("模组")),
         "toggle_mod" | "enable_mod" | "disable_mod" => ("启用/禁用模组", Some("模组")),
         "list_instances" | "list_versions" => ("版本列表", Some("版本")),
         "select_instance" | "switch_instance" | "switch_version" => ("切换版本", Some("版本")),
@@ -278,6 +280,30 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
                 if !reasons.is_empty() {
                     out.push(arg("fail_detail", "失败明细", reasons.join(" · ")));
                 }
+            }
+        }
+        "check_mod_updates" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(c) = v.get("update_count").and_then(|x| x.as_u64()) {
+                out.push(arg("updates", "可更新", format!("{c}")));
+            }
+            if let Some(c) = v.get("skipped_cf_no_key").and_then(|x| x.as_u64()) {
+                if c > 0 {
+                    out.push(arg("cf", "缺CF Key", format!("{c}")));
+                }
+            }
+        }
+        "update_mods" | "batch_update_mods" => {
+            if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
+                out.push(arg("instance", "版本", n));
+            }
+            if let Some(arr) = v.get("updated").and_then(|x| x.as_array()) {
+                out.push(arg("updated", "已更新", format!("{}", arr.len())));
+            }
+            if let Some(arr) = v.get("failed").and_then(|x| x.as_array()) {
+                out.push(arg("failed", "失败", format!("{}", arr.len())));
             }
         }
         "toggle_mod" | "enable_mod" | "disable_mod" => {
@@ -504,6 +530,14 @@ fn ui_actions_for(name: &str, ok: bool, value: Option<&serde_json::Value>) -> Ve
         "fetch_missing_mod_deps" if ok => {
             acts.push(ui("run_check_mod_deps", "再查依赖"));
             acts.push(ui("run_check_mods", "再看模组列表"));
+        }
+        "check_mod_updates" if ok => {
+            acts.push(ui("run_update_mods", "更新可升级模组"));
+            acts.push(ui("run_check_mods", "再看模组列表"));
+        }
+        "update_mods" if ok => {
+            acts.push(ui("run_check_mod_updates", "再检查更新"));
+            acts.push(ui("run_check_mod_deps", "再查依赖"));
         }
         "build_pack" | "import_mrpack" | "diagnostics" if ok => {
             acts.push(ui(
