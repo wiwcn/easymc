@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Instant;
 
 use easymc_core::{EasyMcError, Result};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -15,14 +16,23 @@ pub struct LaunchStatus {
     pub pid: Option<u32>,
 }
 
+/// A game session that just ended (natural exit or stop).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FinishedSession {
+    pub instance_id: String,
+    pub play_secs: u64,
+}
+
 struct Running {
     child: Child,
     instance_id: String,
+    started: Instant,
 }
 
 pub struct ProcessManager {
     inner: Mutex<Option<Running>>,
     logs: RwLock<Vec<String>>,
+    finished: Mutex<Vec<FinishedSession>>,
 }
 
 impl Default for ProcessManager {
@@ -36,6 +46,7 @@ impl ProcessManager {
         Self {
             inner: Mutex::new(None),
             logs: RwLock::new(Vec::new()),
+            finished: Mutex::new(Vec::new()),
         }
     }
 
@@ -56,23 +67,43 @@ impl ProcessManager {
         self.logs.read().await.clone()
     }
 
+    /// Drain finished sessions so the UI / store can accumulate playtime.
+    pub async fn take_finished(&self) -> Vec<FinishedSession> {
+        std::mem::take(&mut *self.finished.lock().await)
+    }
+
+    async fn record_finished(&self, instance_id: String, started: Instant) {
+        let play_secs = started.elapsed().as_secs();
+        self.finished.lock().await.push(FinishedSession {
+            instance_id,
+            play_secs,
+        });
+    }
+
     pub async fn is_running(&self) -> bool {
         let mut guard = self.inner.lock().await;
         if let Some(r) = guard.as_mut() {
             match r.child.try_wait() {
                 Ok(Some(status)) => {
                     let msg = format!("进程已退出: {status}");
+                    let id = r.instance_id.clone();
+                    let started = r.started;
                     *guard = None;
                     drop(guard);
+                    self.record_finished(id, started).await;
                     self.push_log(msg).await;
                     false
                 }
                 Ok(None) => true,
                 Err(e) => {
-                    drop(guard);
-                    self.push_log(format!("wait error: {e}")).await;
-                    let mut guard = self.inner.lock().await;
+                    let id = guard.as_ref().map(|r| r.instance_id.clone());
+                    let started = guard.as_ref().map(|r| r.started);
                     *guard = None;
+                    drop(guard);
+                    if let (Some(id), Some(started)) = (id, started) {
+                        self.record_finished(id, started).await;
+                    }
+                    self.push_log(format!("wait error: {e}")).await;
                     false
                 }
             }
@@ -84,9 +115,11 @@ impl ProcessManager {
     pub async fn stop(&self) -> Result<()> {
         let mut guard = self.inner.lock().await;
         if let Some(mut r) = guard.take() {
-            let _ = r.child.kill().await;
             let id = r.instance_id.clone();
+            let started = r.started;
+            let _ = r.child.kill().await;
             drop(guard);
+            self.record_finished(id.clone(), started).await;
             self.push_log(format!("已停止实例 {id}")).await;
         }
         Ok(())
@@ -135,6 +168,7 @@ impl ProcessManager {
             *guard = Some(Running {
                 child,
                 instance_id: instance_id.clone(),
+                started: Instant::now(),
             });
         }
 
@@ -177,5 +211,22 @@ impl ProcessManager {
             message: format!("已启动 {instance_id} (pid={pid:?})"),
             pid,
         })
+    }
+}
+
+#[cfg(test)]
+mod finished_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn take_finished_drains() {
+        let mgr = ProcessManager::new();
+        mgr.record_finished("a".into(), Instant::now() - std::time::Duration::from_secs(5))
+            .await;
+        let v = mgr.take_finished().await;
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].instance_id, "a");
+        assert!(v[0].play_secs >= 5);
+        assert!(mgr.take_finished().await.is_empty());
     }
 }

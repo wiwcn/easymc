@@ -124,6 +124,9 @@ pub struct Instance {
     pub loader_version: Option<String>,
     pub description: Option<String>,
     pub last_played: Option<DateTime<Utc>>,
+    /// Cumulative playtime in seconds (sessions since EasyMC started tracking).
+    #[serde(default)]
+    pub total_play_secs: u64,
     /// Absolute path to the instance game directory (saves, options…).
     pub game_dir: String,
     /// Bound account id (offline or MSA).
@@ -167,6 +170,7 @@ impl Instance {
             loader_version: None,
             description: None,
             last_played: None,
+            total_play_secs: 0,
             game_dir,
             account_id: None,
             version_ready: false,
@@ -181,5 +185,48 @@ impl Instance {
             quick_play: None,
             container: None,
         }
+    }
+}
+
+
+/// Human-friendly Chinese playtime label (UI / CLI).
+pub fn format_play_secs(secs: u64) -> String {
+    if secs == 0 {
+        return "游玩 0 分钟".into();
+    }
+    if secs < 60 {
+        return format!("游玩 {secs} 秒");
+    }
+    let mins = secs / 60;
+    if mins < 60 {
+        return format!("游玩 {mins} 分钟");
+    }
+    let hours = mins / 60;
+    let rem = mins % 60;
+    if rem == 0 {
+        format!("游玩 {hours} 小时")
+    } else {
+        format!("游玩 {hours} 小时 {rem} 分钟")
+    }
+}
+
+#[cfg(test)]
+mod playtime_tests {
+    use super::*;
+
+    #[test]
+    fn format_zero_and_minutes() {
+        assert_eq!(format_play_secs(0), "游玩 0 分钟");
+        assert_eq!(format_play_secs(45), "游玩 45 秒");
+        assert_eq!(format_play_secs(120), "游玩 2 分钟");
+        assert_eq!(format_play_secs(3660), "游玩 1 小时 1 分钟");
+        assert_eq!(format_play_secs(7200), "游玩 2 小时");
+    }
+
+    #[test]
+    fn serde_default_playtime() {
+        let raw = r#"{"id":"a","name":"n","version":"1.21.1","game_dir":"/tmp","created_at":"2026-01-01T00:00:00Z"}"#;
+        let inst: Instance = serde_json::from_str(raw).unwrap();
+        assert_eq!(inst.total_play_secs, 0);
     }
 }

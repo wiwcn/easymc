@@ -492,6 +492,100 @@ pub fn write_launch_script(
 }
 
 
+/// Sanitize a name for use in a desktop / Start Menu filename.
+pub fn sanitize_shortcut_stem(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.');
+    if trimmed.is_empty() {
+        "EasyMC".into()
+    } else {
+        format!("EasyMC - {trimmed}")
+    }
+}
+
+/// Write a launch script, then place a desktop (+ Start Menu / applications) shortcut
+/// that runs it. Quick Play and instance JVM overrides are baked into the script.
+pub fn create_desktop_shortcut(
+    paths: &Paths,
+    instance: &Instance,
+    account: &Account,
+    settings: &Settings,
+    req: &LaunchRequest,
+) -> Result<PathBuf> {
+    let script = write_launch_script(paths, instance, account, settings, req)?;
+    let desktop = dirs::desktop_dir().ok_or_else(|| EasyMcError::msg("找不到桌面目录"))?;
+    std::fs::create_dir_all(&desktop)?;
+    let stem = sanitize_shortcut_stem(&instance.name);
+
+    #[cfg(windows)]
+    {
+        let bat = desktop.join(format!("{stem}.bat"));
+        let body = format!(
+            "@echo off\r\nrem EasyMC desktop shortcut — token redacted in launch script\r\ncall \"{}\"\r\n",
+            script.display()
+        );
+        std::fs::write(&bat, body)?;
+        if let Some(data) = dirs::data_dir() {
+            let sm = data.join("Microsoft").join("Windows").join("Start Menu").join("Programs").join("EasyMC");
+            let _ = std::fs::create_dir_all(&sm);
+            let _ = std::fs::copy(&bat, sm.join(format!("{stem}.bat")));
+        }
+        return Ok(bat);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let cmd_path = desktop.join(format!("{stem}.command"));
+        let body = format!(
+            "#!/bin/sh\n# EasyMC desktop shortcut\nexec '{}'\n",
+            script.to_string_lossy().replace('\'', "'\\''")
+        );
+        std::fs::write(&cmd_path, body)?;
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&cmd_path, std::fs::Permissions::from_mode(0o755));
+        return Ok(cmd_path);
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let desk = desktop.join(format!("{stem}.desktop"));
+        let exec = format!("\"{}\"", script.display());
+        let content = format!(
+            "[Desktop Entry]\nType=Application\nVersion=1.0\nName={name}\nComment=EasyMC — {ver}\nExec={exec}\nPath={cwd}\nTerminal=false\nCategories=Game;\nStartupNotify=true\n",
+            name = instance.name.replace('\n', " "),
+            ver = instance.version,
+            exec = exec,
+            cwd = instance.game_dir,
+        );
+        std::fs::write(&desk, &content)?;
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&desk, std::fs::Permissions::from_mode(0o755));
+        if let Some(home) = dirs::home_dir() {
+            let apps = home.join(".local/share/applications");
+            let _ = std::fs::create_dir_all(&apps);
+            let dest = apps.join(format!("easymc-{}.desktop", instance.id));
+            let _ = std::fs::write(&dest, &content);
+            let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+        }
+        return Ok(desk);
+    }
+
+    #[allow(unreachable_code)]
+    {
+        let _ = script;
+        Err(EasyMcError::msg("当前平台暂不支持桌面快捷方式"))
+    }
+}
+
+
+
 #[cfg(test)]
 mod quick_play_tests {
     use super::*;
@@ -551,5 +645,18 @@ mod quick_play_tests {
     fn version_parse() {
         assert!(mc_version_at_least("1.20.1", 1, 20));
         assert!(!mc_version_at_least("1.19.4", 1, 20));
+    }
+}
+
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_strips_bad_chars() {
+        assert_eq!(sanitize_shortcut_stem("生存/创造:测试"), "EasyMC - 生存_创造_测试");
+        assert_eq!(sanitize_shortcut_stem("   "), "EasyMC");
+        assert_eq!(sanitize_shortcut_stem("..."), "EasyMC");
     }
 }

@@ -40,6 +40,7 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
           version_ready: true,
           category: "生存",
           last_played: "2026-10-24T08:32:00+08:00",
+          total_play_secs: 3720,
         },
         {
           id: "preview-cobblemon",
@@ -53,6 +54,7 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
           icon: "https://cdn.modrinth.com/data/5FFgwNNP/e7f9ee2e9d361623847853fe2ddce42f519ee64f.png",
           icon_url: "https://cdn.modrinth.com/data/5FFgwNNP/e7f9ee2e9d361623847853fe2ddce42f519ee64f.png",
           last_played: "2026-10-30T20:10:00+08:00",
+          total_play_secs: 540,
         },
         {
           id: "preview-1211-vanilla",
@@ -62,6 +64,7 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
           description: "纯净原版建造。",
           version_ready: true,
           last_played: "2026-10-23T16:10:00+08:00",
+          total_play_secs: 0,
         },
         {
           id: "preview-1201-forge",
@@ -901,6 +904,25 @@ export async function openInstanceFolder(instanceId: string, kind?: string | nul
 
 export async function writeLaunchScript(instanceId: string): Promise<{ path: string; message_zh: string }> {
   return invokeOrThrow("write_launch_script_cmd", { instanceId });
+}
+
+export async function createDesktopShortcut(instanceId: string): Promise<{ path: string; message_zh: string }> {
+  return invokeOrThrow("create_desktop_shortcut_cmd", { instanceId });
+}
+
+export async function listenGameSessionEnded(
+  handler: (ev: { instance_id: string; play_secs: number; total_play_secs: number }) => void,
+): Promise<() => void> {
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    const un = await listen<{ instance_id: string; play_secs: number; total_play_secs: number }>(
+      "game-session-ended",
+      (e) => handler(e.payload),
+    );
+    return () => un();
+  } catch {
+    return () => undefined;
+  }
 }
 
 export async function uploadLatestLog(

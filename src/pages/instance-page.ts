@@ -25,6 +25,7 @@ import {
   setModDisabled,
   updateInstance,
   writeLaunchScript,
+  createDesktopShortcut,
   uploadLatestLog,
   containerAttach,
   containerProvision,
@@ -50,6 +51,18 @@ import "../components/empty-state";
 import "../components/dep-tree";
 
 type Tab = "settings" | "installers" | "mods" | "worlds" | "resourcepacks" | "shaders" | "export";
+
+
+function formatPlayTime(secs?: number | null): string {
+  const n = Math.max(0, Math.floor(Number(secs) || 0));
+  if (n <= 0) return "还没有累计时长";
+  if (n < 60) return `${n} 秒`;
+  const m = Math.floor(n / 60);
+  if (m < 60) return `${m} 分钟`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `${h} 小时 ${rm} 分钟` : `${h} 小时`;
+}
 
 @customElement("easymc-instance-page")
 export class InstancePage extends LitElement {
@@ -620,6 +633,7 @@ export class InstancePage extends LitElement {
       })}>改名</button>
       <button type="button" @click=${() => this.act(async () => { await duplicateInstance(i.id); await this.load(); showToast("已复制"); })}>复制版本</button>
       <button type="button" @click=${() => this.act(async () => { showToast(await openInstanceFolder(i.id, "game")); })}>打开游戏文件夹</button>
+      <button type="button" @click=${() => this.act(async () => { const r = await createDesktopShortcut(i.id); showToast(r.message_zh); })}>创建桌面快捷方式</button>
       <button type="button" @click=${() => this.act(async () => { const r = await writeLaunchScript(i.id); showToast(r.message_zh); })}>生成启动脚本</button>
       <button type="button" @click=${() => this.act(async () => { const r = await exportInstance(i.id, false); showToast(r.message_zh); })}>导出（轻量）</button>
       <button type="button" class="danger" @click=${() => this.act(async () => {
@@ -660,6 +674,7 @@ export class InstancePage extends LitElement {
       case "settings":
         return html`<div class="panel">
           <h2>游戏设置</h2>
+          <p class="sub">累计游玩 ${formatPlayTime(d.total_play_secs)}</p>
           <div class="field"><label>自定义名称（可选）</label><input .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field"><label>分类</label><input placeholder="生存 / 创造 / 模组" .value=${this.catDraft} @input=${(e: Event) => (this.catDraft = (e.target as HTMLInputElement).value)} /></div>
           <div class="field">

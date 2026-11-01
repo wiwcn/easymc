@@ -16,6 +16,8 @@ import {
   setActiveInstance,
   stopInstance,
   writeLaunchScript,
+  createDesktopShortcut,
+  listenGameSessionEnded,
   openInstanceFolder,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
@@ -52,6 +54,18 @@ function tileFor(id: string) {
   return TILE_PALETTES[Math.abs(h) % TILE_PALETTES.length];
 }
 
+
+
+function formatPlayTime(secs?: number | null): string {
+  const n = Math.max(0, Math.floor(Number(secs) || 0));
+  if (n <= 0) return "累计游玩：还没有";
+  if (n < 60) return `累计游玩：${n} 秒`;
+  const m = Math.floor(n / 60);
+  if (m < 60) return `累计游玩：${m} 分钟`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `累计游玩：${h} 小时 ${rm} 分钟` : `累计游玩：${h} 小时`;
+}
 
 function formatLastPlayed(iso?: string | null): string {
   if (!iso) return "还没玩过";
@@ -105,6 +119,7 @@ export class HomePage extends LitElement {
   @state() private newLoaderVersion = "";
 
   private unlog?: () => void;
+  private unsession: (() => void) | null = null;
   private unprog?: () => void;
 
   static styles = [
@@ -734,10 +749,12 @@ export class HomePage extends LitElement {
       this.logs = [...this.logs.slice(-200), l];
     }).then((u) => (this.unlog = u));
     void listenInstallProgress((p) => (this.progress = p)).then((u) => (this.unprog = u));
+    void listenGameSessionEnded(() => { void this.refreshQuiet(); }).then((u) => (this.unsession = u));
     window.addEventListener("click", this.onDocClick);
   }
   disconnectedCallback() {
     this.unlog?.();
+    this.unsession?.();
     this.unprog?.();
     window.removeEventListener("click", this.onDocClick);
     super.disconnectedCallback();
@@ -769,6 +786,16 @@ export class HomePage extends LitElement {
       return this.accounts.find((a) => a.id === cur.account_id) ?? this.accounts[0] ?? null;
     }
     return this.accounts[0] ?? null;
+  }
+
+  private async refreshQuiet() {
+    try {
+      const st = await listInstancesState();
+      this.instances = st.instances;
+      this.activeId = st.active_id;
+    } catch {
+      /* ignore background refresh */
+    }
   }
 
   private async boot() {
@@ -912,6 +939,7 @@ export class HomePage extends LitElement {
     const acc = this.account;
     const metaBits = [
       formatLastPlayed(f.last_played),
+      formatPlayTime(f.total_play_secs),
       acc ? `以 ${acc.username} 进入` : null,
     ].filter(Boolean);
 
@@ -1007,6 +1035,22 @@ export class HomePage extends LitElement {
         }}
       >
         打开游戏文件夹
+      </button>
+      <button
+        type="button"
+        ?disabled=${this.busy}
+        @click=${async () => {
+          this.featuredMenu = false;
+          this.menuOpenId = null;
+          try {
+            const r = await createDesktopShortcut(f.id);
+            showToast(r.message_zh);
+          } catch (e) {
+            showToast(friendlyError(e));
+          }
+        }}
+      >
+        创建桌面快捷方式
       </button>
       <button
         type="button"

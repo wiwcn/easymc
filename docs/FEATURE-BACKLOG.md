@@ -14,9 +14,9 @@
 
 | 优先级 | 功能 | 参照灵感 | 备注 |
 |--------|------|----------|------|
-| P1 | **桌面 / 开始菜单快捷方式** | Prism、MultiMC | 为某一版本生成 `.desktop` / Windows 快捷方式，一键带 Quick Play 启动。 |
+| P1 | ~~桌面 / 开始菜单快捷方式~~ | Prism、MultiMC | **已实现（0.1.6）**：`create_desktop_shortcut` → 桌面 + 开始菜单 / applications；脚本含 Quick Play。 |
 | P1 | **禁用聊天举报（可选）** | BakaXL、部分 Prism 配置 | 以玩家可理解的开关呈现；实现需跟进当年 MC/加载器可行方式（JVM/模组），避免静默改协议。 |
-| P2 | **游玩时长统计** | LauncherX、HMCL 类 | 按版本累计会话时长，设置或主页轻量展示。 |
+| P2 | ~~游玩时长统计~~ | LauncherX、HMCL 类 | **已实现（0.1.6）**：`total_play_secs` 会话累计；启动页 / 版本设置展示。 |
 | P2 | **启动后实时日志控制台** | Prism、MultiMC | 游戏进程 stdout/崩溃尾部可在启动器内查看，并一键丢给 mclo.gs。 |
 | P3 | **便携模式 / 绿色目录** | Gradlew-launcher、部分 SCL 用法 | 数据目录跟随安装路径，便于 U 盘或免安装分发。 |
 | P3 | **中间件 / 组件列表（高级）** | MultiMC / Prism components | 对 loader、LWJGL 等可替换层做可视化；偏高手，排在基础体验之后。 |

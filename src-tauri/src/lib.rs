@@ -4,6 +4,7 @@ use easymc_core::{
     begin_microsoft_login, create_named_instance_with, create_offline_account, duplicate_instance,
     ensure_defaults, load_accounts, load_instances, load_settings, remove_instance, save_accounts,
     save_instances, save_settings, set_active_instance, update_instance_fields, upsert_instance,
+    add_instance_playtime,
     Account, AppMode, CreateInstanceOpts, DownloadSource, Instance, McVersion,
     MicrosoftAuthConfig, ModLoader, Paths, Settings,
     fetch_littleskin_by_name,
@@ -23,8 +24,8 @@ use easymc_core::{
     read_local_file,
 };
 use easymc_launch_desktop::{
-    detect_java, detect_minecraft_dirs, ensure_java, prepare_and_launch, write_launch_script, JavaInstall,
-    LaunchRequest, LaunchStatus, MinecraftDir, ProcessManager,
+    create_desktop_shortcut, detect_java, detect_minecraft_dirs, ensure_java, prepare_and_launch,
+    write_launch_script, JavaInstall, LaunchRequest, LaunchStatus, MinecraftDir, ProcessManager,
 };
 use easymc_meta::{
     install_fabric, install_forge, install_neoforge, install_quilt,
@@ -868,6 +869,27 @@ async fn ensure_java_cmd(app: AppHandle, state: State<'_, AppState>, major: Opti
     .map_err(|e| e.to_string())
 }
 
+
+async fn apply_finished_playtime(paths: &Paths, procs: &ProcessManager, app: &AppHandle) {
+    for f in procs.take_finished().await {
+        match add_instance_playtime(paths, &f.instance_id, f.play_secs) {
+            Ok(total) => {
+                let _ = app.emit(
+                    "game-session-ended",
+                    serde_json::json!({
+                        "instance_id": f.instance_id,
+                        "play_secs": f.play_secs,
+                        "total_play_secs": total,
+                    }),
+                );
+            }
+            Err(e) => {
+                let _ = app.emit("launch-log", format!("记录游玩时长失败: {e}"));
+            }
+        }
+    }
+}
+
 #[tauri::command]
 async fn launch_instance(
     app: AppHandle,
@@ -971,6 +993,21 @@ async fn launch_instance(
     inst.last_played = Some(chrono::Utc::now());
     let _ = upsert_instance(paths, inst);
 
+    // Watch for process exit / stop and accumulate playtime.
+    let paths_watch = paths.clone();
+    let procs_watch = state.procs.clone();
+    let app_watch = app.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+            apply_finished_playtime(&paths_watch, &procs_watch, &app_watch).await;
+            if !procs_watch.is_running().await {
+                apply_finished_playtime(&paths_watch, &procs_watch, &app_watch).await;
+                break;
+            }
+        }
+    });
+
     Ok(LaunchResult {
         ok: true,
         message: status.message,
@@ -979,8 +1016,10 @@ async fn launch_instance(
 }
 
 #[tauri::command]
-async fn stop_instance(state: State<'_, AppState>) -> Result<(), String> {
-    state.procs.stop().await.map_err(|e| e.to_string())
+async fn stop_instance(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    state.procs.stop().await.map_err(|e| e.to_string())?;
+    apply_finished_playtime(state_paths(&state), &state.procs, &app).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -2403,6 +2442,46 @@ fn write_launch_script_cmd(state: State<'_, AppState>, instance_id: String) -> R
     Ok(serde_json::json!({ "path": path, "message_zh": format!("已生成启动脚本（令牌已脱敏）\\n{}", path.display()) }))
 }
 
+
+#[tauri::command]
+fn create_desktop_shortcut_cmd(state: State<'_, AppState>, instance_id: String) -> Result<serde_json::Value, String> {
+    let paths = state_paths(&state);
+    let store = load_instances(paths).map_err(|e| e.to_string())?;
+    let accounts = load_accounts(paths).map_err(|e| e.to_string())?;
+    let settings = load_settings(paths).map_err(|e| e.to_string())?;
+    let inst = store
+        .instances
+        .iter()
+        .find(|i| i.id == instance_id)
+        .ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let acc_id = inst
+        .account_id
+        .clone()
+        .or(accounts.active_id.clone())
+        .ok_or_else(|| "请先添加一个账户".to_string())?;
+    let acc = accounts
+        .accounts
+        .iter()
+        .find(|a| a.id == acc_id)
+        .ok_or_else(|| "账户不存在".to_string())?;
+    let mem = inst.memory_mb.unwrap_or(settings.memory_mb);
+    let path = create_desktop_shortcut(
+        paths,
+        inst,
+        acc,
+        &settings,
+        &LaunchRequest {
+            memory_mb: mem,
+            extra_jvm_args: vec![],
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "path": path,
+        "message_zh": format!("已创建桌面快捷方式（含应用菜单 / 开始菜单副本）\n{}", path.display())
+    }))
+}
+
 #[tauri::command]
 async fn upload_latest_log_cmd(
     state: State<'_, AppState>,
@@ -2895,6 +2974,7 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             delete_instance_cmd,
             open_instance_folder_cmd,
             write_launch_script_cmd,
+            create_desktop_shortcut_cmd,
             upload_latest_log_cmd,
             list_local_content_cmd,
             delete_local_content_cmd,

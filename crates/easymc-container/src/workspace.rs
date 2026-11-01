@@ -161,6 +161,7 @@ mod tests {
             height: None,
             account_id: None,
             last_played: None,
+            total_play_secs: 0,
             created_at: chrono::Utc::now(),
             version_ready: false,
             description: None,

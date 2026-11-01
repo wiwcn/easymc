@@ -268,6 +268,21 @@ pub fn upsert_instance(paths: &Paths, instance: Instance) -> Result<InstanceStor
     Ok(store)
 }
 
+
+/// Accumulate playtime for an instance after a game session ends.
+pub fn add_instance_playtime(paths: &Paths, instance_id: &str, secs: u64) -> Result<u64> {
+    if secs == 0 {
+        let store = load_instances(paths)?;
+        return Ok(get_instance(&store, instance_id)?.total_play_secs);
+    }
+    let store = load_instances(paths)?;
+    let mut inst = get_instance(&store, instance_id)?.clone();
+    inst.total_play_secs = inst.total_play_secs.saturating_add(secs);
+    let total = inst.total_play_secs;
+    upsert_instance(paths, inst)?;
+    Ok(total)
+}
+
 pub fn get_instance<'a>(store: &'a InstanceStore, id: &str) -> Result<&'a Instance> {
     store
         .instances
@@ -484,4 +499,35 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
         }
     }
     Ok(())
+}
+
+
+#[cfg(test)]
+mod playtime_store_tests {
+    use super::*;
+    use crate::{McVersion, Paths};
+    use uuid::Uuid;
+
+    #[test]
+    fn accumulates_playtime() {
+        let dir = std::env::temp_dir().join(format!("easymc-playtime-{}", Uuid::new_v4()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let paths = Paths::from_root(&dir);
+        paths.ensure().unwrap();
+        ensure_defaults(&paths).unwrap();
+        let game = dir.join("g");
+        std::fs::create_dir_all(&game).unwrap();
+        let inst = Instance::new(
+            "id1",
+            "Test",
+            McVersion("1.21.1".into()),
+            game.to_string_lossy().into(),
+        );
+        upsert_instance(&paths, inst).unwrap();
+        assert_eq!(add_instance_playtime(&paths, "id1", 65).unwrap(), 65);
+        assert_eq!(add_instance_playtime(&paths, "id1", 120).unwrap(), 185);
+        let store = load_instances(&paths).unwrap();
+        assert_eq!(get_instance(&store, "id1").unwrap().total_play_secs, 185);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -25,6 +25,8 @@ export interface InstanceDto {
   loader_version?: string | null;
   description?: string | null;
   last_played?: string | null;
+  /** Cumulative playtime in seconds. */
+  total_play_secs?: number;
   game_dir?: string;
   account_id?: string | null;
   version_ready?: boolean;
