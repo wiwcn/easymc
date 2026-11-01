@@ -54,7 +54,7 @@ EasyMC 帮普通玩家把「装版本 → 起游戏 → 装模组 → 换皮肤 
 
 <p align="center">
   <img src="docs/screenshots/agent.png" alt="EasyMC 助手" width="720" />
-  <br /><em>助手 — 对话式排错与工具卡（0.2.0 起单栏精简）</em>
+  <br /><em>助手 — 对话式排错与侧栏快捷工具</em>
 </p>
 
 ## 为什么选 EasyMC

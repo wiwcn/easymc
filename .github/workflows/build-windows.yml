@@ -127,7 +127,7 @@ jobs:
           # Normalize tag interpolation (heredoc was literal)
           VER="${TAG#v}"
           SETUP="EasyMC_${VER}_x64-setup.exe"
-          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.2.0 亮点" "- 助手页信息架构精简：单栏对话、折叠步骤摘要、连接门闩更清晰" "- 产品级 README 与界面截图" "- 累计：主题强调色、便携目录、模组批量更新、实时启动控制台、游玩时长、桌面快捷方式等" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
+          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.2.0 亮点" "- 助手页：侧栏快捷工具 + 底栏快捷芯片可滚动；折叠步骤摘要" "- 产品级 README 与界面截图" "- 累计：主题强调色、便携目录、模组批量更新、实时启动控制台、游玩时长、桌面快捷方式等" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist-windows/* --clobber
             gh release edit "$TAG" --title "EasyMC ${TAG}" --notes "$NOTES"
