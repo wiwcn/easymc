@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing, svg } from "lit";
-import { controlStyles, pageChromeStyles } from "../styles/controls";
+import { cardSurfaceStyles, controlStyles, pageChromeStyles } from "../styles/controls";
 import { customElement, state } from "lit/decorators.js";
 import {
   createInstance,
@@ -19,6 +19,9 @@ import {
   createDesktopShortcut,
   listenGameSessionEnded,
   openInstanceFolder,
+  clearLogs,
+  uploadProcessLogs,
+  uploadLatestLog,
 } from "../api";
 import type { InstallProgressDto } from "../install-progress";
 import type { AccountDto, InstanceDto, LoaderId, VersionSummary } from "../types";
@@ -35,6 +38,14 @@ import { sortInstancesReadyFirst } from "../lib/download-ux";
 import { instanceIconUrl } from "../lib/instance-icon";
 import "../components/install-progress";
 import "../components/empty-state";
+import {
+  appendLiveLog,
+  consoleEmptyHint,
+  filterLogLines,
+  joinLogText,
+  shouldStickToBottom,
+  type LogSeverityFilter,
+} from "../lib/live-console";
 
 const PLAY = svg`<path d="M8 5.5v13l11-6.5L8 5.5Z" fill="currentColor"/>`;
 const MORE = svg`<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>`;
@@ -101,6 +112,11 @@ export class HomePage extends LitElement {
   @state() private progress: InstallProgressDto | null = null;
   @state() private showLogs = false;
   @state() private logs: string[] = [];
+  @state() private logFilter = "";
+  @state() private logSeverity: LogSeverityFilter = "all";
+  @state() private logPasteUrl = "";
+  @state() private logBusy = false;
+  @state() private stickLogs = true;
   @state() private menuOpenId: string | null = null;
   @state() private featuredMenu = false;
   @state() private manageMenu = false;
@@ -125,6 +141,7 @@ export class HomePage extends LitElement {
   static styles = [
     controlStyles,
     pageChromeStyles,
+    cardSurfaceStyles,
     css`
     :host {
       display: flex;
@@ -705,20 +722,129 @@ export class HomePage extends LitElement {
       /* inherit page button tokens via light-DOM in host shadow */
     }
     .row { display: flex; gap: var(--easymc-space-2); flex-wrap: wrap; align-items: center; }
-    .card {
+    .console {
       margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: var(--md-sys-shape-corner-large);
-      background: var(--md-sys-color-surface-container-low);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
     }
-    .card h2 { margin: 0 0 6px; font-size: var(--easymc-type-label); }
-    pre.logs {
-      max-height: 180px;
-      overflow: auto;
+    .console-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .console-head h2 {
+      margin: 0;
+      font-size: var(--easymc-type-label);
+      font-weight: 650;
+    }
+    .console-meta {
+      color: var(--md-sys-color-on-surface-variant);
       font-size: var(--easymc-type-meta);
-      background: var(--md-sys-color-surface-container);
-      padding: 10px;
+    }
+    .console-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .console-toolbar input[type="search"] {
+      flex: 1 1 160px;
+      min-width: 140px;
+      border: 1px solid var(--md-sys-color-outline-variant);
       border-radius: var(--md-sys-shape-corner-small);
+      padding: 7px 10px;
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      font-size: var(--easymc-type-meta);
+    }
+    .sev {
+      display: inline-flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .sev button {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface-variant);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 4px 10px;
+      font-size: var(--easymc-type-meta);
+      cursor: pointer;
+    }
+    .sev button.active {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      border-color: transparent;
+    }
+    .console-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .console-actions button {
+      border: 1px solid var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface);
+      border-radius: var(--md-sys-shape-corner-full);
+      padding: 5px 12px;
+      font-size: var(--easymc-type-meta);
+      cursor: pointer;
+    }
+    .console-actions button.primary {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border-color: transparent;
+    }
+    .console-actions button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .console-body {
+      position: relative;
+      max-height: min(320px, 42vh);
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: var(--easymc-type-meta);
+      line-height: 1.45;
+      background: var(--md-sys-color-surface-container);
+      padding: 10px 12px;
+      border-radius: var(--md-sys-shape-corner-small);
+      white-space: pre-wrap;
+      word-break: break-word;
+      user-select: text;
+      tab-size: 2;
+    }
+    .console-empty {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 18px 8px;
+      text-align: center;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .console-empty strong {
+      color: var(--md-sys-color-on-surface);
+      font-size: var(--easymc-type-label);
+    }
+    .console-paste {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: var(--md-sys-shape-corner-small);
+      background: var(--md-sys-color-success-container);
+      color: var(--md-sys-color-on-success-container);
+      font-size: var(--easymc-type-meta);
+    }
+    .console-paste a {
+      color: inherit;
+      font-weight: 650;
+      word-break: break-all;
     }
     .create {
       margin-top: 14px;
@@ -746,7 +872,8 @@ export class HomePage extends LitElement {
     super.connectedCallback();
     void this.boot();
     void listenLogs((l) => {
-      this.logs = [...this.logs.slice(-200), l];
+      this.logs = appendLiveLog(this.logs, l);
+      this.queueConsoleStick();
     }).then((u) => (this.unlog = u));
     void listenInstallProgress((p) => (this.progress = p)).then((u) => (this.unprog = u));
     void listenGameSessionEnded(() => { void this.refreshQuiet(); }).then((u) => (this.unsession = u));
@@ -806,6 +933,7 @@ export class HomePage extends LitElement {
       this.activeId = st.active_id;
       this.accounts = acc;
       this.logs = await getLogs();
+      this.queueConsoleStick();
     } finally {
       this.loading = false;
     }
@@ -828,6 +956,8 @@ export class HomePage extends LitElement {
     this.status = "";
     this.launchFailed = false;
     this.progress = null;
+    this.showLogs = true;
+    this.logPasteUrl = "";
     try {
       const ver = versionId(f.version);
       if (!f.version_ready) {
@@ -853,6 +983,179 @@ export class HomePage extends LitElement {
       this.busy = false;
       this.progress = null;
     }
+  }
+
+
+  private get filteredLogs(): string[] {
+    return filterLogLines(this.logs, this.logFilter, this.logSeverity);
+  }
+
+  private queueConsoleStick() {
+    if (!this.stickLogs || !this.showLogs) return;
+    requestAnimationFrame(() => {
+      const el = this.renderRoot?.querySelector(".console-body") as HTMLElement | null;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  private onConsoleScroll = (e: Event) => {
+    const el = e.target as HTMLElement;
+    this.stickLogs = shouldStickToBottom(el);
+  };
+
+  private async copyConsole(all: boolean) {
+    try {
+      let text = "";
+      if (all) {
+        text = joinLogText(this.filteredLogs.length ? this.filteredLogs : this.logs);
+      } else {
+        const root = this.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | null;
+        text = root?.getSelection?.()?.toString()
+          || (typeof window !== "undefined" ? window.getSelection()?.toString() : "")
+          || "";
+      }
+      if (!text.trim()) {
+        showToast(all ? "没有可复制的日志" : "先选中一段文字再复制");
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      showToast(all ? "已复制全部（当前筛选）" : "已复制选中内容");
+    } catch {
+      showToast("复制失败，请手动选择文本");
+    }
+  }
+
+  private async uploadConsole() {
+    if (this.logBusy) return;
+    this.logBusy = true;
+    this.logPasteUrl = "";
+    try {
+      let r;
+      try {
+        r = await uploadProcessLogs();
+      } catch (e) {
+        // Fall back to latest.log for the active instance when process buffer is empty
+        const msg = e instanceof Error ? e.message : String(e ?? "");
+        if (msg.includes("还没有进程日志") && this.current?.id) {
+          r = await uploadLatestLog(this.current.id);
+        } else {
+          throw e;
+        }
+      }
+      this.logPasteUrl = r.url;
+      showToast(r.message_zh);
+      try {
+        await navigator.clipboard.writeText(r.url);
+        showToast("mclo.gs 链接已复制");
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      showToast(friendlyError(e, "上传日志失败"));
+    } finally {
+      this.logBusy = false;
+    }
+  }
+
+  private async clearConsole() {
+    this.logs = [];
+    this.logPasteUrl = "";
+    this.logFilter = "";
+    this.logSeverity = "all";
+    try {
+      await clearLogs();
+    } catch {
+      /* browser preview may lack the command */
+    }
+    showToast("已清空运行记录");
+  }
+
+  private renderConsole() {
+    const filtered = this.filteredLogs;
+    const hasFilter = Boolean(this.logFilter.trim()) || this.logSeverity !== "all";
+    const empty = filtered.length === 0;
+    const hint = consoleEmptyHint({
+      hasFilter,
+      launching: this.busy || this.gameLaunched,
+      failed: this.launchFailed,
+    });
+    const sevBtn = (id: LogSeverityFilter, label: string) => html`
+      <button
+        type="button"
+        class=${this.logSeverity === id ? "active" : ""}
+        @click=${() => {
+          this.logSeverity = id;
+        }}
+      >
+        ${label}
+      </button>
+    `;
+    return html`
+      <div class="console em-glass" part="live-console">
+        <div class="console-head">
+          <h2>实时日志</h2>
+          <span class="console-meta"
+            >${hasFilter
+              ? `显示 ${filtered.length} / ${this.logs.length} 行`
+              : `${this.logs.length} 行`}${this.stickLogs ? " · 跟随最新" : ""}</span
+          >
+        </div>
+        <div class="console-toolbar">
+          <input
+            type="search"
+            placeholder="筛选关键词…"
+            .value=${this.logFilter}
+            @input=${(e: Event) => {
+              this.logFilter = (e.target as HTMLInputElement).value;
+            }}
+          />
+          <div class="sev" role="group" aria-label="日志级别">
+            ${sevBtn("all", "全部")} ${sevBtn("error", "错误")} ${sevBtn("warn", "警告")}
+            ${sevBtn("info", "信息")}
+          </div>
+        </div>
+        <div class="console-actions">
+          <button type="button" ?disabled=${!this.logs.length} @click=${() => this.copyConsole(true)}>
+            复制全部
+          </button>
+          <button type="button" @click=${() => this.copyConsole(false)}>复制选中</button>
+          <button
+            type="button"
+            class="primary"
+            ?disabled=${this.logBusy}
+            @click=${() => this.uploadConsole()}
+          >
+            ${this.logBusy ? "上传中…" : "上传到 mclo.gs"}
+          </button>
+          <button type="button" ?disabled=${!this.logs.length && !this.logPasteUrl} @click=${() => this.clearConsole()}>
+            清空
+          </button>
+          <button
+            type="button"
+            @click=${() => {
+              this.showLogs = false;
+            }}
+          >
+            收起
+          </button>
+        </div>
+        ${this.logPasteUrl
+          ? html`<div class="console-paste">
+              已上传：
+              <a href=${this.logPasteUrl} target="_blank" rel="noreferrer">${this.logPasteUrl}</a>
+            </div>`
+          : nothing}
+        <div class="console-body" @scroll=${this.onConsoleScroll}>
+          ${empty
+            ? html`<div class="console-empty">
+                <strong>${hint.title}</strong>
+                <span>${hint.detail}</span>
+              </div>`
+            : joinLogText(filtered)}
+        </div>
+      </div>
+    `;
   }
 
   private goAgentDiagnose() {
@@ -1263,12 +1566,8 @@ export class HomePage extends LitElement {
           ${visible.map((i) => this.renderCard(i))}
         </div>
       </div>
-      ${this.showLogs
-        ? html`<div class="card">
-            <h2>启动日志</h2>
-            <pre class="logs">${this.logs.join("\n") || "（还没动静）"}</pre>
-          </div>`
-        : nothing}
+      ${this.showLogs ? this.renderConsole() : nothing}
+
       ${this.showCreate ? this.renderCreate() : nothing}
     `;
   }

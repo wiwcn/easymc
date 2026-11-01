@@ -933,6 +933,14 @@ export async function uploadLatestLog(
   });
 }
 
+export async function uploadProcessLogs(): Promise<import("./types").MclogsUploadResultDto> {
+  return invokeOrThrow("upload_process_logs_cmd");
+}
+
+export async function clearLogs(): Promise<void> {
+  await invokeSafe("clear_logs_cmd");
+}
+
 export async function listLocalContent(instanceId: string, kind: string): Promise<LocalEntryDto[]> {
   return (await invokeSafe<LocalEntryDto[]>("list_local_content_cmd", { instanceId, kind })) ?? [];
 }

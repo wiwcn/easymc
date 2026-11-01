@@ -39,17 +39,17 @@
 - 多实例 / 版本中心；Fabric/Quilt/Forge/NeoForge；BMCLAPI+测速；Modrinth+CF；mrpack/分享包
 - 离线 + 微软 Device Code；皮肤衣柜（3D）；Quick Play；mclo.gs；Agent 诊断
 - 启动页日志缓冲（`launch-log` / `get_logs`）；Java 检测与首选；容器/Podman（可选）
-- 生成 `launch.bat` / `launch.sh`（**尚未**落到桌面/开始菜单快捷方式）
-- `last_played` 有；**无累计游玩时长**
+- 桌面 / 开始菜单快捷方式（0.1.6）；累计游玩时长 `total_play_secs`（0.1.6）
+- 启动页实时日志控制台：过滤 / 复制 / mclo.gs（0.1.7 打磨）
 
 ## 缺口（相对扫描 + 既有 backlog）
 
 | 优先级 | 缺口 | 参照 | 本会话 |
 |--------|------|------|--------|
-| P1 | 桌面 / 开始菜单快捷方式（可带 Quick Play） | Prism / MultiMC / CMCL 别名 | **实现** |
+| P1 | ~~桌面 / 开始菜单快捷方式（可带 Quick Play）~~ | Prism / MultiMC / CMCL 别名 | **已实现（0.1.6）** |
 | P1 | 第三方 Authlib / 统一通行证完整登录 | XMCL / CMCL / SJMCL | 延后 |
-| P2 | **游玩时长统计** | LauncherX / HMCL 类 / Fluent | **实现** |
-| P2 | 实时日志控制台打磨（过滤/复制/丢 mclo.gs） | Pandora / Prism | 延后（基础已有） |
+| P2 | ~~游玩时长统计~~ | LauncherX / HMCL 类 / Fluent | **已实现（0.1.6）** |
+| P2 | ~~实时日志控制台打磨（过滤/复制/丢 mclo.gs）~~ | Pandora / Prism | **本会话实现（0.1.7）** |
 | P2 | 批量模组更新 / 元数据驱动换 loader | Polymerium / XMCL | 延后 |
 | P3 | 资源硬链去重 | XMCL / Polymerium / shard | 延后 |
 | P3 | 扩展系统 / MCP 深度 | SJMCL | 部分有 Agent，扩展商店延后 |
@@ -61,3 +61,6 @@
 1. **桌面快捷方式**：backlog P1；已有启动脚本生成，差「放到桌面/应用菜单」这一步，玩家立刻可感。
 2. **游玩时长**：peers 普遍有；仅需在进程生命周期记账 + 首页展示，契合现有 `ProcessManager`。
 
+## 0.1.7 变更（实时控制台）
+
+启动页「实时日志」：关键词/级别过滤、复制全部或选中、一键上传进程缓冲到 mclo.gs（空缓冲回退 latest.log）、玻璃卡片空态与跟随滚动。

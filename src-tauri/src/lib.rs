@@ -2532,6 +2532,30 @@ async fn upload_latest_log_cmd(
 }
 
 
+
+#[tauri::command]
+async fn upload_process_logs_cmd(
+    state: State<'_, AppState>,
+) -> Result<easymc_core::MclogsUploadResult, String> {
+    let lines = state.procs.logs_snapshot().await;
+    if lines.is_empty() {
+        return Err(
+            "启动器里还没有进程日志。先启动一次游戏，或到版本设置上传 latest.log。".into(),
+        );
+    }
+    let content = lines.join("\n");
+    easymc_core::upload_log_content(&content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn clear_logs_cmd(state: State<'_, AppState>) -> Result<(), String> {
+    state.procs.clear_logs().await;
+    Ok(())
+}
+
+
 #[tauri::command]
 fn list_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String) -> Result<Vec<LocalEntry>, String> {
     let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
@@ -2976,6 +3000,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             write_launch_script_cmd,
             create_desktop_shortcut_cmd,
             upload_latest_log_cmd,
+            upload_process_logs_cmd,
+            clear_logs_cmd,
             list_local_content_cmd,
             delete_local_content_cmd,
             search_content_cmd,

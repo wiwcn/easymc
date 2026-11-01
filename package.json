@@ -1,6 +1,6 @@
 {
   "name": "easymc",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "type": "module",
   "description": "EasyMC \u2014 open-source Minecraft Java Edition launcher (Tauri 2 + Lit)",
@@ -12,7 +12,8 @@
     "tauri": "tauri",
     "test:ux": "node scripts/test-download-ux.mjs",
     "test:skin": "node scripts/test-skin-wardrobe.mjs",
-    "test:agent-steps": "node scripts/test-agent-steps.mjs"
+    "test:agent-steps": "node scripts/test-agent-steps.mjs",
+    "test:live-console": "node scripts/test-live-console.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
