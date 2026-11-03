@@ -267,5 +267,8 @@ async fn finish_chain(c: &reqwest::Client, ms: MsTokens) -> Result<Account> {
         refresh_token: ms.refresh,
         expires_at: Some(Utc::now() + ChronoDuration::seconds(expires)),
         created_at: Utc::now(),
+        authlib_api_root: None,
+        authlib_server_name: None,
+        client_token: None,
     })
 }

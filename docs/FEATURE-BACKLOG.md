@@ -7,6 +7,8 @@
 
 | 功能 | 参照灵感 | 说明 |
 |------|----------|------|
+| **Authlib 皮肤站登录** | HMCL、PCL、authlib-injector | 解析 API 根、Yggdrasil 登录/刷新、启动 `-javaagent`；不存密码；Nide8 另议。 |
+
 | **快速进入（Quick Play）** | CMCL、Prism `--quickPlay*` | 版本设置可选世界 / 服务器 / Realms；世界页「设为快速进入」「直进」。1.20+ 用官方参数；更旧版本服务器回退 `--server`/`--port`。 |
 | **分享日志（mclo.gs）** | 多数启动器的日志上传 | 版本设置「分享最新日志」→ 上传 `latest.log`（或最新 crash-report）到 mclo.gs，复制链接。 |
 | **减少聊天举报（可选）** | BakaXL、authlib-injector | 全局默认 + 实例覆盖；1.19.1+ 注入公开 JVM 属性；诚实说明正版需模组配合，不改写网络。 |

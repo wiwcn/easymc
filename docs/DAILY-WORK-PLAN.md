@@ -3,6 +3,16 @@
 时区：Asia/Shanghai。推送只用本机 `~/.config/easymc/gh_token`。不主动打扰 William（除非被挡住）。
 
 
+
+<!-- AUTHLIB-SKIN-STATION -->
+
+## 已完成 · 第三方皮肤站 Authlib-Injector 登录（v0.2.1 · 2026-11-03）
+
+- AccountKind::SkinStation + authlib 解析/登录/刷新；运行时下载 authlib-injector jar（不 vendor 源码）
+- 启动注入 `-javaagent:…=api_root`，userType=`mojang`；账户页 / 首启真实登录表单
+- Nide8 延后
+
+
 <!-- QUICK-PLAY-MCLOGS -->
 
 ## 已完成 · Quick Play + mclo.gs 日志分享（2026-10-31）
@@ -107,7 +117,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - P0：Agent 工具面与 skill 库（启用/禁用模组、版本列表、导入 .mrpack 等）
 - P1：`.mrpack` / 分享链路打磨
 - P1：Windows 定稿包常绿
-- P2：皮肤站、Android 真启动（桌面优先时后置；FCL 作能力参照）
+- P2：Nide8 皮肤站、Android 真启动（桌面优先时后置；FCL 作能力参照；Authlib 已于 0.2.1）
 
 ## 不做
 

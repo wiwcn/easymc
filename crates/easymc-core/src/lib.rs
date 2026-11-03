@@ -11,6 +11,7 @@ mod wardrobe;
 mod mclogs;
 
 pub mod msa;
+pub mod authlib;
 pub use account::*;
 pub use container::*;
 pub use error::*;

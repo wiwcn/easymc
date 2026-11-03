@@ -10,6 +10,9 @@ pub enum AccountKind {
     Offline,
     /// Microsoft / Xbox account (MSA). Requires Azure app registration.
     Microsoft,
+    /// Third-party skin station via Authlib-Injector / Yggdrasil.
+    #[serde(rename = "skin_station")]
+    SkinStation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +27,15 @@ pub struct Account {
     pub refresh_token: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// Yggdrasil API root (e.g. https://littleskin.cn/api/yggdrasil). SkinStation only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authlib_api_root: Option<String>,
+    /// Skin station display name from meta.serverName when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authlib_server_name: Option<String>,
+    /// Yggdrasil clientToken (not a password).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_token: Option<String>,
 }
 
 /// Java `UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(UTF_8))`.
@@ -76,6 +88,9 @@ pub fn create_offline_account(username: &str) -> crate::Result<Account> {
         refresh_token: None,
         expires_at: None,
         created_at: Utc::now(),
+        authlib_api_root: None,
+        authlib_server_name: None,
+        client_token: None,
     })
 }
 

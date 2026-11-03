@@ -1204,6 +1204,7 @@ pub fn list_accounts(paths: &Paths) -> ActionResult {
         let kind_zh = match acc.kind {
             AccountKind::Microsoft => "正版",
             AccountKind::Offline => "离线",
+            AccountKind::SkinStation => "皮肤站",
         };
         let mark = if Some(&acc.id) == active.as_ref() {
             "★ "
@@ -1279,6 +1280,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
                 || match acc.kind {
                     AccountKind::Microsoft => ql == "正版" || ql == "microsoft" || ql == "msa" || ql == "正版账户" || ql == "正版账号",
                     AccountKind::Offline => ql == "离线" || ql == "offline" || ql == "离线账户" || ql == "离线账号",
+                    AccountKind::SkinStation => ql == "皮肤站" || ql == "skin" || ql == "skin_station" || ql == "authlib" || ql == "外置登录",
                 }
         })
         .cloned()
@@ -1321,6 +1323,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
                 let kind_zh = match a.kind {
                     AccountKind::Microsoft => "正版",
                     AccountKind::Offline => "离线",
+                    AccountKind::SkinStation => "皮肤站",
                 };
                 format!("{}（{kind_zh}）", a.username)
             })
@@ -1341,6 +1344,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
                     "kind": match a.kind {
                         AccountKind::Microsoft => "正版",
                         AccountKind::Offline => "离线",
+                        AccountKind::SkinStation => "皮肤站",
                     },
                 })).collect::<Vec<_>>(),
             })),
@@ -1350,6 +1354,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
     let kind_zh = match target.kind {
         AccountKind::Microsoft => "正版",
         AccountKind::Offline => "离线",
+        AccountKind::SkinStation => "皮肤站",
     };
     if store.active_id.as_deref() == Some(target.id.as_str()) {
         return ActionResult {

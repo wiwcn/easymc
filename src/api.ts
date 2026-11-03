@@ -911,6 +911,29 @@ export async function msaStatus(): Promise<MsaStatusDto> {
   );
 }
 
+
+export interface AuthlibResolveDto {
+  api_root: string;
+  server_name?: string | null;
+}
+
+export async function authlibResolve(server: string): Promise<AuthlibResolveDto> {
+  return invokeOrThrow<AuthlibResolveDto>("authlib_resolve_cmd", { server });
+}
+
+export async function loginSkinStation(
+  server: string,
+  username: string,
+  password: string,
+): Promise<AccountDto> {
+  const acc = await invokeOrThrow<AccountDto>("login_skin_station_cmd", {
+    server,
+    username,
+    password,
+  });
+  return acc;
+}
+
 export async function createOfflineOrThrow(username: string): Promise<AccountDto> {
   try {
     return await invokeOrThrow<AccountDto>("create_offline", { username });

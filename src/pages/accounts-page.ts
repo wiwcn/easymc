@@ -4,6 +4,7 @@ import { customElement, state } from "lit/decorators.js";
 import {
   createOfflineOrThrow,
   listAccountsState,
+  loginSkinStation,
   removeAccount,
   setActiveAccount,
   wardrobeActive,
@@ -30,9 +31,13 @@ export class AccountsPage extends LitElement {
   @state() private panel: null | "chooser" | "offline" | "microsoft" | "skin" = null;
   @state() private name = "";
   @state() private nameError = "";
-  @state() private skinServer = "";
+  @state() private skinServer = "https://littleskin.cn";
   @state() private skinUser = "";
+  @state() private skinPass = "";
   @state() private skinNote = "";
+  @state() private skinError = "";
+  @state() private skinBusy = false;
+  @state() private skinServerHint = "";
 
   static styles = [
     controlStyles,
@@ -206,6 +211,36 @@ export class AccountsPage extends LitElement {
       .acct-actions button.danger:hover {
         color: var(--md-sys-color-error);
         background: color-mix(in oklch, var(--md-sys-color-error) 10%, transparent);
+      }
+      .preset-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 4px 0 2px;
+      }
+      .preset-row button {
+        border: 1px solid color-mix(in oklch, var(--md-sys-color-outline-variant) 70%, transparent);
+        background: var(--md-sys-color-surface);
+        color: var(--md-sys-color-on-surface-variant);
+        border-radius: var(--md-sys-shape-corner-full);
+        padding: 4px 12px;
+        font-size: var(--easymc-type-meta);
+        font-weight: var(--easymc-weight-medium);
+        cursor: pointer;
+      }
+      .preset-row button:hover {
+        background: var(--md-sys-color-surface-container);
+        color: var(--md-sys-color-on-surface);
+      }
+      .preset-row button:focus-visible {
+        outline: none;
+        box-shadow: var(--easymc-focus-ring);
+      }
+      .form-card label + label {
+        margin-top: 2px;
+      }
+      .form-card input[type="password"] {
+        letter-spacing: 0.06em;
       }
       .chooser {
         display: grid;
@@ -490,9 +525,18 @@ export class AccountsPage extends LitElement {
           <strong>离线游玩</strong>
           <span>输入游戏里显示的名字，马上就能玩单人或离线服。</span>
         </button>
-        <button class="choice" type="button" @click=${() => (this.panel = "skin")}>
+        <button
+          class="choice"
+          type="button"
+          @click=${() => {
+            this.skinError = "";
+            this.skinNote = "";
+            this.skinPass = "";
+            this.panel = "skin";
+          }}
+        >
           <strong>皮肤站</strong>
-          <span>用皮肤站账号显示自定义皮肤（完整登录即将支持）。</span>
+          <span>用 Authlib 皮肤站账号登录，游戏里显示你的自定义皮肤。</span>
         </button>
       </div>
     `;
@@ -572,38 +616,55 @@ export class AccountsPage extends LitElement {
   private renderSkin() {
     return html`
       <div class="row" style="margin-bottom:8px">
-        <button class="ghost" type="button" @click=${() => (this.panel = "chooser")}>← 返回</button>
+        <button class="ghost" type="button" ?disabled=${this.skinBusy} @click=${() => (this.panel = "chooser")}>← 返回</button>
       </div>
       <div class="form-card">
-        <p class="tip" style="margin-top:0">皮肤站登录即将支持。可先填信息并起一个离线名字进入游戏。</p>
+        <p class="tip" style="margin-top:0">
+          使用支持 Authlib-Injector 的皮肤站（如 LittleSkin）。密码只用于本次登录，不会保存在本地。
+        </p>
         <label
-          >皮肤站地址<input
+          >皮肤站地址
+          <input
             .value=${this.skinServer}
             placeholder="例如：https://littleskin.cn"
-            @input=${(e: Event) => (this.skinServer = (e.target as HTMLInputElement).value)}
-        /></label>
-        <label
-          >账号（邮箱或用户名）<input
-            .value=${this.skinUser}
-            @input=${(e: Event) => (this.skinUser = (e.target as HTMLInputElement).value)}
-        /></label>
-        <label
-          >游戏里显示的名字<input
-            maxlength="16"
-            .value=${this.name}
+            ?disabled=${this.skinBusy}
             @input=${(e: Event) => {
-              this.name = (e.target as HTMLInputElement).value;
-              this.nameError = "";
+              this.skinServer = (e.target as HTMLInputElement).value;
+              this.skinServerHint = "";
+              this.skinError = "";
             }}
         /></label>
-        ${this.nameError ? html`<div class="err">${this.nameError}</div>` : nothing}
+        <div class="preset-row" role="group" aria-label="常用皮肤站">
+          <button type="button" ?disabled=${this.skinBusy} @click=${() => { this.skinServer = "https://littleskin.cn"; this.skinServerHint = "LittleSkin"; this.skinError = ""; }}>LittleSkin</button>
+        </div>
+        <label
+          >账号（邮箱或用户名）
+          <input
+            autocomplete="username"
+            .value=${this.skinUser}
+            ?disabled=${this.skinBusy}
+            @input=${(e: Event) => { this.skinUser = (e.target as HTMLInputElement).value; this.skinError = ""; }}
+        /></label>
+        <label
+          >密码
+          <input
+            type="password"
+            autocomplete="current-password"
+            .value=${this.skinPass}
+            ?disabled=${this.skinBusy}
+            @input=${(e: Event) => { this.skinPass = (e.target as HTMLInputElement).value; this.skinError = ""; }}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.submitSkinStation(); }}
+        /></label>
+        ${this.skinServerHint ? html`<div class="tip">将登录到：${this.skinServerHint}</div>` : nothing}
+        ${this.skinError ? html`<div class="err" role="alert">${this.skinError}</div>` : nothing}
         ${this.skinNote ? html`<div class="tip">${this.skinNote}</div>` : nothing}
         <div class="row">
           <button
             class="ghost"
             type="button"
+            ?disabled=${this.skinBusy}
             @click=${() => {
-              this.skinNote = "已记下，皮肤站登录上线后会提醒你完成。";
+              this.skinNote = "已记下皮肤站信息。也可以先添加离线名开玩。";
               try {
                 localStorage.setItem(
                   "easymc.skinStationDraft",
@@ -616,12 +677,44 @@ export class AccountsPage extends LitElement {
           >
             稍后再说
           </button>
-          <button class="primary" type="button" @click=${() => this.submitOffline()}>
-            添加离线名并使用
+          <button class="primary" type="button" ?disabled=${this.skinBusy} @click=${() => this.submitSkinStation()}>
+            ${this.skinBusy ? "正在登录…" : "登录并使用"}
           </button>
         </div>
       </div>
     `;
+  }
+
+  private async submitSkinStation() {
+    const server = this.skinServer.trim();
+    const user = this.skinUser.trim();
+    if (!server) {
+      this.skinError = "请填写皮肤站地址，例如 https://littleskin.cn";
+      return;
+    }
+    if (!user) {
+      this.skinError = "请填写皮肤站账号（邮箱或用户名）。";
+      return;
+    }
+    if (!this.skinPass) {
+      this.skinError = "请填写密码。";
+      return;
+    }
+    this.skinBusy = true;
+    this.skinError = "";
+    try {
+      const acc = await loginSkinStation(server, user, this.skinPass);
+      this.skinPass = "";
+      this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
+      const station = acc.authlib_server_name ? `（${acc.authlib_server_name}）` : "";
+      showToast(`已登录 ${acc.username}${station}`);
+      this.panel = null;
+      await this.refresh();
+    } catch (e) {
+      this.skinError = friendlyError(e);
+    } finally {
+      this.skinBusy = false;
+    }
   }
 }
 

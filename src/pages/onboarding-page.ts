@@ -12,6 +12,7 @@ import {
   ensureJavaInstall,
   getSettings,
   listenLogs,
+  loginSkinStation,
   msaStatus,
   probeDownloadMirrors,
   probeRegistryMirrors,
@@ -45,9 +46,11 @@ export class OnboardingPage extends LitElement {
   @state() private nameError = "";
   @state() private busy = false;
   @state() private msa: MsaStatusDto | null = null;
-  @state() private skinServer = "";
+  @state() private skinServer = "https://littleskin.cn";
   @state() private skinUser = "";
+  @state() private skinPass = "";
   @state() private skinNote = "";
+  @state() private skinError = "";
 
   /** Step 2 — basic environment */
   @state() private dataDir = "";
@@ -412,6 +415,36 @@ export class OnboardingPage extends LitElement {
       await this.finish();
     } catch (e) {
       this.nameError = this.friendly(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async onSkinStation() {
+    const server = this.skinServer.trim();
+    const user = this.skinUser.trim();
+    if (!server) {
+      this.skinError = "请填写皮肤站地址，例如 https://littleskin.cn";
+      return;
+    }
+    if (!user) {
+      this.skinError = "请填写皮肤站账号（邮箱或用户名）。";
+      return;
+    }
+    if (!this.skinPass) {
+      this.skinError = "请填写密码。";
+      return;
+    }
+    this.busy = true;
+    this.skinError = "";
+    try {
+      const acc = await loginSkinStation(server, user, this.skinPass);
+      this.skinPass = "";
+      const station = acc.authlib_server_name ? `（${acc.authlib_server_name}）` : "";
+      showToast(`欢迎，${acc.username}${station}`);
+      await this.finish();
+    } catch (e) {
+      this.skinError = this.friendly(e);
     } finally {
       this.busy = false;
     }
@@ -1047,7 +1080,7 @@ sub: "完全可选。开启后每个版本的模组与存档分开存放；点�
           </button>
           <button class="opt ${this.login === "skin_station" ? "sel" : ""}" role="radio" aria-checked=${this.login === "skin_station"} @click=${() => this.pickLogin("skin_station")}>
             <strong>第三方皮肤站</strong>
-            <span>用皮肤站账号登录，游戏里显示你的自定义皮肤（完整登录即将支持）。</span>
+            <span>用 Authlib 皮肤站账号登录，游戏里显示你的自定义皮肤。</span>
           </button>
         </div>
       `,
@@ -1074,17 +1107,32 @@ sub: "完全可选。开启后每个版本的模组与存档分开存放；点�
     if (this.login === "skin_station") {
       return {
         title: "皮肤站账号",
-        sub: "皮肤站登录即将支持。可以先填好信息，再起一个离线名字进入游戏。",
+        sub: "填写皮肤站地址与账号。密码只用于本次登录，不会保存在本地。也可稍后再说，先离线开玩。",
         body: html`
-          <label>皮肤站地址<input .value=${this.skinServer} placeholder="例如：https://littleskin.cn" @input=${(e: Event) => (this.skinServer = (e.target as HTMLInputElement).value)} /></label>
-          <label>账号（邮箱或用户名）<input .value=${this.skinUser} @input=${(e: Event) => (this.skinUser = (e.target as HTMLInputElement).value)} /></label>
+          <label>皮肤站地址
+            <input .value=${this.skinServer} placeholder="例如：https://littleskin.cn" ?disabled=${this.busy}
+              @input=${(e: Event) => { this.skinServer = (e.target as HTMLInputElement).value; this.skinError = ""; }} />
+          </label>
+          <div class="tip" style="margin:4px 0 8px">常用：LittleSkin（https://littleskin.cn）</div>
+          <label>账号（邮箱或用户名）
+            <input autocomplete="username" .value=${this.skinUser} ?disabled=${this.busy}
+              @input=${(e: Event) => { this.skinUser = (e.target as HTMLInputElement).value; this.skinError = ""; }} />
+          </label>
+          <label>密码
+            <input type="password" autocomplete="current-password" .value=${this.skinPass} ?disabled=${this.busy}
+              @input=${(e: Event) => { this.skinPass = (e.target as HTMLInputElement).value; this.skinError = ""; }}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.onSkinStation(); }} />
+          </label>
+          ${this.skinError ? html`<div class="err" role="alert">${this.skinError}</div>` : nothing}
           ${this.skinNote ? html`<div class="notice">${this.skinNote}</div>` : nothing}
-          ${this.renderOfflineField("先起一个游戏里显示的名字")}
         `,
         footLeft: back,
         footRight: html`
-          <button class="btn ghost" ?disabled=${this.busy} @click=${() => { this.skinNote = "已记下，皮肤站登录上线后会提醒你完成。"; try { localStorage.setItem("easymc.skinStationDraft", JSON.stringify({ server: this.skinServer, user: this.skinUser })); } catch { /* ignore */ } }}>稍后再说</button>
-          <button class="btn primary" ?disabled=${this.busy} @click=${() => this.onOffline()}>进入 EasyMC</button>
+          <button class="btn ghost" ?disabled=${this.busy} @click=${() => {
+            this.skinNote = "已记下。你可以改选「离线游玩」先进入，稍后再到账户页登录皮肤站。";
+            try { localStorage.setItem("easymc.skinStationDraft", JSON.stringify({ server: this.skinServer, user: this.skinUser })); } catch { /* ignore */ }
+          }}>稍后再说</button>
+          <button class="btn primary" ?disabled=${this.busy} @click=${() => this.onSkinStation()}>${this.busy ? "正在登录…" : "登录并进入"}</button>
         `,
       };
     }

@@ -504,6 +504,50 @@ async fn msa_poll_cmd(
     Ok(acc)
 }
 
+#[derive(serde::Serialize)]
+struct AuthlibResolveDto {
+    api_root: String,
+    server_name: Option<String>,
+}
+
+#[tauri::command]
+async fn authlib_resolve_cmd(server: String) -> Result<AuthlibResolveDto, String> {
+    let info = easymc_core::authlib::resolve_api_root(&server)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(AuthlibResolveDto {
+        api_root: info.api_root,
+        server_name: info.server_name,
+    })
+}
+
+#[tauri::command]
+async fn login_skin_station_cmd(
+    state: State<'_, AppState>,
+    server: String,
+    username: String,
+    password: String,
+) -> Result<Account, String> {
+    let info = easymc_core::authlib::resolve_api_root(&server)
+        .await
+        .map_err(|e| e.to_string())?;
+    let acc = easymc_core::authlib::authenticate(&info.api_root, &username, &password)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Prefer meta serverName from resolve when authenticate did not fill it.
+    let mut acc = acc;
+    if acc.authlib_server_name.is_none() {
+        acc.authlib_server_name = info.server_name;
+    }
+    let paths = state_paths(&state);
+    let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+    store.accounts.retain(|a| a.id != acc.id);
+    store.active_id = Some(acc.id.clone());
+    store.accounts.push(acc.clone());
+    save_accounts(paths, &store).map_err(|e| e.to_string())?;
+    Ok(acc)
+}
+
 fn settings_download_source(paths: &Paths) -> DownloadSource {
     load_settings(paths)
         .map(|s| s.download_source)
@@ -985,10 +1029,22 @@ async fn launch_instance(
         .find(|a| a.id == acc_id)
         .cloned()
         .ok_or_else(|| format!("account missing: {acc_id}"))?;
-    // 正版账户：令牌快过期时先刷新，再用真实 accessToken / uuid / 名字启动。
+    // 正版 / 皮肤站：令牌快过期时先刷新，再用真实 accessToken / uuid / 名字启动。
     let acc = if easymc_core::msa::needs_refresh(&acc) {
         let cfg = MicrosoftAuthConfig::resolve(settings.msa_client_id.as_deref());
         let fresh = easymc_core::msa::refresh_account(&cfg, &acc)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
+        for a in store.accounts.iter_mut() {
+            if a.id == acc.id {
+                *a = fresh.clone();
+            }
+        }
+        save_accounts(paths, &store).map_err(|e| e.to_string())?;
+        fresh
+    } else if easymc_core::authlib::needs_refresh(&acc) {
+        let fresh = easymc_core::authlib::refresh_account(&acc)
             .await
             .map_err(|e| e.to_string())?;
         let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
@@ -3350,6 +3406,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             msa_status_cmd,
             msa_device_code_cmd,
             msa_poll_cmd,
+            authlib_resolve_cmd,
+            login_skin_station_cmd,
             list_versions,
             install_mc_version,
             list_loader_versions,

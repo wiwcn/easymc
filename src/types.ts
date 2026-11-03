@@ -166,6 +166,8 @@ export interface AccountDto {
   kind: string;
   username: string;
   uuid: string;
+  authlib_api_root?: string | null;
+  authlib_server_name?: string | null;
 }
 
 export interface AccountsState {

@@ -136,7 +136,8 @@ pub async fn prepare_and_launch(
             version_string: format!("{required}+ (container)"),
             source: "container".into(),
         };
-        let args = build_jvm_and_game_args(paths, &info, instance, account, &stub, req, settings)?;
+        let req_adj = with_authlib_agent(paths, account, req, &on_log).await?;
+        let args = build_jvm_and_game_args(paths, &info, instance, account, &stub, &req_adj, settings)?;
         return launch_via_container(paths, instance, &args, settings, procs, on_log).await;
     }
 
@@ -161,7 +162,8 @@ pub async fn prepare_and_launch(
         );
     }
 
-    let args = build_jvm_and_game_args(paths, &info, instance, account, &java, req, settings)?;
+    let req_adj = with_authlib_agent(paths, account, req, &on_log).await?;
+    let args = build_jvm_and_game_args(paths, &info, instance, account, &java, &req_adj, settings)?;
 
     procs
         .spawn(
@@ -220,6 +222,28 @@ async fn launch_via_container(
         .await
 }
 
+
+async fn with_authlib_agent(
+    paths: &Paths,
+    account: &Account,
+    req: &LaunchRequest,
+    on_log: &impl Fn(String),
+) -> Result<LaunchRequest> {
+    if account.kind != AccountKind::SkinStation {
+        return Ok(req.clone());
+    }
+    on_log("准备皮肤站登录组件（authlib-injector）…".into());
+    let jar = easymc_core::authlib::ensure_authlib_injector_jar(paths).await?;
+    let agent = easymc_core::authlib::javaagent_arg(account, &jar)?;
+    on_log(format!(
+        "皮肤站：注入 {}",
+        agent.split('=').next().unwrap_or(agent.as_str())
+    ));
+    let mut out = req.clone();
+    out.extra_jvm_args.insert(0, agent);
+    Ok(out)
+}
+
 pub fn build_jvm_and_game_args(
     paths: &Paths,
     info: &VersionInfo,
@@ -270,6 +294,8 @@ pub fn build_jvm_and_game_args(
     let user_type = match account.kind {
         AccountKind::Offline => "legacy",
         AccountKind::Microsoft => "msa",
+        // Authlib-Injector rewrites auth; peers (HMCL/PCL) keep legacy Mojang userType.
+        AccountKind::SkinStation => "mojang",
     };
     vars.insert("user_type".into(), user_type.into());
     vars.insert("version_type".into(), info.version_type.clone());
