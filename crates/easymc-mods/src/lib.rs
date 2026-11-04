@@ -26,7 +26,7 @@ pub use content::{
     content_dest, delete_local, install_content, list_local, local_dir, ContentInstallResult,
     LocalEntry,
 };
-pub use modpack::{install_modpack, install_mrpack_file, ModpackInstallResult};
+pub use modpack::{install_cf_zip_file, install_modpack, install_mrpack_file, ModpackInstallResult};
 pub use metadata::{
     is_provided_mod_id, read_mod_meta, read_mod_metas_expanded, version_satisfies, DepKind, ModDepReq, ModMeta, ModMetaKind,
 };

@@ -47,7 +47,8 @@
 | 优先级 | 缺口 | 参照 | 本会话 |
 |--------|------|------|--------|
 | P1 | ~~桌面 / 开始菜单快捷方式（可带 Quick Play）~~ | Prism / MultiMC / CMCL 别名 | **已实现（0.1.6）** |
-| P1 | 第三方 Authlib / 统一通行证完整登录 | XMCL / CMCL / SJMCL | 延后 |
+| P1 | ~~第三方 Authlib / 统一通行证完整登录~~ | XMCL / CMCL / SJMCL | **Authlib 皮肤站已实现（0.2.1）**；Nide8 延后 |
+| P2 | ~~Prism/MultiMC 实例 zip 导入~~ | Prism / MultiMC 导出 | **已实现（0.2.2）** |
 | P2 | ~~游玩时长统计~~ | LauncherX / HMCL 类 / Fluent | **已实现（0.1.6）** |
 | P2 | ~~实时日志控制台打磨（过滤/复制/丢 mclo.gs）~~ | Pandora / Prism | **本会话实现（0.1.7）** |
 | P2 | ~~批量模组更新~~ / 元数据驱动换 loader | Polymerium / XMCL | **批量更新已实现（0.1.8）**：检查/多选/版本选择/changelog；换 loader 仍延后 |

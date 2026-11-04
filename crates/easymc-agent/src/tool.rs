@@ -102,7 +102,7 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_logs" => ("打开日志文件夹", Some("文件")),
         "open_crash-reports" | "open_crash_reports" => ("打开崩溃报告文件夹", Some("文件")),
         "open_game_folder" => ("打开游戏文件夹", Some("文件")),
-        "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack")),
+        "import_mrpack" | "import_modpack" => ("导入整合包", Some(".mrpack / Prism zip")),
         "build_pack" | "create_modpack" | "export_modpack" => ("制作整合包", Some(".mrpack")),
         "diagnostics" => ("导出问题报告", Some("诊断")),
         "diagnose" | "analyze_crash_log" | "analyze_launch_log" => ("查看崩溃", Some("诊断")),
@@ -443,7 +443,7 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
         }
         "import_mrpack" | "import_modpack" => {
             if let Some(p) = path.or_else(|| v.get("path").and_then(|x| x.as_str())) {
-                out.push(arg("path", ".mrpack", p));
+                out.push(arg("path", "整合包", p));
             }
             if let Some(n) = v.get("instance_name").and_then(|x| x.as_str()) {
                 out.push(arg("instance", "新版本", n));

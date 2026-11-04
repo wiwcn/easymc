@@ -368,7 +368,7 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「检查模组更新」/ check_mod_updates — 扫描可升级模组；「批量更新模组」/ update_mods — 下载安装所选更新；\
 · 「推荐模组 科技|魔法|生存|性能」/ suggest_mods — 按主题推荐互补模组；\
 · 「制作整合包」/ create_modpack — 从当前版本导出 Modrinth `.mrpack` 整合包；\
-· 「导入整合包 <路径>」/ import_mrpack — 把本地 `.mrpack` 装成新版本；\
+· 「导入整合包 <路径>」/ import_mrpack — 本地 `.mrpack` / Prism·MultiMC zip / EasyMC 分享 / CF zip → 新版本；\
 · 「禁用/启用 <模组>」/ toggle_mod — 启用或禁用模组；\
 · 「版本列表」/ list_instances — 列出已装版本；\
 · 「切换版本 <名>」/ select_instance — 切换当前版本；\
@@ -534,7 +534,7 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
             "type": "function",
             "function": {
                 "name": "import_mrpack",
-                "description": "导入本地 Modrinth .mrpack（或 EasyMC 分享包）为新版本。",
+                "description": "导入本地整合包为新版本（.mrpack、Prism/MultiMC zip、EasyMC 分享、CurseForge manifest zip）。",
                 "parameters": {
                     "type": "object",
                     "properties": {

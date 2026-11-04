@@ -6,6 +6,7 @@ mod export;
 mod format;
 mod import;
 mod index;
+mod mmc_import;
 
 pub use export::{
     build_manifest, ensure_instance, export_instance, path_for_clipboard, shares_dir, ExportOptions,
@@ -16,4 +17,5 @@ pub use format::{
     MANIFEST_NAME,
 };
 pub use import::{import_instance, read_manifest_from_path, ImportOptions, ImportResult};
+pub use mmc_import::{looks_like_cf_manifest, looks_like_mmc};
 pub use index::{index_path, load_index, save_index, upsert_index_entry, ModsIndex};

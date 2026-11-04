@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "GitHub Release tag (empty = artifact only)"
         required: false
-        default: "v0.2.1"
+        default: "v0.2.2"
 
 permissions:
   contents: write
@@ -96,7 +96,7 @@ jobs:
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easymc-windows-0.2.1
+          name: easymc-windows-0.2.2
           path: dist-windows/*
           if-no-files-found: error
           retention-days: 30
@@ -127,7 +127,7 @@ jobs:
           # Normalize tag interpolation (heredoc was literal)
           VER="${TAG#v}"
           SETUP="EasyMC_${VER}_x64-setup.exe"
-          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.2.1 亮点" "- **第三方皮肤站 Authlib-Injector 登录**：LittleSkin 等 Yggdrasil 站；启动自动注入 authlib-injector" "- 账户页 / 首启引导可直接登录；令牌临近过期自动刷新" "- 累计 0.2.0：助手页快捷滚动、主题强调色、便携目录、模组批量更新等" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
+          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.2.2 亮点" "- **Prism/MultiMC 实例 zip 导入**：instance.cfg + mmc-pack.json + .minecraft；首次启动再装游戏/加载器" "- 库页「导入分享 / 整合包」原生文件选择器；CF manifest.zip / mrpack / EasyMC 分享同一入口" "- 累计 0.2.1：Authlib 皮肤站登录；0.2.0 助手页与主题等" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist-windows/* --clobber
             gh release edit "$TAG" --title "EasyMC ${TAG}" --notes "$NOTES"

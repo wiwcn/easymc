@@ -30,6 +30,7 @@ import {
 import { loaderLabel } from "../types";
 import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
+import { pickImportBundleFile } from "../lib/pick-file";
 import { instanceIconUrl } from "../lib/instance-icon";
 import { buildApplyItems, defaultSelectedFilenames } from "../lib/mod-updates";
 import "../components/empty-state";
@@ -853,12 +854,9 @@ export class LibraryPage extends LitElement {
   }
 
   private async onImport() {
-    const path = window.prompt(
-      "导入路径（EasyMC .json/.zip，或 Modrinth .mrpack）",
-      "",
-    );
+    const path = await pickImportBundleFile();
     if (!path?.trim()) return;
-    const applyMem = window.confirm("是否将分享包中的内存建议写入本地 settings？");
+    const applyMem = window.confirm("是否将分享包中的内存建议写入本地 settings？（Prism/MultiMC 包可忽略）");
     this.busy = true;
     this.status = "正在导入…";
     try {
@@ -886,7 +884,7 @@ export class LibraryPage extends LitElement {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>
-            导入别人的分享
+            导入分享 / 整合包
           </button>
           <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
             ＋ 新建版本

@@ -46,7 +46,7 @@ import { showToast } from "../toast";
 import { friendlyError } from "../lib/friendly-error";
 import { sortInstancesReadyFirst } from "../lib/download-ux";
 import { instanceIconUrl } from "../lib/instance-icon";
-import { pickEnvPackFile } from "../lib/pick-file";
+import { pickEnvPackFile, pickImportBundleFile } from "../lib/pick-file";
 import { syncIndicator } from "../lib/indicator";
 import {
   buildApplyItems,
@@ -764,7 +764,7 @@ export class InstancePage extends LitElement {
       <div class="toolbar">
         <button class="primary" type="button" @click=${() => this.openCreate()}>添加版本</button>
         <button class="ghost" type="button" @click=${() => this.goDownload()}>去下载</button>
-        <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>导入好友分享</button>
+        <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.onImport()}>导入分享 / 整合包</button>
       </div>
       <div class="list">
         ${this.instances.length === 0
@@ -1169,7 +1169,7 @@ export class InstancePage extends LitElement {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="primary" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, false)).message_zh); })}>导出轻量包</button>
             <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => { showToast((await exportInstance(d.id, true)).message_zh); })}>导出这个版本（含模组）</button>
-            <button class="ghost" type="button" @click=${() => this.onImport()}>导入…</button>
+            <button class="ghost" type="button" @click=${() => this.onImport()}>导入分享 / 整合包…</button>
           </div>
           <h2 style="margin-top:var(--easymc-space-5)">分享给好友</h2>
           <p class="muted">把模组、配置和加速偏好打包发给好友（不含存档）。对方导入后会得到一个新版本。</p>
@@ -1292,7 +1292,7 @@ export class InstancePage extends LitElement {
   }
 
   private async onImport() {
-    const path = prompt("分享包完整路径");
+    const path = await pickImportBundleFile();
     if (!path?.trim()) return;
     await this.act(async () => {
       const r = await importInstance(path.trim());

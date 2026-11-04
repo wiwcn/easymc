@@ -51,3 +51,32 @@ export async function pickSkinPng(title = "选择皮肤 PNG"): Promise<string | 
   const t = typed?.trim();
   return t ? t : null;
 }
+
+/** Pick EasyMC share / Modrinth mrpack / Prism·MultiMC / CF zip. Returns null if cancelled. */
+export async function pickImportBundleFile(): Promise<string | null> {
+  if (isTauri()) {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      title: "选择要导入的分享或整合包",
+      filters: [
+        {
+          name: "分享 / 整合包",
+          extensions: ["mrpack", "zip", "json"],
+        },
+        { name: "Modrinth 整合包", extensions: ["mrpack"] },
+        { name: "Zip（Prism / MultiMC / CurseForge / EasyMC）", extensions: ["zip"] },
+        { name: "EasyMC 分享 JSON", extensions: ["json"] },
+      ],
+    });
+    if (selected == null) return null;
+    if (Array.isArray(selected)) return selected[0] ?? null;
+    return selected;
+  }
+  const typed = window.prompt(
+    "导入路径（EasyMC .json/.zip，Modrinth .mrpack，或 Prism/MultiMC/CF .zip）",
+    "",
+  );
+  const t = typed?.trim();
+  return t ? t : null;
+}

@@ -238,87 +238,118 @@ pub async fn install_modpack(
         .await;
     }
 
-    if let Some(man) = read_zip_text(&zip_path, "manifest.json")? {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct CfManifest {
-            minecraft: CfMc,
-            #[serde(default)]
-            files: Vec<CfEntry>,
-            #[serde(default)]
-            overrides: Option<String>,
-        }
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct CfMc {
-            version: String,
-            #[serde(default)]
-            mod_loaders: Vec<CfLoader>,
-        }
-        #[derive(Deserialize)]
-        struct CfLoader {
-            id: String,
-        }
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct CfEntry {
-            #[serde(rename = "projectID")]
-            project_id: u64,
-            #[serde(rename = "fileID")]
-            file_id: u64,
-        }
-        let m: CfManifest = serde_json::from_str(&man)
-            .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
-        let (loader, lv) = m
-            .minecraft
-            .mod_loaders
-            .first()
-            .and_then(|l| {
-                let (k, v) = l.id.split_once('-')?;
-                Some((ModLoader::parse_loose(k)?, Some(v.to_string())))
-            })
-            .unwrap_or((ModLoader::Vanilla, None));
-        let inst = new_pack_instance(paths, &name, &m.minecraft.version, loader, lv.clone(), project.icon_url.clone())?;
-        let game_dir = PathBuf::from(&inst.game_dir);
-        let mods = game_dir.join("mods");
-        let total = m.files.len() as u64;
-        let mut ok = 0usize;
-        let mut failed = Vec::new();
-        for (i, e) in m.files.iter().enumerate() {
-            let (pid, fid) = (e.project_id.to_string(), e.file_id.to_string());
-            progress(&on_progress, 2, "下载整合包里的模组", i as u64, total, pid.clone());
-            let res: Result<()> = async {
-                let v = curseforge::get_version(&pid, &fid).await?;
-                let f = v.files.first().ok_or_else(|| EasyMcError::msg("无文件"))?;
-                let url = curseforge::resolve_download_url(&pid, &fid, &f.url).await?;
-                let Some(rel) = safe_rel(&f.filename) else { return Err(EasyMcError::msg("文件名无效")) };
-                download_file(&client, &url, &mods.join(rel), f.sha1.as_deref(), f.size, |_, _| {}).await?;
-                Ok(())
-            }
-            .await;
-            match res {
-                Ok(()) => ok += 1,
-                Err(_) => failed.push(format!("{pid}/{fid}")),
-            }
-        }
-        let prefix = m.overrides.unwrap_or_else(|| "overrides".into());
-        let ov = extract_overrides(&zip_path, &[prefix.as_str()], &game_dir)?;
-        return Ok(ModpackInstallResult {
-            message_zh: format!("已创建「{}」：{ok} 个模组，点「安装并启动」即可开玩", inst.name),
-            instance_id: inst.id,
-            instance_name: inst.name,
-            game_version: m.minecraft.version,
-            loader,
-            loader_version: lv,
-            files_downloaded: ok,
-            files_failed: failed,
-            overrides: ov,
-        });
+    if read_zip_text(&zip_path, "manifest.json")?.is_some() {
+        return install_cf_zip_file(
+            paths,
+            &zip_path,
+            Some(name.as_str()),
+            project.icon_url.clone(),
+            on_progress,
+        )
+        .await;
     }
 
     Err(EasyMcError::msg("不认识这个整合包格式（需要 Modrinth 或 CurseForge 整合包）"))
 }
 
+
+/// Install a local CurseForge `manifest.json` zip into a NEW instance (downloads listed files).
+pub async fn install_cf_zip_file(
+    paths: &Paths,
+    zip_path: &Path,
+    name_override: Option<&str>,
+    icon_url: Option<String>,
+    on_progress: impl Fn(InstallProgress),
+) -> Result<ModpackInstallResult> {
+    let man = read_zip_text(zip_path, "manifest.json")?
+        .ok_or_else(|| EasyMcError::msg("不是 CurseForge 整合包（缺少 manifest.json）"))?;
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CfManifest {
+        minecraft: CfMc,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        files: Vec<CfEntry>,
+        #[serde(default)]
+        overrides: Option<String>,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CfMc {
+        version: String,
+        #[serde(default)]
+        mod_loaders: Vec<CfLoader>,
+    }
+    #[derive(Deserialize)]
+    struct CfLoader {
+        id: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CfEntry {
+        #[serde(rename = "projectID")]
+        project_id: u64,
+        #[serde(rename = "fileID")]
+        file_id: u64,
+    }
+    let m: CfManifest = serde_json::from_str(&man)
+        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
+    let (loader, lv) = m
+        .minecraft
+        .mod_loaders
+        .first()
+        .and_then(|l| {
+            let (k, v) = l.id.split_once('-')?;
+            Some((ModLoader::parse_loose(k)?, Some(v.to_string())))
+        })
+        .unwrap_or((ModLoader::Vanilla, None));
+    let name = name_override
+        .filter(|s| !s.trim().is_empty())
+        .map(String::from)
+        .or_else(|| m.name.filter(|s| !s.trim().is_empty()))
+        .unwrap_or_else(|| "CurseForge 整合包".into());
+    let inst = new_pack_instance(paths, &name, &m.minecraft.version, loader, lv.clone(), icon_url)?;
+    let game_dir = PathBuf::from(&inst.game_dir);
+    let mods = game_dir.join("mods");
+    std::fs::create_dir_all(&mods)?;
+    let client = curseforge_client(&curseforge::require_api_key()?)?;
+    let total = m.files.len() as u64;
+    let mut ok = 0usize;
+    let mut failed = Vec::new();
+    for (i, e) in m.files.iter().enumerate() {
+        let (pid, fid) = (e.project_id.to_string(), e.file_id.to_string());
+        progress(&on_progress, 2, "下载整合包里的模组", i as u64, total, pid.clone());
+        let res: Result<()> = async {
+            let v = curseforge::get_version(&pid, &fid).await?;
+            let f = v.files.first().ok_or_else(|| EasyMcError::msg("无文件"))?;
+            let url = curseforge::resolve_download_url(&pid, &fid, &f.url).await?;
+            let Some(rel) = safe_rel(&f.filename) else {
+                return Err(EasyMcError::msg("文件名无效"));
+            };
+            download_file(&client, &url, &mods.join(rel), f.sha1.as_deref(), f.size, |_, _| {}).await?;
+            Ok(())
+        }
+        .await;
+        match res {
+            Ok(()) => ok += 1,
+            Err(_) => failed.push(format!("{pid}/{fid}")),
+        }
+    }
+    let prefix = m.overrides.unwrap_or_else(|| "overrides".into());
+    let ov = extract_overrides(zip_path, &[prefix.as_str()], &game_dir)?;
+    Ok(ModpackInstallResult {
+        message_zh: format!("已创建「{}」：{ok} 个模组，点「安装并启动」即可开玩", inst.name),
+        instance_id: inst.id,
+        instance_name: inst.name,
+        game_version: m.minecraft.version,
+        loader,
+        loader_version: lv,
+        files_downloaded: ok,
+        files_failed: failed,
+        overrides: ov,
+    })
+}
 
 /// Install a local `.mrpack` (or zip containing `modrinth.index.json`) into a NEW instance.
 pub async fn install_mrpack_file(

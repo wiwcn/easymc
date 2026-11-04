@@ -8,6 +8,7 @@
 | 功能 | 参照灵感 | 说明 |
 |------|----------|------|
 | **Authlib 皮肤站登录** | HMCL、PCL、authlib-injector | 解析 API 根、Yggdrasil 登录/刷新、启动 `-javaagent`；不存密码；Nide8 另议。 |
+| **Prism/MultiMC 实例 zip 导入** | Prism、MultiMC 导出 | `instance.cfg` + `mmc-pack.json` + `.minecraft`；库页原生文件选择器；CF manifest zip 顺带接入。 |
 
 | **快速进入（Quick Play）** | CMCL、Prism `--quickPlay*` | 版本设置可选世界 / 服务器 / Realms；世界页「设为快速进入」「直进」。1.20+ 用官方参数；更旧版本服务器回退 `--server`/`--port`。 |
 | **分享日志（mclo.gs）** | 多数启动器的日志上传 | 版本设置「分享最新日志」→ 上传 `latest.log`（或最新 crash-report）到 mclo.gs，复制链接。 |
@@ -25,6 +26,7 @@
 | P2 | ~~启动后实时日志控制台~~ | Prism、MultiMC、Pandora | **已实现（0.1.7）**：启动页实时日志过滤/复制/mclo.gs；进程缓冲优先，空则回退 latest.log。 |
 | P2 | ~~批量模组更新~~ | Polymerium、XMCL | **已实现（0.1.8）**：实例模组页检查更新 / 多选 / 版本选择与 changelog；复用 Modrinth+CF 安装路径；无 Key 时 CF 优雅降级。 |
 | P3 | ~~便携模式 / 绿色目录~~ | Gradlew-launcher、部分 SCL 用法 | **已实现（0.1.10）**：标记文件 / 设置开关；`<app>/data`；安全复制迁移；发行附带 `portable.txt`。 |
+| P2 | ~~Prism/MultiMC 实例导入~~ | Prism、MultiMC | **已实现（0.2.2）**：统一 import_instance；原生文件选择器；CF manifest zip 可走同一入口。 |
 | P3 | **中间件 / 组件列表（高级）** | MultiMC / Prism components | 对 loader、LWJGL 等可替换层做可视化；偏高手，排在基础体验之后。 |
 
 ## 明确不在本清单

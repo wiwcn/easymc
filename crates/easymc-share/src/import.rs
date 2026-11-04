@@ -113,11 +113,37 @@ pub async fn import_instance(
     bundle_path: &Path,
     opts: ImportOptions,
 ) -> Result<ImportResult> {
+    // Order: mrpack → MultiMC/Prism → CurseForge manifest.zip → EasyMC share.
     if looks_like_mrpack(bundle_path) {
         let r = easymc_mods::install_mrpack_file(
             paths,
             bundle_path,
             opts.name.as_deref(),
+            |_| {},
+        )
+        .await?;
+        return Ok(ImportResult {
+            instance_id: r.instance_id,
+            instance_name: r.instance_name,
+            mods_copied: r.overrides,
+            mods_downloaded: r.files_downloaded,
+            mods_missing: r.files_failed,
+            memory_applied: None,
+            message_zh: r.message_zh,
+            path_loaded: bundle_path.display().to_string(),
+        });
+    }
+
+    if crate::mmc_import::looks_like_mmc(bundle_path) {
+        return crate::mmc_import::import_mmc_instance(paths, bundle_path, opts).await;
+    }
+
+    if crate::mmc_import::looks_like_cf_manifest(bundle_path) {
+        let r = easymc_mods::install_cf_zip_file(
+            paths,
+            bundle_path,
+            opts.name.as_deref(),
+            None,
             |_| {},
         )
         .await?;

@@ -4,6 +4,15 @@
 
 
 
+<!-- PRISM-MMC-IMPORT -->
+
+## 已完成 · Prism/MultiMC 导入（v0.2.2 · 2026-11-04）
+
+- 统一 `import_instance`：mrpack → Prism/MultiMC（instance.cfg + mmc-pack.json + .minecraft）→ CF manifest.zip → EasyMC 分享
+- 库页「导入分享 / 整合包」改用原生 Tauri 文件选择器（`pickImportBundleFile`）
+- Agent `import_mrpack` 同路径，可吃 MMC zip
+- 忽略 patches/libraries/jarmods；`version_ready=false`，首次启动走正常安装
+
 <!-- AUTHLIB-SKIN-STATION -->
 
 ## 已完成 · 第三方皮肤站 Authlib-Injector 登录（v0.2.1 · 2026-11-03）
@@ -137,7 +146,7 @@ UI：可对齐参照的**页面逻辑与布局规范**（得体，不搬具体�
 - Tauri 同族：plume-launcher、swift-client、cookie-launcher、nexus-launcher
 - 另见 horizon-rust（服务端向，非启动器主参照）
 
-EasyMC 缺口对照（滚动）：实例导入多样性（Prism/Pandora）、Agent/扩展协作（SJMCL）、游戏内文件夹快捷入口（已补 mods/资源包/光影/存档/配置/日志/崩溃报告）、版本重命名/复制/删除与模组删除（2026-10-30 Agent）、Android 真启动（FCL，桌面优先后置）。
+EasyMC 缺口对照（滚动）：~~实例导入多样性（Prism/MultiMC）~~（0.2.2 已做；Pandora 另议）、Agent/扩展协作（SJMCL）、游戏内文件夹快捷入口（已补 mods/资源包/光影/存档/配置/日志/崩溃报告）、版本重命名/复制/删除与模组删除（2026-10-30 Agent）、Android 真启动（FCL，桌面优先后置）。
 
 
 ## 日更备忘（2026-10-30）
