@@ -1569,6 +1569,36 @@ async fn agent_mcp_status() -> McpStatus {
     mcp_status().await
 }
 
+/// Stop all MCP servers and reconnect from the current config file.
+#[tauri::command]
+async fn agent_mcp_reload() -> McpStatus {
+    easymc_agent::reload_mcp().await
+}
+
+/// Listen for Minecraft "Open to LAN" multicast announcements.
+///
+/// `seconds` is clamped to 1..=10; the UI drives the scan and shows a spinner.
+#[tauri::command]
+async fn lan_worlds_listen(seconds: Option<u64>) -> Result<Vec<easymc_launch_desktop::LanWorld>, String> {
+    let secs = seconds.unwrap_or(3).clamp(1, 10);
+    tauri::async_runtime::spawn_blocking(move || easymc_launch_desktop::listen_blocking(secs))
+        .await
+        .map_err(|e| format!("局域网扫描任务失败: {e}"))?
+        .map_err(|e| format!("无法监听局域网广播（端口 4445）：{e}"))
+}
+
+/// True when the agent loop already performed this action end-to-end.
+/// `tool_runtime` marks such payloads with `executed: true`; the host must not
+/// repeat the side effect (Java install / pack export / pack import).
+fn action_executed(action: &ActionResult) -> bool {
+    action
+        .value
+        .as_ref()
+        .and_then(|v| v.get("executed"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 async fn agent_ask(
     app: AppHandle,
@@ -1602,7 +1632,9 @@ async fn agent_ask(
     .map_err(|e| e.to_string())?;
     // Host-side side effects for actions that need real work (Java / mod install).
     if let Some(action) = resp.action.clone() {
-        if action.action == "ensure_java" {
+        if action_executed(&action) {
+            // Already done inside the agent loop — keep the real card/reply.
+        } else if action.action == "ensure_java" {
             let major = action
                 .value
                 .as_ref()
@@ -2405,7 +2437,9 @@ async fn agent_ask(
 
     // setup_env: compose ensure_java + status already in action.message
     if let Some(action) = resp.action.clone() {
-        if action.action == "setup_env" {
+        if action_executed(&action) {
+            // Already done inside the agent loop.
+        } else if action.action == "setup_env" {
             let major = action
                 .value
                 .as_ref()
@@ -3479,6 +3513,8 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             agent_cancel,
             agent_confirm_tool,
             agent_mcp_status,
+            agent_mcp_reload,
+            lan_worlds_listen,
             agent_data_dir,
             portable_status_cmd,
             set_portable_mode_cmd,

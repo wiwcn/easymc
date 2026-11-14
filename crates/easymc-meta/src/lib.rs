@@ -56,6 +56,11 @@ impl PistonMetaProvider {
     pub fn with_source(source: easymc_core::DownloadSource) -> Self {
         let client = reqwest::Client::builder()
             .user_agent(concat!("EasyMC/", env!("CARGO_PKG_VERSION")))
+            // Fail fast on unreachable hosts; stall detection for dead streams.
+            // No whole-request timeout: large jars may take minutes, but 60s
+            // without a single byte aborts instead of hanging the launch.
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(std::time::Duration::from_secs(60))
             .build()
             .expect("reqwest client");
         Self { client, source }

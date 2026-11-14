@@ -16,7 +16,7 @@ use easymc_mods::{
 };
 use serde_json::{json, Value};
 
-use crate::actions::{ActionResult, GameFolderKind};
+use crate::actions::{env_status_summary, ActionResult, GameFolderKind};
 use crate::diagnose::DiagnoseReport;
 use crate::intent::Intent;
 use crate::service::execute_intent;
@@ -511,6 +511,227 @@ async fn update_mods_impl(ctx: &ToolContext<'_>, args: &Value) -> easymc_core::R
     })
 }
 
+/// Run the real host-side Java provisioning step.
+///
+/// Previously `ensure_java` only produced a「正在准备…」answer and relied on the
+/// Tauri/CLI host to finish it *after* the loop returned — every non-last step
+/// was silently dropped. The agent now performs the work itself and marks the
+/// payload `executed: true` so hosts do not run it a second time.
+pub async fn ensure_java_action(paths: &Paths, major: u32) -> ActionResult {
+    match easymc_launch_desktop::ensure_java(paths, major, |_| {}).await {
+        Ok(j) => {
+            let path = j.path.display().to_string();
+            ActionResult {
+                ok: true,
+                action: "ensure_java".into(),
+                message_zh: format!(
+                    "Java {} 已准备好。\n路径：{path}\n来源：{}\n下次启动游戏会用它。",
+                    j.major, j.source
+                ),
+                path: Some(path.clone()),
+                value: Some(json!({
+                    "major": j.major,
+                    "path": path,
+                    "source": j.source,
+                    "executed": true,
+                })),
+            }
+        }
+        Err(e) => ActionResult {
+            ok: false,
+            action: "ensure_java".into(),
+            message_zh: format!(
+                "准备 Java {major} 没成功：{e}\n可以再试一次，或检查网络/下载源后重试。"
+            ),
+            path: None,
+            value: Some(json!({
+                "major": major,
+                "executed": true,
+                "error": e.to_string(),
+            })),
+        },
+    }
+}
+
+/// Compose环境状态 + install the matching JDK in one step.
+pub async fn setup_env_action(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let base = env_status_summary(paths, instance_id);
+    let value = base.value.clone().unwrap_or(Value::Null);
+    let major = value
+        .get("major")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(21) as u32;
+    let download_zh = value
+        .get("download_source_zh")
+        .and_then(|v| v.as_str())
+        .unwrap_or("官方")
+        .to_string();
+    let memory_mb = value
+        .get("memory_mb")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(2048);
+    let instance_name = value
+        .get("instance_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("（未选版本）")
+        .to_string();
+    match easymc_launch_desktop::ensure_java(paths, major, |_| {}).await {
+        Ok(j) => {
+            let path = j.path.display().to_string();
+            ActionResult {
+                ok: true,
+                action: "setup_env".into(),
+                message_zh: format!(
+                    "{}\n\nJava {major} 已就绪。\n路径：{path}\n来源：{}\n下载源：{download_zh}\n内存约 {memory_mb} MB。\n下次启动「{instance_name}」会用这套环境。",
+                    base.message_zh, j.source
+                ),
+                path: Some(path.clone()),
+                value: Some(json!({
+                    "major": j.major,
+                    "path": path,
+                    "source": j.source,
+                    "download_source_zh": download_zh,
+                    "memory_mb": memory_mb,
+                    "instance_id": value.get("instance_id"),
+                    "instance_name": instance_name,
+                    "executed": true,
+                })),
+            }
+        }
+        Err(e) => ActionResult {
+            ok: false,
+            action: "setup_env".into(),
+            message_zh: format!(
+                "{}\n\n准备 Java {major} 没成功：{e}\n可检查网络后再试一次。",
+                base.message_zh
+            ),
+            path: None,
+            value: Some(json!({ "major": major, "executed": true, "error": e.to_string() })),
+        },
+    }
+}
+
+/// Export the resolved instance as a Modrinth `.mrpack`.
+pub async fn build_pack_action(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
+    let Some(inst) = resolve_instance(paths, instance_id) else {
+        return ActionResult {
+            ok: false,
+            action: "build_pack".into(),
+            message_zh: "还没有选版本，没法生成整合包。请先在启动页或助手顶部选一个版本。".into(),
+            path: None,
+            value: Some(json!({ "executed": true })),
+        };
+    };
+    match easymc_share::export_instance(
+        paths,
+        &inst,
+        easymc_share::ExportOptions {
+            mode: easymc_share::ShareMode::Mrpack,
+            notes: Some("由助手「制作整合包」导出".into()),
+            output: None,
+            resolve_modrinth: true,
+        },
+    )
+    .await
+    {
+        Ok(r) => ActionResult {
+            ok: true,
+            action: "build_pack".into(),
+            message_zh: format!(
+                "整合包已生成（Modrinth .mrpack）。\n版本：「{}」\n模组数：{}\n路径：{}\n{}",
+                inst.name, r.mod_count, r.path, r.message_zh
+            ),
+            path: Some(r.path.clone()),
+            value: Some(json!({
+                "instance_id": inst.id,
+                "instance_name": inst.name,
+                "path": r.path,
+                "mod_count": r.mod_count,
+                "bytes": r.bytes,
+                "format": "mrpack",
+                "resolved": r.resolved,
+                "overrides": r.overrides,
+                "executed": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "build_pack".into(),
+            message_zh: format!("生成整合包失败：{e}"),
+            path: None,
+            value: Some(json!({ "instance_id": inst.id, "executed": true, "error": e.to_string() })),
+        },
+    }
+}
+
+/// Import a `.mrpack` (or EasyMC bundle) as a new instance.
+pub async fn import_mrpack_action(paths: &Paths, raw_path: &str) -> ActionResult {
+    let path = raw_path.trim();
+    if path.is_empty() {
+        return ActionResult {
+            ok: false,
+            action: "import_mrpack".into(),
+            message_zh: "请带上整合包路径，例如：导入整合包 /path/to/pack.mrpack".into(),
+            path: None,
+            value: Some(json!({ "executed": true })),
+        };
+    }
+    match easymc_share::import_instance(
+        paths,
+        std::path::Path::new(path),
+        easymc_share::ImportOptions {
+            name: None,
+            apply_memory: false,
+            offline: false,
+        },
+    )
+    .await
+    {
+        Ok(r) => ActionResult {
+            ok: true,
+            action: "import_mrpack".into(),
+            message_zh: format!(
+                "整合包已导入为新版本「{}」。\n模组：下载 {} / 覆盖 {}；缺 {}。\n{}",
+                r.instance_name,
+                r.mods_downloaded,
+                r.mods_copied,
+                r.mods_missing.len(),
+                r.message_zh
+            ),
+            path: Some(r.path_loaded.clone()),
+            value: Some(json!({
+                "path": r.path_loaded,
+                "instance_id": r.instance_id,
+                "instance_name": r.instance_name,
+                "mods_downloaded": r.mods_downloaded,
+                "mods_copied": r.mods_copied,
+                "mods_missing": r.mods_missing,
+                "executed": true,
+            })),
+        },
+        Err(e) => ActionResult {
+            ok: false,
+            action: "import_mrpack".into(),
+            message_zh: format!("导入整合包失败：{e}"),
+            path: Some(path.to_string()),
+            value: Some(json!({ "executed": true, "error": e.to_string() })),
+        },
+    }
+}
+
+fn suggest_theme_query(theme: &str) -> (&'static str, &'static str) {
+    match theme.trim().to_ascii_lowercase().as_str() {
+        "tech" | "科技" | "工业" => ("create", "科技"),
+        "magic" | "魔法" => ("botania", "魔法"),
+        "performance" | "性能" | "优化" => ("sodium", "性能"),
+        "qos" | "生活质量" | "便利" => ("jade", "生活质量"),
+        "adventure" | "冒险" => ("origins", "冒险"),
+        "building" | "建筑" => ("chisel", "建筑"),
+        "shader" | "光影" => ("iris", "光影"),
+        _ => ("farmers-delight", "生存"),
+    }
+}
+
 fn folder_kind(raw: Option<String>) -> GameFolderKind {
     match raw.as_deref().unwrap_or("mods").to_ascii_lowercase().as_str() {
         "resourcepacks" | "resourcepack" | "资源包" => GameFolderKind::ResourcePacks,
@@ -529,22 +750,64 @@ pub async fn execute(ctx: &ToolContext<'_>, requested: &str, args: &Value) -> To
         return from_error(requested, "已停止");
     }
     let name = canonical_tool_name(requested);
+    // The agent loop gates these behind an explicit player confirmation; a
+    // stray direct call must never mutate the disk.
+    if !ctx.confirmed
+        && matches!(name, "delete_instance" | "delete_mod" | "toggle_mod")
+    {
+        return from_error(
+            requested,
+            "这个操作会改动本地文件，需要你确认后才会执行。",
+        );
+    }
     let out = match name {
         "search_mods" => search_mods_impl(ctx, args).await,
         "install_mod" => install_mod_impl(ctx, args).await,
         "fetch_missing_mod_deps" => fetch_deps_impl(ctx, args).await,
         "check_mod_updates" => check_updates_impl(ctx, args).await,
         "update_mods" => update_mods_impl(ctx, args).await,
+        "ensure_java" => {
+            let major = u_arg(args, "major").unwrap_or(21);
+            Ok(from_action_result(
+                requested,
+                ensure_java_action(ctx.paths, major).await,
+            ))
+        }
+        "setup_env" => {
+            let hint = instance_hint(ctx, args);
+            Ok(from_action_result(
+                requested,
+                setup_env_action(ctx.paths, hint.as_deref()).await,
+            ))
+        }
+        "build_pack" => {
+            let hint = instance_hint(ctx, args);
+            Ok(from_action_result(
+                requested,
+                build_pack_action(ctx.paths, hint.as_deref()).await,
+            ))
+        }
+        "import_mrpack" => {
+            let path = s_arg(args, "path").unwrap_or_default();
+            Ok(from_action_result(
+                requested,
+                import_mrpack_action(ctx.paths, &path).await,
+            ))
+        }
         "suggest_mods" => {
             let theme = s_arg(args, "theme").unwrap_or_else(|| "survival".into());
-            let ar = ActionResult {
-                ok: true,
-                action: "suggest_mods".into(),
-                message_zh: format!("正在按「{theme}」主题挑模组…"),
-                path: None,
-                value: Some(json!({ "theme": theme })),
-            };
-            Ok(from_action_result(requested, ar))
+            let (query, theme_zh) = suggest_theme_query(&theme);
+            match search_mods_impl(ctx, &json!({ "query": query })).await {
+                Ok(mut out) => {
+                    let msg = format!("按「{theme_zh}」主题推荐：\n{}", out.message_zh);
+                    out.message_zh = msg.clone();
+                    out.model_text = format!("{msg}\n[主题] {theme}");
+                    out.card.title_zh = "推荐模组".into();
+                    out.card.result_zh = Some(msg);
+                    Ok(out)
+                }
+                Err(e) => Err(e),
+            }
         }
         "open_store" => {
             let query = s_arg(args, "query").unwrap_or_default();
@@ -613,20 +876,12 @@ pub async fn execute(ctx: &ToolContext<'_>, requested: &str, args: &Value) -> To
                 "set_download_source" => Intent::SetDownloadSource {
                     source: s_arg(args, "source").unwrap_or_default(),
                 },
-                "ensure_java" => Intent::EnsureJava {
-                    major: u_arg(args, "major").unwrap_or(21),
-                },
-                "setup_env" => Intent::SetupEnv { instance_id: iid },
-                "build_pack" => Intent::BuildPack { instance_id: iid },
-                "import_mrpack" => Intent::ImportMrpack {
-                    path: s_arg(args, "path").unwrap_or_default(),
-                },
                 "diagnostics" => Intent::DiagnosticsBundle,
                 "help" => Intent::Help,
                 other => {
                     // MCP tools are namespaced `mcp__server__tool`.
                     if other.starts_with("mcp__") {
-                        return crate::mcp::execute_tool(requested, args).await;
+                        return crate::mcp::execute_tool(requested, args, ctx.cancel.as_deref()).await;
                     }
                     return from_error(requested, format!("未知工具 {other}"));
                 }

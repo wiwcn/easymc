@@ -18,12 +18,13 @@
 //! ```
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::{OnceLock, RwLock};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -85,15 +86,20 @@ struct ConfigFile {
     servers: HashMap<String, ServerConfig>,
 }
 
+/// How many stderr lines to keep per server for diagnostics.
+const STDERR_TAIL_LINES: usize = 50;
+/// After a failure, wait this long before trying to spawn the server again.
+const RECONNECT_COOLDOWN: Duration = Duration::from_secs(30);
+
 struct Server {
     name: String,
-    _child: Child,
+    child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    stderr_tail: Arc<std::sync::Mutex<VecDeque<String>>>,
     next_id: u64,
     timeout: Duration,
     connected: bool,
-    error: Option<String>,
     tool_count: usize,
 }
 
@@ -103,7 +109,7 @@ impl Server {
         cmd.args(&cfg.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true);
         for (k, v) in &cfg.env {
             cmd.env(k, v);
@@ -119,17 +125,54 @@ impl Server {
             .stdout
             .take()
             .ok_or_else(|| "无法读取 MCP 服务 stdout".to_string())?;
+        let stderr_tail = Arc::new(std::sync::Mutex::new(VecDeque::new()));
+        if let Some(stderr) = child.stderr.take() {
+            let tail = Arc::clone(&stderr_tail);
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let mut q = tail.lock().unwrap_or_else(|e| e.into_inner());
+                    if q.len() >= STDERR_TAIL_LINES {
+                        q.pop_front();
+                    }
+                    q.push_back(line);
+                }
+            });
+        }
         Ok(Self {
             name: name.to_string(),
-            _child: child,
+            child,
             stdin,
             stdout: BufReader::new(stdout),
+            stderr_tail,
             next_id: 1,
             timeout: Duration::from_millis(cfg.timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS)),
             connected: false,
-            error: None,
             tool_count: 0,
         })
+    }
+
+    /// Last stderr lines, for error messages shown to the player / model.
+    fn stderr_hint(&self) -> String {
+        let q = self.stderr_tail.lock().unwrap_or_else(|e| e.into_inner());
+        let tail = q
+            .iter()
+            .rev()
+            .take(8)
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        if tail.trim().is_empty() {
+            String::new()
+        } else {
+            format!("\n服务 stderr:\n{tail}")
+        }
+    }
+
+    async fn shutdown(&mut self) {
+        self.connected = false;
+        let _ = self.child.kill().await;
     }
 
     async fn send(&mut self, payload: &Value) -> Result<(), String> {
@@ -165,17 +208,18 @@ impl Server {
         }))
         .await?;
         let wait = self.timeout;
+        let id_str = id.to_string();
         let mut buf = String::new();
         loop {
             buf.clear();
             let read = timeout(wait, self.stdout.read_line(&mut buf)).await;
             let n = match read {
-                Err(_) => return Err(format!("MCP {method} 超时")),
+                Err(_) => return Err(format!("MCP {method} 超时{}", self.stderr_hint())),
                 Ok(Err(e)) => return Err(format!("读取 MCP 响应失败: {e}")),
                 Ok(Ok(n)) => n,
             };
             if n == 0 {
-                return Err("MCP 服务已退出".into());
+                return Err(format!("MCP 服务已退出{}", self.stderr_hint()));
             }
             let line = buf.trim();
             if line.is_empty() {
@@ -185,15 +229,21 @@ impl Server {
             let Ok(v) = serde_json::from_str::<Value>(line) else {
                 continue;
             };
-            if v.get("id").and_then(|x| x.as_u64()) != Some(id) {
+            // JSON-RPC ids may be numbers or strings; accept both.
+            let id_matches = v
+                .get("id")
+                .map(|x| x.as_u64() == Some(id) || x.as_str() == Some(id_str.as_str()))
+                .unwrap_or(false);
+            if !id_matches {
                 continue;
             }
             if let Some(err) = v.get("error") {
                 return Err(format!(
-                    "MCP 错误: {}",
+                    "MCP 错误: {}{}",
                     err.get("message")
                         .and_then(|x| x.as_str())
-                        .unwrap_or("unknown")
+                        .unwrap_or("unknown"),
+                    self.stderr_hint()
                 ));
             }
             return Ok(v.get("result").cloned().unwrap_or(Value::Null));
@@ -261,8 +311,13 @@ impl Server {
 
 struct Registry {
     initialized: bool,
-    status: McpStatus,
-    servers: HashMap<String, Server>,
+    config_path: String,
+    config: HashMap<String, ServerConfig>,
+    /// Live handles. Never hold the registry lock while awaiting a server.
+    servers: HashMap<String, Arc<Mutex<Server>>>,
+    server_tools: HashMap<String, Vec<McpToolDescriptor>>,
+    statuses: HashMap<String, McpServerStatus>,
+    cooldown: HashMap<String, Instant>,
     tools: Vec<McpToolDescriptor>,
 }
 
@@ -270,10 +325,41 @@ impl Default for Registry {
     fn default() -> Self {
         Self {
             initialized: false,
-            status: McpStatus::default(),
+            config_path: String::new(),
+            config: HashMap::new(),
             servers: HashMap::new(),
+            server_tools: HashMap::new(),
+            statuses: HashMap::new(),
+            cooldown: HashMap::new(),
             tools: Vec::new(),
         }
+    }
+}
+
+impl Registry {
+    fn status(&self) -> McpStatus {
+        let mut names: Vec<&String> = self.statuses.keys().collect();
+        names.sort();
+        McpStatus {
+            configured: !self.config.is_empty(),
+            config_path: self.config_path.clone(),
+            servers: names
+                .into_iter()
+                .filter_map(|n| self.statuses.get(n).cloned())
+                .collect(),
+        }
+    }
+
+    fn set_status(&mut self, name: &str, connected: bool, tool_count: usize, error: Option<String>) {
+        self.statuses.insert(
+            name.to_string(),
+            McpServerStatus {
+                name: name.to_string(),
+                connected,
+                tool_count,
+                error,
+            },
+        );
     }
 }
 
@@ -351,7 +437,7 @@ fn namespaced(server: &str, tool: &str) -> String {
 pub async fn status_snapshot() -> McpStatus {
     let reg = registry().lock().await;
     if reg.initialized {
-        return reg.status.clone();
+        return reg.status();
     }
     let (path, cfg) = load_config();
     let mut status = McpStatus {
@@ -378,56 +464,140 @@ pub async fn status_snapshot() -> McpStatus {
 }
 
 /// Connect configured servers (idempotent) and return their status.
+///
+/// Failed servers are retried after [`RECONNECT_COOLDOWN`] instead of staying
+/// dead for the whole app session. All awaits happen without the registry lock.
 pub async fn prepare() -> McpStatus {
-    let mut reg = registry().lock().await;
-    if reg.initialized {
-        return reg.status.clone();
-    }
-    reg.initialized = true;
     let (path, cfg) = load_config();
-    reg.status.config_path = path;
-    let Some(cfg) = cfg else {
-        return reg.status.clone();
-    };
-    reg.status.configured = !cfg.servers.is_empty();
-
-    let mut names: Vec<&String> = cfg.servers.keys().collect();
+    let mut names: Vec<String>;
+    {
+        let mut reg = registry().lock().await;
+        if !reg.initialized {
+            reg.initialized = true;
+            reg.config_path = path;
+            reg.config = cfg.map(|c| c.servers).unwrap_or_default();
+            let enabled: Vec<(String, bool)> = reg
+                .config
+                .iter()
+                .map(|(n, c)| (n.clone(), c.enabled))
+                .collect();
+            for (name, enabled) in enabled {
+                if enabled {
+                    reg.statuses.entry(name.clone()).or_insert(McpServerStatus {
+                        name,
+                        connected: false,
+                        tool_count: 0,
+                        error: None,
+                    });
+                }
+            }
+        }
+        names = reg
+            .config
+            .iter()
+            .filter(|(_, c)| c.enabled)
+            .map(|(n, _)| n.clone())
+            .collect();
+    }
     names.sort();
-    for name in names {
-        let sc = &cfg.servers[name];
-        if !sc.enabled {
-            continue;
+
+    for name in &names {
+        connect_if_needed(name).await;
+    }
+
+    let (status, tools) = {
+        let mut reg = registry().lock().await;
+        reg.tools = reg.server_tools.values().flatten().cloned().collect();
+        (reg.status(), reg.tools.clone())
+    };
+    if let Ok(mut snap) = snapshot().write() {
+        *snap = tools;
+    }
+    status
+}
+
+/// Spawn + handshake one server if it is not connected and not cooling down.
+async fn connect_if_needed(name: &str) {
+    let (handle, cfg) = {
+        let reg = registry().lock().await;
+        (reg.servers.get(name).cloned(), reg.config.get(name).cloned())
+    };
+    if let Some(handle) = handle {
+        let healthy = handle.lock().await.connected;
+        if healthy {
+            return;
         }
-        let mut status = McpServerStatus {
-            name: name.clone(),
-            connected: false,
-            tool_count: 0,
-            error: None,
+        // Dead handle from a failed call: drop it and try a fresh process.
+        let old = {
+            let mut reg = registry().lock().await;
+            reg.server_tools.remove(name);
+            reg.servers.remove(name)
         };
-        match Server::new(name, sc) {
-            Ok(mut server) => match server.handshake().await {
-                Ok(tools) => {
-                    status.connected = true;
-                    status.tool_count = tools.len();
-                    reg.tools.extend(tools);
-                    reg.servers.insert(name.clone(), server);
-                }
-                Err(e) => {
-                    status.error = Some(e.clone());
-                    if let Some(s) = reg.servers.get_mut(name) {
-                        s.error = Some(e);
-                        s.connected = false;
-                    }
-                }
-            },
-            Err(e) => status.error = Some(e),
+        if let Some(old) = old {
+            old.lock().await.shutdown().await;
         }
-        reg.status.servers.push(status);
+    }
+    let Some(cfg) = cfg else {
+        return;
+    };
+    {
+        let reg = registry().lock().await;
+        if reg
+            .cooldown
+            .get(name)
+            .is_some_and(|until| *until > Instant::now())
+        {
+            return;
+        }
+    }
+
+    match Server::new(name, &cfg) {
+        Ok(mut server) => match server.handshake().await {
+            Ok(tools) => {
+                let count = tools.len();
+                let mut reg = registry().lock().await;
+                reg.servers
+                    .insert(name.to_string(), Arc::new(Mutex::new(server)));
+                reg.server_tools.insert(name.to_string(), tools);
+                reg.set_status(name, true, count, None);
+                reg.cooldown.remove(name);
+            }
+            Err(e) => {
+                server.shutdown().await;
+                eprintln!("[mcp] server {name} handshake failed: {e}");
+                let mut reg = registry().lock().await;
+                reg.set_status(name, false, 0, Some(e));
+                reg.cooldown
+                    .insert(name.to_string(), Instant::now() + RECONNECT_COOLDOWN);
+            }
+        },
+        Err(e) => {
+            eprintln!("[mcp] server {name} spawn failed: {e}");
+            let mut reg = registry().lock().await;
+            reg.set_status(name, false, 0, Some(e));
+            reg.cooldown
+                .insert(name.to_string(), Instant::now() + RECONNECT_COOLDOWN);
+        }
+    }
+}
+
+/// Tear down every server and reconnect from the current config file.
+pub async fn reload() -> McpStatus {
+    let handles: Vec<Arc<Mutex<Server>>> = {
+        let reg = registry().lock().await;
+        reg.servers.values().cloned().collect()
+    };
+    for h in handles {
+        h.lock().await.shutdown().await;
+    }
+    {
+        let mut reg = registry().lock().await;
+        *reg = Registry::default();
     }
     if let Ok(mut snap) = snapshot().write() {
-        *snap = reg.tools.clone();
+        snap.clear();
     }
-    reg.status.clone()
+    prepare().await
 }
 
 /// Synchronous snapshot used when building the OpenAI tool list.
@@ -450,7 +620,31 @@ pub fn tool_definitions() -> Value {
     )
 }
 
-pub async fn execute_tool(full_name: &str, args: &Value) -> ToolExecResult {
+fn is_cancelled(cancel: Option<&AtomicBool>) -> bool {
+    cancel
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+}
+
+async fn wait_cancelled(cancel: Option<&AtomicBool>) {
+    match cancel {
+        None => std::future::pending::<()>().await,
+        Some(flag) => {
+            while !flag.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
+}
+
+pub async fn execute_tool(
+    full_name: &str,
+    args: &Value,
+    cancel: Option<&AtomicBool>,
+) -> ToolExecResult {
+    if is_cancelled(cancel) {
+        return mcp_error(full_name, "已取消");
+    }
     let desc = snapshot()
         .read()
         .ok()
@@ -459,16 +653,60 @@ pub async fn execute_tool(full_name: &str, args: &Value) -> ToolExecResult {
         return mcp_error(full_name, "MCP 工具未注册或服务未连接");
     };
 
-    let mut reg = registry().lock().await;
-    let Some(server) = reg.servers.get_mut(&desc.server) else {
-        return mcp_error(full_name, format!("MCP 服务 {} 未连接", desc.server));
+    // Clone the handle and release the registry lock before awaiting the call.
+    let handle = {
+        let reg = registry().lock().await;
+        reg.servers.get(&desc.server).cloned()
     };
-    let res = server
-        .call("tools/call", json!({ "name": desc.tool, "arguments": args }))
-        .await;
+    let handle = match handle {
+        Some(h) => h,
+        None => {
+            connect_if_needed(&desc.server).await;
+            let reg = registry().lock().await;
+            match reg.servers.get(&desc.server).cloned() {
+                Some(h) => h,
+                None => {
+                    return mcp_error(
+                        full_name,
+                        format!("MCP 服务 {} 未连接（稍后会自动重试）", desc.server),
+                    )
+                }
+            }
+        }
+    };
+
+    let (res, tail) = {
+        let mut server = handle.lock().await;
+        let res = tokio::select! {
+            r = server.call("tools/call", json!({ "name": desc.tool, "arguments": args })) => r,
+            _ = wait_cancelled(cancel) => Err("已取消".to_string()),
+        };
+        let tail = server.stderr_hint();
+        if res.is_err() {
+            // A timeout / protocol error leaves the pipe in an unknown state.
+            server.shutdown().await;
+        }
+        (res, tail)
+    };
+
     let value = match res {
         Ok(v) => v,
-        Err(e) => return mcp_error(full_name, e),
+        Err(e) => {
+            let tools = {
+                let mut reg = registry().lock().await;
+                reg.servers.remove(&desc.server);
+                reg.server_tools.remove(&desc.server);
+                reg.set_status(&desc.server, false, 0, Some(e.clone()));
+                reg.cooldown
+                    .insert(desc.server.clone(), Instant::now() + RECONNECT_COOLDOWN);
+                reg.tools = reg.server_tools.values().flatten().cloned().collect();
+                reg.tools.clone()
+            };
+            if let Ok(mut snap) = snapshot().write() {
+                *snap = tools;
+            }
+            return mcp_error(full_name, format!("{e}{tail}"));
+        }
     };
     let is_error = value
         .get("isError")

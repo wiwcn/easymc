@@ -1,11 +1,13 @@
 //! Desktop Java Edition launcher: find/install Java, build args, spawn process.
 
 mod java;
+mod lan;
 mod launch;
 mod minecraft_dir;
 mod process;
 
 pub use java::*;
+pub use lan::*;
 pub use launch::*;
 pub use minecraft_dir::*;
 pub use process::*;

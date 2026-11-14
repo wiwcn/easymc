@@ -156,9 +156,19 @@ export interface ModpackInstallResultDto {
   message_zh: string;
 }
 
+/** A world announced on the LAN ("Open to LAN" multicast). */
+export interface LanWorldDto {
+  motd: string;
+  host: string;
+  port: number;
+  last_seen: number;
+}
+
 export interface InstancesState {
   instances: InstanceDto[];
   active_id: string | null;
+  /** Present when the backend could not be reached; UI can show a retry hint. */
+  error?: string;
 }
 
 export interface AccountDto {
@@ -173,6 +183,8 @@ export interface AccountDto {
 export interface AccountsState {
   accounts: AccountDto[];
   active_id: string | null;
+  /** Present when the backend could not be reached; UI can show a retry hint. */
+  error?: string;
 }
 
 export interface VersionSummary {

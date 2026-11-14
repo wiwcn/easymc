@@ -22,6 +22,16 @@ use easymc_mods::{
     ApiKeySource, ModSource, SearchQuery, API_KEY_ENV, CONSOLE_URL,
 };
 
+/// True when the agent loop already performed this action end-to-end.
+fn action_executed(action: &easymc_agent::ActionResult) -> bool {
+    action
+        .value
+        .as_ref()
+        .and_then(|v| v.get("executed"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = real_main().await {
@@ -917,7 +927,9 @@ async fn real_main() -> easymc_core::Result<()> {
                         }
                     }
                     if let Some(action) = &resp.action {
-                        if action.action == "propose_changes" {
+                        if action_executed(action) {
+                            println!("→ action={} (已由助手完成)", action.action);
+                        } else if action.action == "propose_changes" {
                             println!("→ action=propose_changes (需确认后应用)");
                             if let Some(v) = &action.value {
                                 println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());

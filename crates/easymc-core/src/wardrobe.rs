@@ -434,7 +434,12 @@ mod tests {
 
     #[test]
     fn stage_active_real_png_file() {
-        let png = std::fs::read("/tmp/easymc-real-skin-64.png").expect("real png fixture");
+        use base64::Engine as _;
+        // 64×64 opaque RGBA PNG, embedded so the test never depends on /tmp.
+        const SKIN_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZUlEQVR42u3QQREAAAQAMDmlE0wXcjh7rMAiq+ezECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAgQIECBAgAABAu5bNzJSpAtXxbIAAAAASUVORK5CYII=";
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(SKIN_PNG_B64)
+            .expect("embedded png");
         validate_skin_png(&png).expect("validate real png");
         let dir = std::env::temp_dir().join(format!("easymc-wardrobe-real-{}", Uuid::new_v4()));
         let paths = Paths::from_root(&dir);

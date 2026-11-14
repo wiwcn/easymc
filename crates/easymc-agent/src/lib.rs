@@ -36,9 +36,11 @@ pub use propose::{
     suggested_client_jvm, undo_proposal, ApplyPayload, ChangeProposal, ProposeItem, UndoSnapshot,
 };
 pub use agent_loop::{
-    compose_reason_plan_zh, is_dangerous_tool, resolve_max_turns, run_agent_loop,
-    run_agent_loop_with_progress, tool_done_summary_zh, tool_start_summary_zh, AgentCompleter,
-    AgentLoopConfig, AgentLoopResult, AgentStepEvent, DEFAULT_MAX_TURNS, ENV_MAX_TURNS,
+    compose_reason_plan_zh, is_dangerous_tool, resolve_max_turns, resolve_tool_timeout,
+    run_agent_loop, run_agent_loop_with_progress, tool_done_summary_zh, tool_start_summary_zh,
+    AgentCompleter, AgentLoopConfig, AgentLoopResult, AgentStepEvent, DEFAULT_MAX_CONTEXT_TOKENS,
+    DEFAULT_MAX_TURNS, DEFAULT_TOOL_TIMEOUT_SECS, ENV_MAX_CONTEXT_TOKENS, ENV_MAX_TURNS,
+    ENV_TOOL_TIMEOUT_SECS,
 };
 pub use service::{
     ask, ask_with_progress, confirm_tool, execute_intent, memory_suggestion, run_diagnose,
@@ -50,8 +52,14 @@ pub use tool::{
     attach_tool_to_ask, refresh_ask_tool, tool_call_from_action, tool_call_from_diagnose, tool_meta, tool_running,
     ToolArg, ToolCall, ToolStatus, ToolUiAction,
 };
-pub use tool_runtime::{canonical_tool_name, execute_confirmed, ToolContext, ToolExecResult};
-pub use mcp::{prepare as prepare_mcp, status_snapshot as mcp_status, McpStatus, McpToolDescriptor};
+pub use tool_runtime::{
+    build_pack_action, canonical_tool_name, ensure_java_action, execute_confirmed,
+    import_mrpack_action, setup_env_action, ToolContext, ToolExecResult,
+};
+pub use mcp::{
+    prepare as prepare_mcp, reload as reload_mcp, status_snapshot as mcp_status, McpStatus,
+    McpToolDescriptor,
+};
 
 use async_trait::async_trait;
 use easymc_core::Result;

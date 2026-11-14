@@ -1,9 +1,21 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { open } from "@tauri-apps/plugin-shell";
 import type { AppMode } from "../types";
 import { controlStyles, pageChromeStyles } from "../styles/controls";
 import { showToast } from "../toast";
 import { APP_VERSION } from "../version";
+
+const REPO_URL = "https://github.com/wiwcn/easymc";
+const ISSUES_URL = "https://github.com/wiwcn/easymc/issues/new/choose";
+
+async function openExternal(url: string) {
+  try {
+    await open(url);
+  } catch {
+    window.open(url, "_blank", "noopener");
+  }
+}
 
 @customElement("easymc-more-page")
 export class MorePage extends LitElement {
@@ -46,11 +58,8 @@ export class MorePage extends LitElement {
   }
 
   private feedback() {
-    showToast("打开邮件后，把想法发给我们就可以啦", { ms: 2800 });
-    window.setTimeout(() => {
-      window.location.href =
-        "mailto:feedback@easymc.local?subject=" + encodeURIComponent("EasyMC 反馈");
-    }, 180);
+    void openExternal(ISSUES_URL);
+    showToast("已打开 GitHub 反馈页", { ms: 2200 });
   }
 
   private help() {
@@ -76,7 +85,7 @@ export class MorePage extends LitElement {
         </button>
         <button class="tile surf-outline" type="button" @click=${() => this.feedback()}>
           <strong>反馈</strong>
-          <span>有想法或遇到问题，写信告诉我们</span>
+          <span>在 GitHub 上提 issue，附上日志会更好排查</span>
         </button>
         <button class="tile surf-outline" type="button" @click=${() => this.help()}>
           <strong>帮助</strong>
@@ -87,8 +96,10 @@ export class MorePage extends LitElement {
         <strong>关于 EasyMC</strong><br />
         版本 ${APP_VERSION} · LGPL-3.0-or-later<br />
         开源的 Minecraft Java 启动器，面向玩家、好上手。<br />
-        意见与建议：
-        <a href="mailto:feedback@easymc.local?subject=EasyMC%20反馈">feedback@easymc.local</a>
+        仓库：
+        <a href=${REPO_URL} @click=${(e: Event) => { e.preventDefault(); void openExternal(REPO_URL); }}>${REPO_URL}</a><br />
+        问题反馈：
+        <a href=${ISSUES_URL} @click=${(e: Event) => { e.preventDefault(); void openExternal(ISSUES_URL); }}>GitHub Issues</a>
       </div>
     `;
   }

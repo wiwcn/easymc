@@ -533,6 +533,29 @@ impl AgentCompleter for OpenAiCompatibleProvider {
 }
 
 
+/// Env override for the per-tool wall-clock limit (seconds).
+pub const ENV_TOOL_TIMEOUT_SECS: &str = "EASYMC_AGENT_TOOL_TIMEOUT_SECS";
+
+/// Default per-tool timeout. Downloads (mods / Java / packs) can legitimately
+/// take minutes, but a hung network call must not freeze the whole chat.
+pub const DEFAULT_TOOL_TIMEOUT_SECS: u64 = 300;
+
+/// Env override for the model-context budget (approximate tokens).
+pub const ENV_MAX_CONTEXT_TOKENS: &str = "EASYMC_AGENT_MAX_CONTEXT_TOKENS";
+
+/// Keep the prompt under roughly 60k tokens (~180k chars) by default.
+pub const DEFAULT_MAX_CONTEXT_TOKENS: usize = 60_000;
+
+/// Resolve the tool timeout: `EASYMC_AGENT_TOOL_TIMEOUT_SECS` if set and >0.
+pub fn resolve_tool_timeout() -> Duration {
+    let secs = std::env::var(ENV_TOOL_TIMEOUT_SECS)
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(DEFAULT_TOOL_TIMEOUT_SECS);
+    Duration::from_secs(secs)
+}
+
 /// Tools that must not auto-execute in the LLM loop (propose / confirm first).
 pub fn is_dangerous_tool(name: &str) -> bool {
     matches!(
@@ -553,18 +576,6 @@ pub fn is_dangerous_tool(name: &str) -> bool {
             | "discard_game_layer"
             | "modify_saves"
             | "write_saves"
-    )
-}
-
-/// Tools whose real work is finished by the Tauri/CLI host after `ask` returns.
-fn is_host_deferred_tool(name: &str) -> bool {
-    matches!(
-        name,
-        "ensure_java"
-            | "setup_env"
-            | "build_pack"
-            | "import_mrpack"
-            | "suggest_mods"
     )
 }
 
@@ -608,6 +619,11 @@ pub struct AgentLoopResult {
     pub report: Option<DiagnoseReport>,
     /// Last action for host side-effects (ensure_java / install_mod / …).
     pub action: Option<ActionResult>,
+    /// Every action produced by tools this run, in execution order. Hosts use
+    /// this to drive notifications; entries with `value.executed == true` have
+    /// already been fully performed by the agent loop.
+    #[serde(default)]
+    pub actions: Vec<ActionResult>,
     pub turns_used: u32,
     /// `final_text` | `no_tools` | `max_turns` | `error` | `cancelled` | `no_progress`
     pub stop_reason: String,
@@ -741,12 +757,44 @@ async fn run_one_tool(ctx: &ToolContext<'_>, tc: &LlmToolCall) -> ToolExecResult
         };
     }
 
-    let mut out = tool_runtime::execute(ctx, &tc.name, &tc.arguments).await;
-    if is_host_deferred_tool(&tc.name) {
-        out.model_text
-            .push_str("\n（此步骤由启动器宿主在本次对话结束后完成。）");
+    let timeout = resolve_tool_timeout();
+    match tokio::time::timeout(
+        timeout,
+        tool_runtime::execute(ctx, &tc.name, &tc.arguments),
+    )
+    .await
+    {
+        Ok(out) => out,
+        Err(_) => tool_timeout_result(tc, timeout),
     }
-    out
+}
+
+/// Error card for a tool that exceeded the per-tool wall-clock budget.
+fn tool_timeout_result(tc: &LlmToolCall, timeout: Duration) -> ToolExecResult {
+    let secs = timeout.as_secs();
+    let msg = format!(
+        "「{}」超过 {secs} 秒还没完成，已中止。可能是网络或下载卡住了，稍后可以再试一次。",
+        tc.name
+    );
+    let (title, tag) = crate::tool::tool_meta(&tc.name);
+    ToolExecResult {
+        model_text: msg.clone(),
+        message_zh: msg.clone(),
+        card: ToolCall {
+            id: format!("tool-{}", tc.id),
+            name: tc.name.clone(),
+            title_zh: title.into(),
+            status: ToolStatus::Error,
+            args: vec![],
+            result_zh: Some(msg),
+            path: None,
+            payload: Some(serde_json::json!({ "timeout_secs": secs })),
+            ui_actions: vec![],
+            tag_zh: tag.map(|s| s.into()),
+        },
+        action: None,
+        report: None,
+    }
 }
 
 /// Placeholder result when the model repeats the exact same tool call too often.
@@ -797,6 +845,71 @@ fn compact_old_tool_results(messages: &mut [ChatMessage], keep_last: usize) {
         if text.chars().count() > 420 {
             let cut: String = text.chars().take(420).collect();
             *text = format!("{cut}…\n[较早的工具结果已压缩]");
+        }
+    }
+}
+
+/// Approximate token budget expressed in characters (CJK/JSON heavy mix).
+fn context_budget_chars() -> usize {
+    let tokens = std::env::var(ENV_MAX_CONTEXT_TOKENS)
+        .ok()
+        .and_then(|s| s.trim().parse::<usize>().ok())
+        .filter(|&n| n >= 1_000)
+        .unwrap_or(DEFAULT_MAX_CONTEXT_TOKENS);
+    tokens.saturating_mul(3)
+}
+
+fn total_chars(messages: &[ChatMessage]) -> usize {
+    messages.iter().map(|m| m.content.chars().count()).sum()
+}
+
+fn shrink(text: &mut String, max: usize, note: &str) {
+    if text.chars().count() <= max {
+        return;
+    }
+    let cut: String = text.chars().take(max).collect();
+    *text = format!("{cut}…\n{note}");
+}
+
+/// Enforce a soft context budget between turns.
+///
+/// Tool/assistant bodies are compressed first; the system prompt and the last
+/// user message are always preserved. We never delete messages because
+/// `assistant(tool_calls)` / `tool` pairs must stay matched for OpenAI APIs.
+fn enforce_context_budget(messages: &mut [ChatMessage], budget: usize) {
+    if total_chars(messages) <= budget {
+        return;
+    }
+    // Pass 1: shrink everything except the system prompt and final user turn.
+    let last_user = messages.iter().rposition(|m| m.role == "user");
+    for i in 0..messages.len() {
+        if messages[i].role == "system" || Some(i) == last_user {
+            continue;
+        }
+        {
+            let m = &mut messages[i];
+            match m.role.as_str() {
+                "tool" => shrink(&mut m.content, 800, "[工具结果因上下文预算被压缩]"),
+                "assistant" => shrink(&mut m.content, 1200, "[较早回复已压缩]"),
+                "user" => shrink(&mut m.content, 800, "[较早消息已压缩]"),
+                _ => {}
+            }
+        }
+        if total_chars(messages) <= budget {
+            return;
+        }
+    }
+    // Pass 2: keep only the head of the most recent tool results.
+    for i in (0..messages.len()).rev() {
+        if messages[i].role == "tool" {
+            shrink(
+                &mut messages[i].content,
+                300,
+                "[工具结果因上下文预算被压缩]",
+            );
+        }
+        if total_chars(messages) <= budget {
+            return;
         }
     }
 }
@@ -875,6 +988,7 @@ pub async fn run_agent_loop_with_progress(
     let mut tools_out: Vec<ToolCall> = Vec::new();
     let mut steps_out: Vec<AgentStepEvent> = Vec::new();
     let mut last_action: Option<ActionResult> = None;
+    let mut actions_out: Vec<ActionResult> = Vec::new();
     let mut last_report: Option<DiagnoseReport> = None;
     let mut last_content = String::new();
     let mut turns_used = 0u32;
@@ -884,6 +998,7 @@ pub async fn run_agent_loop_with_progress(
     let mut usage: Option<LlmUsage> = None;
     let mut call_counts: HashMap<String, u32> = HashMap::new();
     let mut no_progress_turns = 0u32;
+    let context_budget = context_budget_chars();
 
     let ctx = ToolContext {
         paths,
@@ -902,6 +1017,7 @@ pub async fn run_agent_loop_with_progress(
         turns_used = turn;
         step_index += 1;
         emit_step(&mut steps_out, on_step, AgentStepEvent::thinking(step_index));
+        enforce_context_budget(&mut messages, context_budget);
 
         let completion: LlmCompletion = match complete_with_retry(provider, &messages, &config).await
         {
@@ -1008,7 +1124,8 @@ pub async fn run_agent_loop_with_progress(
                 executed += 1;
             }
             if let Some(ar) = out.action.clone() {
-                last_action = Some(ar);
+                last_action = Some(ar.clone());
+                actions_out.push(ar);
             }
             if out.report.is_some() {
                 last_report = out.report;
@@ -1101,6 +1218,7 @@ pub async fn run_agent_loop_with_progress(
         tools: tools_out,
         report: last_report,
         action: last_action,
+        actions: actions_out,
         turns_used,
         stop_reason,
         steps: steps_out,
@@ -1674,5 +1792,52 @@ mod tests {
         assert!(out.contains("1") || out.contains("补全") || out.contains("fabric"), "{out}");
     }
 
-
+    #[test]
+    fn context_budget_compacts_without_breaking_message_pairs() {
+        let big = "字".repeat(20_000);
+        let mut msgs = vec![
+            ChatMessage {
+                role: "system".into(),
+                content: "系统提示".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            },
+            ChatMessage {
+                role: "user".into(),
+                content: big.clone(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            },
+            ChatMessage {
+                role: "assistant".into(),
+                content: big.clone(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            },
+            ChatMessage {
+                role: "tool".into(),
+                content: big.clone(),
+                tool_call_id: Some("c1".into()),
+                name: Some("list_mods".into()),
+                tool_calls: vec![],
+            },
+            ChatMessage {
+                role: "user".into(),
+                content: "最后一句".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            },
+        ];
+        let len_before = msgs.len();
+        enforce_context_budget(&mut msgs, 5_000);
+        assert_eq!(msgs.len(), len_before, "messages must not be dropped");
+        assert!(total_chars(&msgs) < 60_000);
+        assert_eq!(msgs[0].role, "system");
+        assert_eq!(msgs.last().unwrap().content, "最后一句");
+        assert!(msgs[3].content.contains("上下文预算"));
+    }
 }

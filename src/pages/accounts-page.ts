@@ -412,11 +412,15 @@ export class AccountsPage extends LitElement {
       showToast(`正在使用 ${a.username}`);
       return;
     }
-    const st = await setActiveAccount(a.id);
-    this.accounts = st.accounts;
-    this.activeAccountId = st.active_id;
-    this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
-    showToast(`已切换到 ${a.username}`);
+    try {
+      const st = await setActiveAccount(a.id);
+      this.accounts = st.accounts;
+      this.activeAccountId = st.active_id;
+      this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
+      showToast(`已切换到 ${a.username}`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "切换账户失败");
+    }
   }
 
   private async onRemoveAccount(a: AccountDto) {
@@ -425,11 +429,15 @@ export class AccountsPage extends LitElement {
         ? `从本机删除「${a.username}」？微软账户本身不会被注销。`
         : `从本机删除「${a.username}」？`;
     if (!confirm(tip)) return;
-    const st = await removeAccount(a.id);
-    this.accounts = st.accounts;
-    this.activeAccountId = st.active_id;
-    this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
-    showToast("已删除");
+    try {
+      const st = await removeAccount(a.id);
+      this.accounts = st.accounts;
+      this.activeAccountId = st.active_id;
+      this.dispatchEvent(new CustomEvent("accounts-changed", { bubbles: true, composed: true }));
+      showToast("已删除");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "删除账户失败");
+    }
   }
 
   private renderList() {

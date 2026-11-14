@@ -103,6 +103,7 @@ function formatLastPlayed(iso?: string | null): string {
 export class HomePage extends LitElement {
   @state() private instances: InstanceDto[] = [];
   @state() private activeId: string | null = null;
+  @state() private instancesError = "";
   @state() private accounts: AccountDto[] = [];
   @state() private loading = true;
   @state() private busy = false;
@@ -920,6 +921,7 @@ export class HomePage extends LitElement {
       const st = await listInstancesState();
       this.instances = st.instances;
       this.activeId = st.active_id;
+      this.instancesError = st.error ?? "";
     } catch {
       /* ignore background refresh */
     }
@@ -931,6 +933,7 @@ export class HomePage extends LitElement {
       const [st, acc] = await Promise.all([listInstancesState(), listAccounts()]);
       this.instances = st.instances;
       this.activeId = st.active_id;
+      this.instancesError = st.error ?? "";
       this.accounts = acc;
       this.logs = await getLogs();
       this.queueConsoleStick();
@@ -1474,8 +1477,10 @@ export class HomePage extends LitElement {
         <div class="empty-wrap">
           <easymc-empty-state
             variant="page"
-            title="咦？似乎什么都没有…"
-            description="还没有可玩的版本。去下载中心装一个，或自己添加。"
+            title=${this.instancesError ? "版本列表暂时读不到" : "咦？似乎什么都没有…"}
+            description=${this.instancesError
+              ? `启动器后端没有响应：${this.instancesError}`
+              : "还没有可玩的版本。去下载中心装一个，或自己添加。"}
           >
             <button class="primary" type="button" @click=${() => this.go("download")}>去下载中心</button>
             <button class="ghost" type="button" @click=${() => this.openCreate()}>自己添加版本</button>

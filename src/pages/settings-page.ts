@@ -1316,7 +1316,7 @@ export class SettingsPage extends LitElement {
   private renderMp() {
     return html`<div class="card">
       <h2>联机</h2>
-      <p>和朋友一起玩的相关选项会在联机功能上线后出现在这里。现在可以先去「联机」页看看预告。</p>
+      <p>EasyMC 可以发现同一网络里「对局域网开放」的世界：好友在游戏里开放后，到「联机」页扫描即可看到地址并一键复制。跨公网联机仍在规划中。</p>
       <button
         class="ghost"
         type="button"
@@ -1325,7 +1325,7 @@ export class SettingsPage extends LitElement {
             new CustomEvent("nav-change", { detail: "multiplayer", bubbles: true, composed: true }),
           )}
       >
-        查看联机页
+        扫描局域网世界
       </button>
     </div>`;
   }

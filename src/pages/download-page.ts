@@ -964,7 +964,17 @@ export class DownloadPage extends LitElement {
             ${this.loading ? "搜索中…" : "搜索"}
           </button>
           ${this.instances.length
-            ? html`<select .value=${this.activeId ?? ""} @change=${async (e: Event) => { this.activeId = (e.target as HTMLSelectElement).value; await setActiveInstance(this.activeId); }} title="装进哪个版本" aria-label="装进哪个版本">
+            ? html`<select .value=${this.activeId ?? ""} @change=${async (e: Event) => {
+                const el = e.target as HTMLSelectElement;
+                const prev = this.activeId;
+                this.activeId = el.value;
+                try {
+                  await setActiveInstance(el.value);
+                } catch (err) {
+                  this.activeId = prev;
+                  showToast(friendlyError(err));
+                }
+              }} title="装进哪个版本" aria-label="装进哪个版本">
                 ${this.instances.map((i) => html`<option value=${i.id}>${i.name}${i.version_ready ? "" : "（未装好）"}</option>`)}
               </select>`
             : nothing}

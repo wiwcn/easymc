@@ -26,6 +26,8 @@ struct NeoForgeVersionsApi {
 fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(concat!("EasyMC/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .read_timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| EasyMcError::msg(e.to_string()))
 }

@@ -168,6 +168,7 @@ mod tests {
             icon: None,
             category: None,
             quick_play: None,
+            disable_chat_reporting: None,
             container: None,
         };
         let ws = AgentWorkspace {

@@ -4,7 +4,7 @@ use easymc_core::{load_settings, Paths, Result};
 
 use crate::actions::{
     bump_memory, check_mod_deps, check_mod_updates_action, check_mods, delete_instance,
-    delete_mod, duplicate_version, env_status_summary, fetch_missing_mod_deps_action,
+    delete_mod, duplicate_version, fetch_missing_mod_deps_action,
     list_accounts, list_instances, open_game_folder, open_latest_log, open_screenshots,
     rename_instance, select_account, select_instance, set_download_source, show_data_dir,
     show_instance_dir, suggest_memory_text, toggle_mod, update_mods_action,
@@ -41,6 +41,9 @@ pub struct AskResponse {
     pub reply_zh: String,
     pub report: Option<DiagnoseReport>,
     pub action: Option<ActionResult>,
+    /// Every action produced by the agent loop (host notifications / auditing).
+    #[serde(default)]
+    pub actions: Vec<ActionResult>,
     /// Normalized tool card for the UI (derived from action / diagnose) — last / primary.
     pub tool: Option<crate::tool::ToolCall>,
     /// All tool cards from a multi-step agent loop (Lit can render multiple).
@@ -195,18 +198,8 @@ pub async fn execute_intent(
             Ok((reply, Some(report), action))
         }
         Intent::EnsureJava { major } => {
-            // Host (CLI/Tauri) runs ensure_java and rewrites reply with the real result.
-            Ok((
-                format!("正在检查并准备 Java {major}…"),
-                None,
-                Some(ActionResult {
-                    ok: true,
-                    action: "ensure_java".into(),
-                    message_zh: format!("准备 Java {major}"),
-                    path: None,
-                    value: Some(serde_json::json!({ "major": major })),
-                }),
-            ))
+            let ar = crate::tool_runtime::ensure_java_action(paths, *major).await;
+            Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::BumpMemory { mb } => {
             let ar = bump_memory(paths, *mb)?;
@@ -228,27 +221,13 @@ pub async fn execute_intent(
         }
         Intent::SetupEnv { instance_id: iid } => {
             let id = iid.clone().or(instance_id);
-            let ar = env_status_summary(paths, id.as_deref());
+            let ar = crate::tool_runtime::setup_env_action(paths, id.as_deref()).await;
             Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::BuildPack { instance_id: iid } => {
-            let id = iid.as_ref().cloned().or(instance_id).or_else(|| {
-                resolve_instance_id(paths, None)
-            });
-            Ok((
-                "正在导出当前版本的 .mrpack 整合包…".into(),
-                None,
-                Some(ActionResult {
-                    ok: true,
-                    action: "build_pack".into(),
-                    message_zh: "制作整合包".into(),
-                    path: None,
-                    value: Some(serde_json::json!({
-                        "instance_id": id,
-                        "pack": true,
-                    })),
-                }),
-            ))
+            let id = iid.clone().or(instance_id);
+            let ar = crate::tool_runtime::build_pack_action(paths, id.as_deref()).await;
+            Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::SetDownloadSource { source } => {
             let ar = set_download_source(paths, source)?;
@@ -351,32 +330,8 @@ pub async fn execute_intent(
             Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::ImportMrpack { path } => {
-            let path = path.trim().to_string();
-            if path.is_empty() {
-                Ok((
-                    "请带上整合包路径，例如：导入整合包 /path/to/pack.mrpack".into(),
-                    None,
-                    Some(ActionResult {
-                        ok: false,
-                        action: "import_mrpack".into(),
-                        message_zh: "缺少 .mrpack 路径".into(),
-                        path: None,
-                        value: None,
-                    }),
-                ))
-            } else {
-                Ok((
-                    format!("正在导入整合包：{path} …"),
-                    None,
-                    Some(ActionResult {
-                        ok: true,
-                        action: "import_mrpack".into(),
-                        message_zh: "导入整合包".into(),
-                        path: Some(path.clone()),
-                        value: Some(serde_json::json!({ "path": path })),
-                    }),
-                ))
-            }
+            let ar = crate::tool_runtime::import_mrpack_action(paths, path).await;
+            Ok((ar.message_zh.clone(), None, Some(ar)))
         }
         Intent::ShowDataDir => {
             let ar = show_data_dir(paths);
@@ -387,44 +342,18 @@ pub async fn execute_intent(
             let ar = write_diagnostic_bundle(paths, &report)?;
             Ok((ar.message_zh.clone(), Some(report), Some(ar)))
         }
-        Intent::SearchMods { query } => Ok((
-            format!("正在搜索模组「{query}」…"),
-            None,
-            Some(ActionResult {
-                ok: true,
-                action: "search_mods".into(),
-                message_zh: format!("搜索「{query}」"),
-                path: None,
-                value: Some(serde_json::json!({
-                    "query": query,
-                    "tab": "mod",
-                })),
-            }),
-        )),
-        Intent::SuggestMods { theme } => Ok((
-            format!("正在按「{theme}」主题推荐模组…"),
-            None,
-            Some(ActionResult {
-                ok: true,
-                action: "suggest_mods".into(),
-                message_zh: format!("推荐「{theme}」主题模组"),
-                path: None,
-                value: Some(serde_json::json!({
-                    "theme": theme,
-                })),
-            }),
-        )),
-        Intent::InstallMod { query } => Ok((
-            format!("正在搜索模组「{query}」，找到后会装进当前选中的版本…"),
-            None,
-            Some(ActionResult {
-                ok: true,
-                action: "install_mod".into(),
-                message_zh: format!("搜索并安装「{query}」"),
-                path: None,
-                value: Some(serde_json::json!({ "query": query, "tab": "mod" })),
-            }),
-        )),
+        Intent::SearchMods { query } => {
+            let out = direct_tool(paths, instance_id.clone(), "search_mods", serde_json::json!({ "query": query })).await;
+            Ok((out.message_zh, None, out.action))
+        }
+        Intent::SuggestMods { theme } => {
+            let out = direct_tool(paths, instance_id.clone(), "suggest_mods", serde_json::json!({ "theme": theme })).await;
+            Ok((out.message_zh, None, out.action))
+        }
+        Intent::InstallMod { query } => {
+            let out = direct_tool(paths, instance_id.clone(), "install_mod", serde_json::json!({ "query": query })).await;
+            Ok((out.message_zh, None, out.action))
+        }
         Intent::Help => Ok((crate::intent::help_text(), None, None)),
         Intent::Unknown { raw } => Ok((
             format!("未识别：「{raw}」。\n{}", crate::intent::help_text()),
@@ -435,6 +364,21 @@ pub async fn execute_intent(
 }
 
 
+
+/// Execute one tool with real arguments, reusing the agent's runtime so the
+/// rule-based path never answers with a fake「正在…」placeholder.
+async fn direct_tool(
+    paths: &Paths,
+    instance_id: Option<String>,
+    name: &str,
+    args: serde_json::Value,
+) -> crate::tool_runtime::ToolExecResult {
+    let mut ctx = crate::tool_runtime::ToolContext::new(paths);
+    ctx.instance_id = instance_id;
+    // Box::pin breaks the async recursion cycle:
+    // execute_intent → direct_tool → execute → via_intent → execute_intent.
+    Box::pin(crate::tool_runtime::execute(&ctx, name, &args)).await
+}
 
 fn emit_response_steps(
     on_step: Option<&(dyn Fn(AgentStepEvent) + Send + Sync)>,
@@ -516,7 +460,8 @@ fn make_ask_response_with_tools(
         intent,
         reply_zh,
         report,
-        action,
+        action: action.clone(),
+        actions: action.into_iter().collect(),
         tool,
         tools,
         steps,
@@ -689,6 +634,7 @@ pub async fn ask_with_progress(
                     resp.stop_reason = loop_result.stop_reason;
                     resp.elapsed_ms = loop_result.elapsed_ms;
                     resp.usage = loop_result.usage;
+                    resp.actions = loop_result.actions;
                     return Ok(resp);
                 }
                 Err(e) => {
@@ -724,8 +670,6 @@ pub async fn ask_with_progress(
 
 /// Intents where an LLM planner + tools adds real value over one-shot rules.
 /// Fast local commands (launch, list, select, open folder, accounts) stay rules-only.
-/// Host-deferred steps (Java/env/pack export/import/suggest) also stay rules-only so
-/// they are never silently dropped when they are not the last tool in a turn.
 fn agent_worthy(intent: &Intent) -> bool {
     matches!(
         intent,
@@ -740,6 +684,10 @@ fn agent_worthy(intent: &Intent) -> bool {
             | Intent::CheckModUpdates { .. }
             | Intent::UpdateMods { .. }
             | Intent::TuneConfig { .. }
+            | Intent::EnsureJava { .. }
+            | Intent::SetupEnv { .. }
+            | Intent::BuildPack { .. }
+            | Intent::ImportMrpack { .. }
     )
 }
 

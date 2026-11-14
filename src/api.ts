@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AgentConfirmToolResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, McpStatusDto, MigratePortableResultDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PortableStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AgentConfirmToolResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LanWorldDto, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, McpStatusDto, MigratePortableResultDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PortableStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -18,6 +18,10 @@ async function invokeOrThrow<T>(cmd: string, args?: Record<string, unknown>): Pr
   return invoke<T>(cmd, args);
 }
 
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 function mapInstance(i: InstanceDto): InstanceDto {
   return {
     ...i,
@@ -26,77 +30,7 @@ function mapInstance(i: InstanceDto): InstanceDto {
   };
 }
 
-function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
-  if (!raw) {
-    return {
-      instances: [
-        {
-          id: "preview-1211-fabric",
-          name: "生存世界",
-          version: "1.21.1",
-          loader: "fabric",
-          loader_version: "0.16.9",
-          description: "日常生存，装好模组就能开玩。",
-          version_ready: true,
-          category: "生存",
-          last_played: "2026-10-24T08:32:00+08:00",
-          total_play_secs: 3720,
-        },
-        {
-          id: "preview-cobblemon",
-          name: "Cobblemon Official Modpack",
-          version: "1.21.1",
-          loader: "fabric",
-          loader_version: "0.16.9",
-          description: "抓宠冒险整合包。",
-          version_ready: true,
-          category: "整合包",
-          icon: "https://cdn.modrinth.com/data/5FFgwNNP/e7f9ee2e9d361623847853fe2ddce42f519ee64f.png",
-          icon_url: "https://cdn.modrinth.com/data/5FFgwNNP/e7f9ee2e9d361623847853fe2ddce42f519ee64f.png",
-          last_played: "2026-10-30T20:10:00+08:00",
-          total_play_secs: 540,
-        },
-        {
-          id: "preview-1211-vanilla",
-          name: "创造建造",
-          version: "1.21.1",
-          loader: "vanilla",
-          description: "纯净原版建造。",
-          version_ready: true,
-          last_played: "2026-10-23T16:10:00+08:00",
-          total_play_secs: 0,
-        },
-        {
-          id: "preview-1201-forge",
-          name: "模组冒险",
-          version: "1.20.1",
-          loader: "forge",
-          loader_version: "47.3.0",
-          description: "Forge 模组包预览。",
-          version_ready: false,
-          category: "模组",
-        },
-        {
-          id: "preview-121-test",
-          name: "测试世界",
-          version: "1.21",
-          loader: "fabric",
-          description: "试玩快照功能。",
-          version_ready: true,
-        },
-        {
-          id: "preview-1192-quilt",
-          name: "旧版怀旧",
-          version: "1.19.2",
-          loader: "quilt",
-          loader_version: "0.20.0",
-          description: "怀旧生存。",
-          version_ready: true,
-        },
-      ],
-      active_id: "preview-1211-fabric",
-    };
-  }
+function mapState(raw: InstancesState | InstanceDto[]): InstancesState {
   if (Array.isArray(raw)) {
     return {
       instances: raw.map(mapInstance),
@@ -106,12 +40,17 @@ function mapState(raw: InstancesState | InstanceDto[] | null): InstancesState {
   return {
     instances: (raw.instances ?? []).map(mapInstance),
     active_id: raw.active_id ?? null,
+    ...(raw.error ? { error: raw.error } : {}),
   };
 }
 
 export async function listInstancesState(): Promise<InstancesState> {
-  const raw = await invokeSafe<InstancesState | InstanceDto[]>("list_instances");
-  return mapState(raw);
+  try {
+    return mapState(await invokeOrThrow<InstancesState | InstanceDto[]>("list_instances"));
+  } catch (e) {
+    console.warn("list_instances failed", e);
+    return { instances: [], active_id: null, error: errorText(e) };
+  }
 }
 
 export async function listInstances(): Promise<InstanceDto[]> {
@@ -134,71 +73,27 @@ export async function createInstance(
 }
 
 export async function setActiveInstance(instanceId: string): Promise<InstancesState> {
-  const raw = await invokeSafe<InstancesState>("set_active_instance_cmd", { instanceId });
-  if (raw) return mapState(raw);
-  // browser preview: keep selection client-side
-  const st = await listInstancesState();
-  return { instances: st.instances, active_id: instanceId };
+  return mapState(
+    await invokeOrThrow<InstancesState>("set_active_instance_cmd", { instanceId }),
+  );
 }
 
-
-const PREVIEW_ACCOUNTS: AccountDto[] = [
-  {
-    id: "preview-ms",
-    username: "SteveMC",
-    kind: "microsoft",
-    uuid: "00000000-0000-0000-0000-0000000000aa",
-  },
-  {
-    id: "preview-offline",
-    username: "EasyPlayer",
-    kind: "offline",
-    uuid: "00000000-0000-0000-0000-000000000001",
-  },
-  {
-    id: "preview-skin",
-    username: "LittleSkinUser",
-    kind: "skin_station",
-    uuid: "00000000-0000-0000-0000-0000000000bb",
-  },
-];
-
-const PREVIEW_ACTIVE_KEY = "easymc.previewActiveAccount";
-const PREVIEW_EXTRA_KEY = "easymc.previewExtraAccounts";
-
-function previewAccountsState(): AccountsState {
-  let extra: AccountDto[] = [];
-  try {
-    extra = JSON.parse(localStorage.getItem(PREVIEW_EXTRA_KEY) || "[]");
-  } catch { /* ignore */ }
-  const accounts = [...PREVIEW_ACCOUNTS, ...extra];
-  let active_id = localStorage.getItem(PREVIEW_ACTIVE_KEY) || accounts[0]?.id || null;
-  if (active_id && !accounts.some((a) => a.id === active_id)) active_id = accounts[0]?.id ?? null;
-  return { accounts, active_id };
-}
-
-function savePreviewAccounts(st: AccountsState) {
-  try {
-    localStorage.setItem(PREVIEW_ACTIVE_KEY, st.active_id ?? "");
-    const extra = st.accounts.filter((a) => !PREVIEW_ACCOUNTS.some((p) => p.id === a.id));
-    localStorage.setItem(PREVIEW_EXTRA_KEY, JSON.stringify(extra));
-  } catch { /* ignore */ }
-}
 
 export async function listAccountsState(): Promise<AccountsState> {
-  const raw = await invokeSafe<AccountsState | AccountDto[]>("list_accounts_state");
-  if (raw && !Array.isArray(raw) && Array.isArray(raw.accounts)) {
-    return { accounts: raw.accounts, active_id: raw.active_id ?? raw.accounts[0]?.id ?? null };
+  try {
+    const raw = await invokeOrThrow<AccountsState | AccountDto[]>("list_accounts_state");
+    if (Array.isArray(raw)) {
+      return { accounts: raw, active_id: raw[0]?.id ?? null };
+    }
+    return {
+      accounts: raw.accounts ?? [],
+      active_id: raw.active_id ?? raw.accounts?.[0]?.id ?? null,
+      ...(raw.error ? { error: raw.error } : {}),
+    };
+  } catch (e) {
+    console.warn("list_accounts_state failed", e);
+    return { accounts: [], active_id: null, error: errorText(e) };
   }
-  if (Array.isArray(raw)) {
-    return { accounts: raw, active_id: raw[0]?.id ?? null };
-  }
-  // fall through: try legacy list_accounts
-  const legacy = await invokeSafe<AccountDto[]>("list_accounts");
-  if (legacy && legacy.length) {
-    return { accounts: legacy, active_id: legacy[0]?.id ?? null };
-  }
-  return previewAccountsState();
 }
 
 export async function listAccounts(): Promise<AccountDto[]> {
@@ -206,64 +101,22 @@ export async function listAccounts(): Promise<AccountDto[]> {
 }
 
 export async function setActiveAccount(accountId: string): Promise<AccountsState> {
-  const raw = await invokeSafe<AccountsState>("set_active_account", { accountId });
-  if (raw) return raw;
-  const st = previewAccountsState();
-  if (!st.accounts.some((a) => a.id === accountId)) return st;
-  st.active_id = accountId;
-  savePreviewAccounts(st);
-  return st;
+  return invokeOrThrow<AccountsState>("set_active_account", { accountId });
 }
 
 export async function removeAccount(accountId: string): Promise<AccountsState> {
-  const raw = await invokeSafe<AccountsState>("remove_account", { accountId });
-  if (raw) return raw;
-  const st = previewAccountsState();
-  st.accounts = st.accounts.filter((a) => a.id !== accountId);
-  if (st.active_id === accountId) st.active_id = st.accounts[0]?.id ?? null;
-  savePreviewAccounts(st);
-  return st;
+  return invokeOrThrow<AccountsState>("remove_account", { accountId });
 }
 
 export async function createOffline(username: string): Promise<AccountDto | null> {
-  const acc = await invokeSafe<AccountDto>("create_offline", { username });
-  if (acc) return acc;
-  // browser preview
   const name = username.trim();
   if (!name || [...name].length < 2 || [...name].length > 16) return null;
-  const id = `preview-offline-${Date.now()}`;
-  const dto: AccountDto = {
-    id,
-    username: name,
-    kind: "offline",
-    uuid: `00000000-0000-0000-0000-${String(Date.now()).slice(-12).padStart(12, "0")}`,
-  };
-  const st = previewAccountsState();
-  st.accounts = st.accounts.filter((a) => a.username !== name);
-  st.accounts.push(dto);
-  st.active_id = dto.id;
-  savePreviewAccounts(st);
-  return dto;
+  return invokeOrThrow<AccountDto>("create_offline", { username: name });
 }
 
 export async function listVersions(includeSnapshots = false): Promise<VersionSummary[]> {
   const remote = await invokeSafe<VersionSummary[]>("list_versions", { includeSnapshots });
-  if (remote && remote.length) return remote;
-  const preview: VersionSummary[] = [
-    { id: "1.21.1", type: "release", url: "", installed: true },
-    { id: "1.21", type: "release", url: "", installed: false },
-    { id: "1.20.4", type: "release", url: "", installed: true },
-    { id: "1.20.1", type: "release", url: "", installed: false },
-    { id: "1.19.4", type: "release", url: "", installed: false },
-    { id: "1.19.2", type: "release", url: "", installed: false },
-    { id: "1.18.2", type: "release", url: "", installed: false },
-    { id: "1.16.5", type: "release", url: "", installed: false },
-    { id: "1.12.2", type: "release", url: "", installed: false },
-    { id: "1.8.9", type: "release", url: "", installed: false },
-    { id: "24w44a", type: "snapshot", url: "", installed: false },
-    { id: "24w40a", type: "snapshot", url: "", installed: false },
-  ];
-  return includeSnapshots ? preview : preview.filter((v) => (v.type ?? v.version_type) !== "snapshot");
+  return remote ?? [];
 }
 
 export async function installVersion(version: string, withAssets = true): Promise<string> {
@@ -274,25 +127,9 @@ export async function listLoaderVersions(
   loader: string,
   gameVersion: string,
 ): Promise<LoaderVersionItem[]> {
-  const remote = await invokeSafe<LoaderVersionItem[]>("list_loader_versions", { loader, gameVersion });
-  if (remote && remote.length) return remote;
-  void gameVersion;
   if (loader === "vanilla") return [];
-  const presets: Record<string, string> = {
-    fabric: "0.16.9",
-    quilt: "0.26.1",
-    forge: "47.3.0",
-    neoforge: "21.1.0",
-  };
-  const base = presets[loader] ?? "1.0.0";
-  const parts = base.split(".");
-  const last = Number(parts[parts.length - 1] || 0);
-  const prev = [...parts.slice(0, -1), String(Math.max(0, last - 1))].join(".");
-  return [
-    { version: base, stable: true, intermediary: "" },
-    { version: prev, stable: true, intermediary: "" },
-    { version: `${base}-beta`, stable: false, intermediary: "" },
-  ];
+  const remote = await invokeSafe<LoaderVersionItem[]>("list_loader_versions", { loader, gameVersion });
+  return remote ?? [];
 }
 
 export async function installLoaderVersion(
@@ -626,6 +463,16 @@ export async function agentMcpStatus(): Promise<McpStatusDto> {
   );
 }
 
+
+/** Stop and reconnect every configured MCP server (after editing mcp.json). */
+export async function reloadMcp(): Promise<McpStatusDto> {
+  return invokeOrThrow<McpStatusDto>("agent_mcp_reload");
+}
+
+/** Scan for Minecraft LAN worlds announced on the local network. */
+export async function listenLanWorlds(seconds = 3): Promise<LanWorldDto[]> {
+  return invokeOrThrow<LanWorldDto[]>("lan_worlds_listen", { seconds });
+}
 
 export async function portableStatus(): Promise<PortableStatusDto> {
   return (
