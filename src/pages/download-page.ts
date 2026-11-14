@@ -773,8 +773,8 @@ export class DownloadPage extends LitElement {
               </div>`
           : this.loaderVersLoading
             ? html`<div class="loader-panel">
-                <div class="panel-head"><span>正在拉取 ${loaderLabel(this.loader)} 版本…</span></div>
-                <div class="loader-skel" aria-busy="true" aria-label="正在加载加载器版本">
+                <div class="panel-head"><span>正在获取 ${loaderLabel(this.loader)} 版本…</span></div>
+                <div class="loader-skel" aria-busy="true" aria-label="正在获取加载器版本">
                   ${[1, 2, 3, 4, 5, 6].map(() => html`<div class="skel skel-block"></div>`)}
                 </div>
               </div>`

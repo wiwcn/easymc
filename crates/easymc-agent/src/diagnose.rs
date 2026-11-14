@@ -103,7 +103,7 @@ pub fn collect_log_text(paths: &Paths, req: &DiagnoseRequest) -> (String, Vec<St
             chunks.push(t);
             sources.push(lp.display().to_string());
             if label.starts_with('（') {
-                label = format!("实例 {id} 的 latest.log");
+                label = format!("版本 {id} 的 latest.log");
             }
         }
         let cr = crash_reports_dir(paths, id);
@@ -112,7 +112,7 @@ pub fn collect_log_text(paths: &Paths, req: &DiagnoseRequest) -> (String, Vec<St
                 chunks.push(format!("\n===== crash-report: {} =====\n{t}", p.display()));
                 sources.push(p.display().to_string());
                 if label.starts_with('（') {
-                    label = format!("实例 {id} 的 crash-report");
+                    label = format!("版本 {id} 的 crash-report");
                 }
             }
         }
@@ -140,11 +140,11 @@ pub fn collect_log_text(paths: &Paths, req: &DiagnoseRequest) -> (String, Vec<St
 
 fn summarize_zh(findings: &[Finding], label: &str, empty_log: bool) -> String {
     if empty_log {
-        return "未找到可分析的日志。请先启动一次实例，或指定实例 id。".into();
+        return "未找到可分析的日志。请先启动一次游戏，或指定版本 id。".into();
     }
     if findings.is_empty() {
         return format!(
-            "已分析「{label}」，未匹配到已知崩溃模式。若仍有问题，可导出诊断包查看完整日志。"
+            "已分析「{label}」，未匹配到已知崩溃模式。若仍有问题，可导出问题报告查看完整日志。"
         );
     }
     let errors = findings

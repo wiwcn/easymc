@@ -76,7 +76,7 @@ pub struct ShareManifest {
 impl ShareManifest {
     pub fn validate(&self) -> Result<(), String> {
         if self.format != FORMAT_ID {
-            return Err(format!("未知格式: {}", self.format));
+            return Err(format!("未知格式：{}", self.format));
         }
         if self.format_version == 0 || self.format_version > FORMAT_VERSION {
             return Err(format!("不支持的 format_version: {}", self.format_version));

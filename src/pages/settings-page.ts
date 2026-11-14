@@ -559,7 +559,7 @@ export class SettingsPage extends LitElement {
     if (status === "ready") {
       envPart = "环境：已就绪";
     } else if (this.preheatStatus?.warm) {
-      envPart = "环境：已准备好";
+      envPart = "环境：已就绪";
     } else if (probe?.message_zh) {
       envPart = "环境：" + this.softenPlayerCopy(probe.message_zh);
     } else if (this.preheatStatus?.message_zh) {

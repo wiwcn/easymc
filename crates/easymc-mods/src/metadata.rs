@@ -233,10 +233,10 @@ fn read_zip_bytes<R: Read + Seek>(
     };
     let mut file = archive
         .by_index(idx)
-        .map_err(|e| EasyMcError::msg(format!("读取 {name} 失败: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 失败：{e}")))?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)
-        .map_err(|e| EasyMcError::msg(format!("读取 {name} 内容失败: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 内容失败：{e}")))?;
     Ok(Some(buf))
 }
 
@@ -248,9 +248,9 @@ pub fn read_mod_meta(path: &Path) -> Result<ModMeta> {
         .unwrap_or_else(|| path.to_string_lossy().into_owned());
     let disabled = filename.ends_with(".jar.disabled");
     let file = std::fs::File::open(path)
-        .map_err(|e| EasyMcError::msg(format!("无法打开模组 {filename}: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("无法打开模组 {filename}：{e}")))?;
     let mut archive = ZipArchive::new(file)
-        .map_err(|e| EasyMcError::msg(format!("无法读取模组包 {filename}: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("无法读取模组包 {filename}：{e}")))?;
 
     if let Some(meta) = try_fabric_family(&mut archive, &filename, disabled, ModMetaKind::Fabric)? {
         return Ok(meta);
@@ -298,7 +298,7 @@ fn try_fabric_family<R: Read + Seek>(
         return Ok(None);
     };
     let v: JsonValue = serde_json::from_str(&raw)
-        .map_err(|e| EasyMcError::msg(format!("解析 {entry_name} 失败 ({filename}): {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("解析 {entry_name} 失败 ({filename})：{e}")))?;
 
     // Quilt uses "quilt_loader" wrapper; Fabric is flat.
     let root = if kind == ModMetaKind::Quilt {
@@ -434,7 +434,7 @@ fn parse_mods_toml(
 ) -> Result<Option<ModMeta>> {
     let value: toml::Value = raw
         .parse()
-        .map_err(|e| EasyMcError::msg(format!("解析 mods.toml 失败 ({filename}): {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("解析 mods.toml 失败 ({filename})：{e}")))?;
 
     let mods = value
         .get("mods")
@@ -547,10 +547,10 @@ fn read_zip_string<R: Read + Seek>(
     };
     let mut file = archive
         .by_index(idx)
-        .map_err(|e| EasyMcError::msg(format!("读取 {name} 失败: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 失败：{e}")))?;
     let mut buf = String::new();
     file.read_to_string(&mut buf)
-        .map_err(|e| EasyMcError::msg(format!("读取 {name} 内容失败: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("读取 {name} 内容失败：{e}")))?;
     Ok(Some(buf))
 }
 

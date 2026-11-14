@@ -309,12 +309,12 @@ impl OpenAiCompatibleProvider {
             .json(&body)
             .send()
             .await
-            .map_err(|e| EasyMcError::msg(format!("LLM 请求失败: {e}")))?;
+            .map_err(|e| EasyMcError::msg(format!("LLM 请求失败：{e}")))?;
         let status = resp.status();
         let text = resp
             .text()
             .await
-            .map_err(|e| EasyMcError::msg(format!("LLM 读响应失败: {e}")))?;
+            .map_err(|e| EasyMcError::msg(format!("LLM 读响应失败：{e}")))?;
         if !status.is_success() {
             return Err(EasyMcError::msg(format!(
                 "LLM HTTP {status}: {}",
@@ -323,13 +323,13 @@ impl OpenAiCompatibleProvider {
         }
         let parsed: ChatResponse = serde_json::from_str(&text).map_err(|e| {
             EasyMcError::msg(format!(
-                "LLM JSON 解析失败: {e}; {}",
+                "助手返回的数据格式不对：{e}；{}",
                 truncate(&text, 200)
             ))
         })?;
         if let Some(err) = parsed.error {
             return Err(EasyMcError::msg(format!(
-                "LLM 错误: {}",
+                "助手模型返回错误：{}",
                 err.message.unwrap_or_else(|| "unknown".into())
             )));
         }
@@ -723,7 +723,7 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
             "type": "function",
             "function": {
                 "name": "diagnose",
-                "description": "同 analyze_crash_log：本地规则诊断崩溃。",
+                "description": "同「查看崩溃」：按本地规则诊断崩溃日志。",
                 "parameters": {
                     "type": "object",
                     "properties": { "log_path": { "type": "string" } }
@@ -1062,10 +1062,10 @@ fn escape_env_value(v: &str) -> String {
 /// Persist Base URL / API Key / Model to `llm.env` and apply to this process.
 /// Empty `api_key` keeps the existing key when one is already set.
 pub fn save_llm_config(base_url: &str, api_key: &str, model: &str) -> Result<LlmStatus> {
-    let path = llm_env_path().ok_or_else(|| EasyMcError::msg("无法定位用户配置目录"))?;
+    let path = llm_env_path().ok_or_else(|| EasyMcError::msg("找不到用户配置目录"))?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| EasyMcError::msg(format!("创建配置目录失败: {e}")))?;
+            .map_err(|e| EasyMcError::msg(format!("创建配置目录没成功：{e}")))?;
     }
     let base = base_url.trim().trim_end_matches('/');
     let mut key = api_key.trim().to_string();
@@ -1086,7 +1086,7 @@ pub fn save_llm_config(base_url: &str, api_key: &str, model: &str) -> Result<Llm
     }
     let model = model.trim();
     if base.is_empty() || key.is_empty() {
-        return Err(EasyMcError::msg("请填写 Base URL 和 API Key"));
+        return Err(EasyMcError::msg("请先填写接口地址和密钥"));
     }
     let model_out = if model.is_empty() { "deepseek-chat" } else { model };
     let body = format!(
@@ -1098,7 +1098,7 @@ pub fn save_llm_config(base_url: &str, api_key: &str, model: &str) -> Result<Llm
         ENV_MODEL,
         escape_env_value(model_out),
     );
-    std::fs::write(&path, body).map_err(|e| EasyMcError::msg(format!("写入 llm.env 失败: {e}")))?;
+    std::fs::write(&path, body).map_err(|e| EasyMcError::msg(format!("保存助手配置没成功：{e}")))?;
     std::env::set_var(ENV_BASE_URL, base);
     std::env::set_var(ENV_API_KEY, &key);
     std::env::set_var(ENV_MODEL, model_out);
@@ -1110,7 +1110,7 @@ pub fn clear_llm_config() -> Result<LlmStatus> {
     if let Some(path) = llm_env_path() {
         if path.is_file() {
             std::fs::remove_file(&path)
-                .map_err(|e| EasyMcError::msg(format!("删除 llm.env 失败: {e}")))?;
+                .map_err(|e| EasyMcError::msg(format!("清除助手配置没成功：{e}")))?;
         }
     }
     std::env::remove_var(ENV_BASE_URL);

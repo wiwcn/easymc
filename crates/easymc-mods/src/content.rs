@@ -42,7 +42,7 @@ pub fn local_dir(instance: &Instance, kind: &str) -> Result<PathBuf> {
         "shaderpacks" => "shaderpacks",
         "mods" => "mods",
         "root" => "",
-        other => return Err(EasyMcError::msg(format!("未知目录: {other}"))),
+        other => return Err(EasyMcError::msg(format!("未知目录：{other}"))),
     };
     Ok(if sub.is_empty() { base } else { base.join(sub) })
 }
@@ -205,7 +205,7 @@ pub fn content_dest(instance: &Instance, kind: ProjectType, world: Option<&str>)
             Some(w) => base.join("saves").join(safe_name(w)?).join("datapacks"),
             None => base.join("datapacks"),
         },
-        ProjectType::Modpack => return Err(EasyMcError::msg("整合包请用「安装到新实例」")),
+        ProjectType::Modpack => return Err(EasyMcError::msg("整合包请用「安装为新版本」")),
         k => base.join(k.folder()),
     })
 }
@@ -258,7 +258,7 @@ pub async fn install_content(
     world: Option<&str>,
 ) -> Result<ContentInstallResult> {
     if kind == ProjectType::Mod {
-        return Err(EasyMcError::msg("模组请用模组安装"));
+        return Err(EasyMcError::msg("模组请用「安装模组」功能"));
     }
     let dest_dir = content_dest(instance, kind, world)?;
     let project = match source {

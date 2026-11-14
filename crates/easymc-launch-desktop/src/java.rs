@@ -78,7 +78,7 @@ pub fn select_java(required_major: u32, preferred: Option<&Path>) -> Result<Java
         .find(|j| j.major >= required_major)
         .ok_or_else(|| {
             EasyMcError::Missing(format!(
-                "未找到 Java {required_major}+。请安装 JDK 或运行 ensure_java 下载 Temurin。"
+                "未找到 Java {required_major}+。请安装 JDK，或在设置里点「一键配置 Java」。"
             ))
         })
 }
@@ -272,7 +272,7 @@ pub fn parse_java_major(version_output: &str) -> Option<u32> {
 /// Download Eclipse Temurin JDK into EasyMC runtimes (Linux x64/aarch64, macOS, Windows).
 pub async fn ensure_java(paths: &Paths, major: u32, on_log: impl Fn(String)) -> Result<JavaInstall> {
     if let Ok(j) = select_java(major, None) {
-        on_log(format!("已找到 Java {}: {} ({})", j.major, j.path.display(), j.source));
+        on_log(format!("已找到 Java {}：{} ({})", j.major, j.path.display(), j.source));
         return Ok(j);
     }
 
@@ -348,7 +348,7 @@ pub async fn ensure_java(paths: &Paths, major: u32, on_log: impl Fn(String)) -> 
     let _ = std::fs::remove_file(&archive_path);
     let bin = find_java_binary(&dest_dir).ok_or_else(|| EasyMcError::msg("JDK extracted but java binary missing"))?;
     let (ver, maj) = probe_java(&bin)?;
-    on_log(format!("JDK 就绪: {ver}"));
+    on_log(format!("JDK 就绪：{ver}"));
     Ok(JavaInstall {
         path: bin,
         version_string: ver,

@@ -782,7 +782,7 @@ export async function msaStatus(): Promise<MsaStatusDto> {
       configured: false,
       using_temporary_client_id: false,
       oauth_ready: false,
-      message_zh: "正版登录即将可用",
+      message_zh: "微软登录还没配置",
     }
   );
 }

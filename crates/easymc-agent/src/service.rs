@@ -188,7 +188,7 @@ pub async fn execute_intent(
                     f.fixes.join("\n")
                 ));
                 if let Some(ev) = &f.evidence {
-                    reply.push_str(&format!("\n证据: {ev}"));
+                    reply.push_str(&format!("\n证据：{ev}"));
                 }
             }
             let action = maybe_oom_proposal(paths, &report, id.as_deref());
@@ -540,7 +540,7 @@ pub async fn ask_with_progress(
                         return Ok(resp);
                     }
                     Err(e) => {
-                        reply.push_str(&format!("\n\n（LLM 调用失败，已回退规则结果：{e}）"));
+                        reply.push_str(&format!("\n\n（助手模型没响应，已改用本地规则的结果：{e}）"));
                     }
                 }
             }

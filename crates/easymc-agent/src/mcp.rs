@@ -116,7 +116,7 @@ impl Server {
         }
         let mut child = cmd
             .spawn()
-            .map_err(|e| format!("启动 {} 失败: {e}", cfg.command))?;
+            .map_err(|e| format!("启动 {} 失败：{e}", cfg.command))?;
         let stdin = child
             .stdin
             .take()
@@ -181,11 +181,11 @@ impl Server {
         self.stdin
             .write_all(line.as_bytes())
             .await
-            .map_err(|e| format!("写入 MCP 失败: {e}"))?;
+            .map_err(|e| format!("写入 MCP 失败：{e}"))?;
         self.stdin
             .flush()
             .await
-            .map_err(|e| format!("刷新 MCP 失败: {e}"))
+            .map_err(|e| format!("刷新 MCP 失败：{e}"))
     }
 
     async fn notify(&mut self, method: &str, params: Value) -> Result<(), String> {
@@ -215,7 +215,7 @@ impl Server {
             let read = timeout(wait, self.stdout.read_line(&mut buf)).await;
             let n = match read {
                 Err(_) => return Err(format!("MCP {method} 超时{}", self.stderr_hint())),
-                Ok(Err(e)) => return Err(format!("读取 MCP 响应失败: {e}")),
+                Ok(Err(e)) => return Err(format!("读取 MCP 响应失败：{e}")),
                 Ok(Ok(n)) => n,
             };
             if n == 0 {
@@ -239,7 +239,7 @@ impl Server {
             }
             if let Some(err) = v.get("error") {
                 return Err(format!(
-                    "MCP 错误: {}{}",
+                    "MCP 错误：{}{}",
                     err.get("message")
                         .and_then(|x| x.as_str())
                         .unwrap_or("unknown"),

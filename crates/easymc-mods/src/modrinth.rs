@@ -145,13 +145,13 @@ pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
         ])
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 搜索失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 搜索失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 搜索 HTTP 错误: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 搜索 HTTP 错误：{e}")))?;
     let body: SearchResponse = resp
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 搜索结果失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 搜索结果失败：{e}")))?;
     Ok(body.hits.into_iter().map(map_project).collect())
 }
 
@@ -174,12 +174,12 @@ pub async fn get_project(id_or_slug: &str) -> Result<ModProject> {
         .get(format!("{BASE}/project/{id_or_slug}"))
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 项目请求失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 项目请求失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 项目不存在或不可用: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 项目不存在或不可用：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 项目失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 项目失败：{e}")))?;
     Ok(ModProject {
         id: p.id,
         slug: p.slug,
@@ -224,12 +224,12 @@ pub async fn list_versions_detailed(
     let list: Vec<VersionDto> = req
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本列表失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本列表失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本列表 HTTP 错误: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本列表 HTTP 错误：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 版本失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 版本失败：{e}")))?;
     Ok(list.into_iter().map(map_version).collect())
 }
 
@@ -239,12 +239,12 @@ pub async fn get_version(version_id: &str) -> Result<ModVersion> {
         .get(format!("{BASE}/version/{version_id}"))
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本请求失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本请求失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本不存在: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("Modrinth 版本不存在：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 版本失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth 版本失败：{e}")))?;
     Ok(map_version(v))
 }
 
@@ -271,7 +271,7 @@ pub async fn lookup_by_sha1(sha1_hex: &str) -> Result<Option<HashLookup>> {
         .query(&[("algorithm", "sha1")])
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("Modrinth hash 查询失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("Modrinth hash 查询失败：{e}")))?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(None);
     }
@@ -281,7 +281,7 @@ pub async fn lookup_by_sha1(sha1_hex: &str) -> Result<Option<HashLookup>> {
     let v: VersionDto = resp
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth hash 结果失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 Modrinth hash 结果失败：{e}")))?;
     let matched = v
         .files
         .iter()

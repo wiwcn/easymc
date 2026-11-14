@@ -677,14 +677,14 @@ export class LibraryPage extends LitElement {
   }
 
   private async onCreate() {
-    const name = this.newName.trim() || `实例 ${this.newVersion}`;
+    const name = this.newName.trim() || `版本 ${this.newVersion}`;
     const version = this.newVersion;
     if (!version) {
       showToast("请选择版本");
       return;
     }
     this.busy = true;
-    this.status = `正在创建实例「${name}」…`;
+    this.status = `正在创建版本「${name}」…`;
     try {
       const inst = await createInstance(name, version, this.newLoader, this.newLoaderVersion || null);
       showToast(`已创建 ${inst.name}`);
@@ -726,7 +726,7 @@ export class LibraryPage extends LitElement {
       const state = await setActiveInstance(id);
       this.instances = state.instances;
       this.activeId = state.active_id;
-      showToast("已设为默认实例");
+      showToast("已设为默认版本");
     } catch (e) {
       showToast(friendlyError(e));
     }
@@ -904,7 +904,7 @@ export class LibraryPage extends LitElement {
               <easymc-empty-state
                 variant="panel"
                 title="咦？似乎什么都没有…"
-                description="还没有版本呢。点「新建版本」，或去下载中心逛逛？"
+                description="还没有版本。点「新建版本」，或去下载中心装一个。"
               >
                 <button class="btn primary" type="button" ?disabled=${this.busy} @click=${() => this.openCreate()}>
                   新建版本
@@ -951,7 +951,7 @@ export class LibraryPage extends LitElement {
     const list = this.filteredMods();
     const ver = versionId(inst.version);
     return html`
-      <section class="detail" aria-label="实例模组">
+      <section class="detail" aria-label="版本模组">
         <div class="detail-head">
           <div>
             <h2>模组 · ${inst.name}</h2>
@@ -1103,7 +1103,7 @@ export class LibraryPage extends LitElement {
     const list = this.filteredVersions();
     return html`
       <section class="panel">
-        <h2>新建实例</h2>
+        <h2>新建版本</h2>
         <label>
           名称
           <input

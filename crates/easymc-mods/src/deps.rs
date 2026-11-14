@@ -101,7 +101,7 @@ pub fn build_dep_graph(instance: &Instance) -> Result<DepGraphReport> {
             match read_mod_metas_expanded(&path) {
                 Ok(metas) => installed.extend(metas),
                 Err(e) => {
-                    tracing::warn!("跳过无法解析的模组 {}: {e}", path.display());
+                    tracing::warn!("跳过无法解析的模组 {}：{e}", path.display());
                     let filename = path
                         .file_name()
                         .map(|s| s.to_string_lossy().into_owned())
@@ -579,7 +579,7 @@ pub async fn fetch_missing_deps(
                             // install failure on a resolved project is final for this id
                             failed.push(fetch_fail(
                                 mod_id,
-                                format!("已找到「{slug}」但安装失败: {msg}"),
+                                format!("已找到「{slug}」但安装失败：{msg}"),
                                 reason,
                                 Some(slug.clone()),
                             ));
@@ -643,7 +643,7 @@ pub async fn fetch_missing_deps(
                 Ok(res) => installed.push(res),
                 Err(e) => failed.push(fetch_fail(
                     mod_id,
-                    format!("搜索命中「{}」但安装失败: {e}", project.slug),
+                    format!("搜索命中「{}」但安装失败：{e}", project.slug),
                     "install_failed",
                     Some(project.slug),
                 )),

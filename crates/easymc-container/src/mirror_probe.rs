@@ -122,7 +122,7 @@ pub async fn probe_registry_mirrors() -> Vec<RegistryMirrorProbe> {
                 prefer_china: false,
                 ok: false,
                 latency_ms: None,
-                error_zh: Some(format!("探测任务失败：{e}")),
+                error_zh: Some(format!("测速没成功：{e}")),
                 recommended: false,
                 sample_image: String::new(),
             }),

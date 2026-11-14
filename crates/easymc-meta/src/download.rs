@@ -77,21 +77,21 @@ async fn download_to_part(
         .get(url)
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("请求失败 {url}: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("请求失败 {url}：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}：{e}")))?;
 
     let total = expected_size.or_else(|| resp.content_length());
     let mut file = tokio::fs::File::create(tmp)
         .await
-        .map_err(|e| EasyMcError::msg(format!("无法写入临时文件 {}: {e}", tmp.display())))?;
+        .map_err(|e| EasyMcError::msg(format!("无法写入临时文件 {}：{e}", tmp.display())))?;
     let mut stream = resp.bytes_stream();
     let mut hasher = Sha1::new();
     let mut written = 0u64;
     let mut last_emit = 0u64;
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| EasyMcError::Http(format!("下载中断 {url}: {e}")))?;
+        let chunk = chunk.map_err(|e| EasyMcError::Http(format!("下载中断 {url}：{e}")))?;
         hasher.update(&chunk);
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
@@ -112,7 +112,7 @@ async fn download_to_part(
     if let Some(expected) = expected_size {
         if written != expected {
             return Err(EasyMcError::msg(format!(
-                "大小不符 {}: 期望 {expected} 字节，实际 {written}（网络可能中断，已丢弃不完整文件）",
+                "大小不符 {}：期望 {expected} 字节，实际 {written}（网络可能中断，已丢弃不完整文件）",
                 dest.display()
             )));
         }
@@ -122,7 +122,7 @@ async fn download_to_part(
         let got = hex::encode(hasher.finalize());
         if !got.eq_ignore_ascii_case(sha) {
             return Err(EasyMcError::msg(format!(
-                "校验失败 {}: 期望 sha1={sha}，实际 {got}（已丢弃损坏文件）",
+                "校验失败 {}：期望 sha1={sha}，实际 {got}（已丢弃损坏文件）",
                 dest.display()
             )));
         }
@@ -130,9 +130,8 @@ async fn download_to_part(
 
     tokio::fs::rename(tmp, dest).await.map_err(|e| {
         EasyMcError::msg(format!(
-            "无法落盘 {} ← {}: {e}",
-            dest.display(),
-            tmp.display()
+            "无法保存文件 {}：{e}",
+            dest.display()
         ))
     })?;
     Ok(FetchResult::Downloaded)
@@ -197,16 +196,16 @@ pub async fn get_with_source(
             .get(&url)
             .send()
             .await
-            .map_err(|e| EasyMcError::Http(format!("请求失败 {url}: {e}")))?
+            .map_err(|e| EasyMcError::Http(format!("请求失败 {url}：{e}")))?
             .error_for_status()
-            .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}: {e}")))
+            .map_err(|e| EasyMcError::Http(format!("HTTP 错误 {url}：{e}")))
     };
     match try_one(primary.clone()).await {
         Ok(r) => Ok(r),
         Err(first)
             if source != DownloadSource::Official && is_remapped(source, official_url) =>
         {
-            tracing::warn!("mirror GET failed ({primary}): {first}; retrying official");
+            tracing::warn!("mirror GET failed ({primary})：{first}; retrying official");
             try_one(official_url.to_string()).await.map_err(|e| {
                 EasyMcError::Http(format!(
                     "镜像与官方均失败：镜像={first}；官方={e}"

@@ -127,7 +127,7 @@ pub async fn probe_download_mirrors() -> Vec<DownloadMirrorProbe> {
                 download_source: "official".into(),
                 ok: false,
                 latency_ms: None,
-                error_zh: Some(format!("探测任务失败：{e}")),
+                error_zh: Some(format!("测速没成功：{e}")),
                 recommended: false,
             }),
         }

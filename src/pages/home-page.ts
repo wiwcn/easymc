@@ -1479,7 +1479,7 @@ export class HomePage extends LitElement {
             variant="page"
             title=${this.instancesError ? "版本列表暂时读不到" : "咦？似乎什么都没有…"}
             description=${this.instancesError
-              ? `启动器后端没有响应：${this.instancesError}`
+              ? `启动器服务没有响应：${this.instancesError}`
               : "还没有可玩的版本。去下载中心装一个，或自己添加。"}
           >
             <button class="primary" type="button" @click=${() => this.go("download")}>去下载中心</button>

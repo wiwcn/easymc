@@ -227,7 +227,7 @@ pub async fn export_instance(
                 mod_count: manifest.mods.len(),
                 bytes,
                 message_zh: format!(
-                    "已导出元数据分享包（{} 个模组）→ {}",
+                    "已导出元数据分享包（{} 个模组），保存在 {}",
                     manifest.mods.len(),
                     path.display()
                 ),
@@ -258,7 +258,7 @@ pub async fn export_instance(
                 mod_count: manifest.mods.len(),
                 bytes,
                 message_zh: format!(
-                    "已导出 EasyMC 分享包（含 {} 个模组 jar，{} 字节）→ {}",
+                    "已导出 EasyMC 分享包（含 {} 个模组，共 {} 字节），保存在 {}",
                     manifest.mods.len(),
                     bytes,
                     path.display()
@@ -288,7 +288,7 @@ pub async fn export_instance(
                 mod_count: built.mod_count,
                 bytes,
                 message_zh: format!(
-                    "已导出 Modrinth 整合包 .mrpack（{} 个模组：{} 个走 CDN，{} 个放 overrides，{} 字节）→ {}",
+                    "已导出 Modrinth 整合包 .mrpack（{} 个模组：{} 个走 CDN，{} 个放进 overrides，共 {} 字节），保存在 {}",
                     built.mod_count,
                     built.resolved,
                     built.overrides,

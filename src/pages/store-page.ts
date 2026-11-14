@@ -428,7 +428,7 @@ export class StorePage extends LitElement {
 
   private async onInstall(p: ModProjectDto, versionId?: string | null) {
     if (!this.active) {
-      showToast("请先在「库」中设置活动实例");
+      showToast("请先在「启动」页选一个当前版本");
       return;
     }
     this.installingId = p.id;
@@ -473,7 +473,7 @@ export class StorePage extends LitElement {
     const pct = this.progress ? overallPercent(this.progress) : null;
     return html`
       <h1>商店</h1>
-      <p class="sub">搜索并安装到当前实例。安装后的启用 / 禁用 / 卸载请到「库」对应实例。</p>
+      <p class="sub">搜索并安装到当前版本。安装后的启用、禁用或卸载，请到「启动」页的版本设置里操作。</p>
 
       <div class="toolbar">
         <button

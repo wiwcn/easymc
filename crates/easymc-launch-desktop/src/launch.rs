@@ -34,25 +34,25 @@ pub fn resolve_launch_version(paths: &Paths, instance: &Instance) -> Result<Vers
         ModLoader::Vanilla => instance.version.0.clone(),
         ModLoader::Fabric => {
             let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
-                EasyMcError::msg("Fabric 实例缺少 loader_version，请重新安装 Fabric")
+                EasyMcError::msg("Fabric 版本缺少 loader_version，请重新安装 Fabric")
             })?;
             fabric_profile_id(instance.version.as_str(), loader_ver)
         }
         ModLoader::Quilt => {
             let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
-                EasyMcError::msg("Quilt 实例缺少 loader_version，请重新安装 Quilt")
+                EasyMcError::msg("Quilt 版本缺少 loader_version，请重新安装 Quilt")
             })?;
             quilt_profile_id(instance.version.as_str(), loader_ver)
         }
         ModLoader::Forge => {
             let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
-                EasyMcError::msg("Forge 实例缺少 loader_version，请重新安装 Forge")
+                EasyMcError::msg("Forge 版本缺少 loader_version，请重新安装 Forge")
             })?;
             forge_profile_id(instance.version.as_str(), loader_ver)
         }
         ModLoader::NeoForge => {
             let loader_ver = instance.loader_version.as_deref().ok_or_else(|| {
-                EasyMcError::msg("NeoForge 实例缺少 loader_version，请重新安装 NeoForge")
+                EasyMcError::msg("NeoForge 版本缺少 loader_version，请重新安装 NeoForge")
             })?;
             neoforge_profile_id(loader_ver)
         }
@@ -154,7 +154,7 @@ pub async fn prepare_and_launch(
             ensure_java(paths, required, |s| on_log(s)).await?
         }
     };
-    on_log(format!("使用 Java {}: {}", java.major, java.path.display()));
+    on_log(format!("使用 Java {}：{}", java.major, java.path.display()));
     if should_apply_chat_reporting_flag(instance, settings) {
         on_log(
             "已启用「减少聊天举报」：加入 -Dauthlibinjector.profileKey=disabled（外置登录 / authlib-injector 生效；正版微软账户请另装 No Chat Reports 模组，启动器不会改写网络协议）"

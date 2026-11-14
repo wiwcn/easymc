@@ -116,10 +116,10 @@ pub async fn list_forge_versions_with_source(
     let client = http_client()?;
     let text = get_with_source(&client, &url, source)
         .await
-        .map_err(|e| EasyMcError::Http(format!("请求 Forge maven-metadata 失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("请求 Forge maven-metadata 失败：{e}")))?
         .text()
         .await
-        .map_err(|e| EasyMcError::Http(format!("读取 Forge maven-metadata 失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("读取 Forge maven-metadata 失败：{e}")))?;
     let prefix = format!("{game}-");
     let mut versions = Vec::new();
     for chunk in text.split("<version>").skip(1) {
@@ -179,10 +179,10 @@ pub async fn list_neoforge_versions_with_source(
     // NeoForge versions API is not mirrored on BMCLAPI — get_with_source leaves it official.
     let api: NeoForgeVersionsApi = get_with_source(&client, NEOFORGE_VERSIONS_API, source)
         .await
-        .map_err(|e| EasyMcError::Http(format!("请求 NeoForge 版本列表失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("请求 NeoForge 版本列表失败：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 NeoForge 版本列表失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 NeoForge 版本列表失败：{e}")))?;
     let mut out: Vec<LoaderVersionInfo> = api
         .versions
         .into_iter()

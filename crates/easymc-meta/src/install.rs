@@ -400,7 +400,7 @@ pub async fn install_version(
             }
             Err(e) => {
                 if first_err.is_none() {
-                    first_err = Some(EasyMcError::msg(format!("依赖库下载任务失败: {e}")));
+                    first_err = Some(EasyMcError::msg(format!("依赖库下载失败：{e}")));
                 }
             }
         }
@@ -576,7 +576,7 @@ async fn install_assets(
             }
             Err(e) => {
                 if first_err.is_none() {
-                    first_err = Some(EasyMcError::msg(format!("资源下载任务失败: {e}")));
+                    first_err = Some(EasyMcError::msg(format!("游戏资源下载失败：{e}")));
                 }
             }
         }
@@ -739,7 +739,7 @@ pub fn load_version_resolved(paths: &Paths, id: &str) -> Result<VersionInfo> {
 
 fn load_version_resolved_inner(paths: &Paths, id: &str, depth: u8) -> Result<VersionInfo> {
     if depth > 8 {
-        return Err(EasyMcError::msg(format!("inheritsFrom 过深: {id}")));
+        return Err(EasyMcError::msg(format!("inheritsFrom 过深：{id}")));
     }
     let child = load_version_json_raw(paths, id)?;
     let Some(parent_id) = child.inherits_from.clone() else {

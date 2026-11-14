@@ -93,7 +93,7 @@ pub fn tool_meta(name: &str) -> (&'static str, Option<&'static str>) {
         "open_latest_log" | "open_log" => ("打开日志", Some("文件")),
         "list_accounts" => ("账户列表", Some("账户")),
         "select_account" | "switch_account" => ("切换账户", Some("账户")),
-        "open_screenshots" | "screenshots" => ("打开截图", Some("文件")),
+        "open_screenshots" | "screenshots" => ("打开截图文件夹", Some("文件")),
         "open_mods" => ("打开模组文件夹", Some("文件")),
         "open_resourcepacks" => ("打开资源包文件夹", Some("文件")),
         "open_shaderpacks" => ("打开光影文件夹", Some("文件")),
@@ -291,7 +291,7 @@ fn args_from_value(name: &str, value: Option<&serde_json::Value>, path: Option<&
             }
             if let Some(c) = v.get("skipped_cf_no_key").and_then(|x| x.as_u64()) {
                 if c > 0 {
-                    out.push(arg("cf", "缺CF Key", format!("{c}")));
+                    out.push(arg("cf", "缺 CurseForge Key", format!("{c}")));
                 }
             }
         }

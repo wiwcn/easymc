@@ -341,7 +341,7 @@ fn derive_reason_plan(tools: &[ToolCall]) -> (Option<String>, Option<String>) {
                             .as_deref()
                             .map(str::trim)
                             .filter(|s| !s.is_empty())
-                            .unwrap_or("依赖检查失败。")
+                            .unwrap_or("依赖检查没成功。")
                             .to_string(),
                     );
                     plan_bits.push("确认已选版本后再说「查依赖」。".into());
@@ -394,7 +394,7 @@ fn derive_reason_plan(tools: &[ToolCall]) -> (Option<String>, Option<String>) {
                             .as_deref()
                             .map(str::trim)
                             .filter(|s| !s.is_empty())
-                            .unwrap_or("补全依赖失败。")
+                            .unwrap_or("补全依赖没成功。")
                             .to_string(),
                     );
                     plan_bits.push("检查网络/下载源后重试，或到下载页手动搜模组。".into());
@@ -408,7 +408,7 @@ fn derive_reason_plan(tools: &[ToolCall]) -> (Option<String>, Option<String>) {
                         .map(|a| a.len())
                         .unwrap_or(0);
                     reason_bits.push(format!("检测到约 {targets} 个可尝试补全的缺失依赖。"));
-                    plan_bits.push("主机正在/将从 Modrinth 下载；完成后可再说「再查依赖」核对。".into());
+                    plan_bits.push("正在准备从 Modrinth 下载；完成后可再说「再查依赖」核对。".into());
                 } else if let Some(arr) = installed {
                     let n = arr.len();
                     let names: Vec<_> = arr
@@ -435,7 +435,7 @@ fn derive_reason_plan(tools: &[ToolCall]) -> (Option<String>, Option<String>) {
                     if let Some(f) = fails {
                         if !f.is_empty() {
                             reason_bits.push(format!("另有 {} 个未能自动下载。", f.len()));
-                            plan_bits.push("失败项多半是 breaks/别名/嵌套 jar，或 Modrinth 无对应工程；需手动处理。".into());
+                            plan_bits.push("失败项多半是别名、嵌套 jar，或 Modrinth 上没有对应工程，需要手动处理。".into());
                         }
                     }
                 } else if let Some(n) = payload.and_then(|p| p.get("installed_count")).and_then(|v| v.as_u64()) {
@@ -1032,7 +1032,7 @@ pub async fn run_agent_loop_with_progress(
                     return Err(e);
                 }
                 stop_reason = "error".into();
-                last_content = format!("（本轮模型调用失败：{e}。已保留此前工具结果。）");
+                last_content = format!("（这一轮模型没响应：{e}。之前的工具结果都保留着。）");
                 break;
             }
         };

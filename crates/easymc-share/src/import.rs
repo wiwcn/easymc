@@ -213,7 +213,7 @@ pub async fn import_instance(
                 "modrinth" | "mr" => ModSource::Modrinth,
                 "curseforge" | "cf" => ModSource::CurseForge,
                 other => {
-                    mods_missing.push(format!("{} (未知源 {other})", entry.filename));
+                    mods_missing.push(format!("{}（未知来源 {other}）", entry.filename));
                     continue;
                 }
             };
@@ -242,7 +242,7 @@ pub async fn import_instance(
         } else if matches!(manifest.mode, ShareMode::Metadata) {
             mods_missing.push(entry.filename.clone());
         } else {
-            mods_missing.push(format!("{} (包内无文件且无商店 id)", entry.filename));
+            mods_missing.push(format!("{}（包内没有文件，也没有商店 id）", entry.filename));
         }
     }
 
@@ -257,13 +257,13 @@ pub async fn import_instance(
     }
 
     let message_zh = format!(
-        "已导入实例「{}」({})\n模组：复制 {mods_copied} · 下载 {mods_downloaded} · 缺失 {}\n内存建议 {} MB{}",
+        "已导入版本「{}」（{}）\n模组：复制 {mods_copied} 个 · 下载 {mods_downloaded} 个 · 缺失 {} 个\n内存建议 {} MB{}",
         inst.name,
         inst.id,
         mods_missing.len(),
         manifest.jvm.memory_mb,
         memory_applied
-            .map(|m| format!("（已写入 settings={m}）"))
+            .map(|m| format!("（已同步到设置：{m} MB）"))
             .unwrap_or_default()
     );
 

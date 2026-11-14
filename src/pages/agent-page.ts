@@ -95,14 +95,14 @@ const TOOL_TITLES: Record<string, string> = {
   open_log: "打开日志",
   open_game_folder: "打开游戏文件夹",
   open_mods: "打开模组文件夹",
-  open_resourcepacks: "打开资源包",
-  open_shaderpacks: "打开光影",
-  open_saves: "打开存档",
+  open_resourcepacks: "打开资源包文件夹",
+  open_shaderpacks: "打开光影文件夹",
+  open_saves: "打开存档文件夹",
   open_config: "打开配置文件夹",
   open_logs: "打开日志文件夹",
-  "open_crash-reports": "打开崩溃文件夹",
-  open_crash_reports: "打开崩溃文件夹",
-  open_screenshots: "打开截图",
+  "open_crash-reports": "打开崩溃报告文件夹",
+  open_crash_reports: "打开崩溃报告文件夹",
+  open_screenshots: "打开截图文件夹",
   select_account: "切换账户",
   switch_account: "切换账户",
   list_accounts: "账户列表",
@@ -1046,7 +1046,7 @@ export class AgentPage extends LitElement {
   private requireCloud(): boolean {
     if (this.cloudReady) return true;
     this.showLlmForm = true;
-    this.error = "请先填好助手的接口地址和密钥，才能开始聊天哦。";
+    this.error = "先把助手的接口地址和密钥填好，再开始聊天。";
     return false;
   }
 
@@ -2496,7 +2496,7 @@ ${extraContent}` : t.content,
               ?disabled=${this.busy}
               @click=${() => this.onAsk("账户列表", runningTool("list_accounts"))}
             >
-              <span class="tool-copy"><strong>账户列表</strong><span>看看已保存的正版 / 离线账号</span></span>
+              <span class="tool-copy"><strong>账户列表</strong><span>查看已保存的正版 / 离线账户</span></span>
               <span class="chev" aria-hidden="true">›</span>
             </button>
             <button class="tool" ?disabled=${this.busy} @click=${() => this.onBmclapi()}>

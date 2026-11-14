@@ -1097,7 +1097,7 @@ sub: "完全可选。开启后每个版本的模组与存档分开存放；点�
         sub: "用浏览器登录微软账户，EasyMC 不会看到你的密码。",
         body: html`
           ${this.msa && !this.msa.configured
-            ? html`<div class="notice">正版登录即将可用，可先离线游玩。</div>`
+            ? html`<div class="notice">微软登录还没配置，可先离线游玩。</div>`
             : html`<easymc-msa-login @msa-done=${(e: CustomEvent<{ username: string }>) => { showToast(`欢迎，${e.detail.username}`); void this.finish(); }}></easymc-msa-login>`}
         `,
         footLeft: back,

@@ -224,7 +224,7 @@ pub fn plan_container_launch(
     let meta = instance
         .container
         .as_ref()
-        .ok_or_else(|| "该版本未启用容器（Instance.container 为空）".to_string())?;
+        .ok_or_else(|| "这个版本还没开启版本隔离".to_string())?;
     if !meta.is_podman() {
         return Err(format!("不支持的容器运行时：{}", meta.runtime));
     }

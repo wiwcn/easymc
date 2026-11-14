@@ -85,7 +85,7 @@ impl ProcessManager {
         if let Some(r) = guard.as_mut() {
             match r.child.try_wait() {
                 Ok(Some(status)) => {
-                    let msg = format!("进程已退出: {status}");
+                    let msg = format!("进程已退出：{status}");
                     let id = r.instance_id.clone();
                     let started = r.started;
                     *guard = None;
@@ -120,7 +120,7 @@ impl ProcessManager {
             let _ = r.child.kill().await;
             drop(guard);
             self.record_finished(id.clone(), started).await;
-            self.push_log(format!("已停止实例 {id}")).await;
+            self.push_log(format!("已停止游戏 {id}")).await;
         }
         Ok(())
     }
@@ -137,7 +137,7 @@ impl ProcessManager {
         {
             let guard = self.inner.lock().await;
             if guard.is_some() {
-                return Err(EasyMcError::msg("已有实例在运行，请先停止"));
+                return Err(EasyMcError::msg("已有游戏在运行，请先停止"));
             }
         }
 

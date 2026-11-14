@@ -404,7 +404,7 @@ pub fn create_named_instance_with(paths: &Paths, opts: CreateInstanceOpts) -> Re
     inst.account_id = accounts.active_id;
     inst.version_ready = opts.version_ready;
     inst.description = Some(match opts.loader {
-        ModLoader::Vanilla => "用户创建的实例".into(),
+        ModLoader::Vanilla => "用户创建的版本".into(),
         other => format!("用户创建 · {}", other.label_zh()),
     });
 

@@ -126,7 +126,7 @@ fn resolve_instance(paths: &Paths, hint: Option<&str>) -> Option<Instance> {
 
 fn need_instance(paths: &Paths, hint: Option<&str>) -> easymc_core::Result<Instance> {
     resolve_instance(paths, hint)
-        .ok_or_else(|| EasyMcError::msg("还没有选版本。请先安装/选择一个版本，再让我操作模组。"))
+        .ok_or_else(|| EasyMcError::msg("还没有选版本。请先安装或选择一个版本，再让我操作模组。"))
 }
 
 /// Prefer a model-supplied `instance_id`, else the currently selected instance.
@@ -204,7 +204,7 @@ fn from_error(name: &str, err: impl std::fmt::Display) -> ToolExecResult {
     ToolExecResult {
         model_text: msg.clone(),
         message_zh: msg,
-        card: err_card(name, "这次没做成，展开看原因。"),
+        card: err_card(name, "这次没做成，展开看看原因。"),
         action: None,
         report: None,
     }
@@ -657,7 +657,7 @@ pub async fn build_pack_action(paths: &Paths, instance_id: Option<&str>) -> Acti
         Err(e) => ActionResult {
             ok: false,
             action: "build_pack".into(),
-            message_zh: format!("生成整合包失败：{e}"),
+            message_zh: format!("制作整合包没成功：{e}"),
             path: None,
             value: Some(json!({ "instance_id": inst.id, "executed": true, "error": e.to_string() })),
         },
@@ -712,7 +712,7 @@ pub async fn import_mrpack_action(paths: &Paths, raw_path: &str) -> ActionResult
         Err(e) => ActionResult {
             ok: false,
             action: "import_mrpack".into(),
-            message_zh: format!("导入整合包失败：{e}"),
+            message_zh: format!("导入整合包没成功：{e}"),
             path: Some(path.to_string()),
             value: Some(json!({ "executed": true, "error": e.to_string() })),
         },
@@ -883,7 +883,7 @@ pub async fn execute(ctx: &ToolContext<'_>, requested: &str, args: &Value) -> To
                     if other.starts_with("mcp__") {
                         return crate::mcp::execute_tool(requested, args, ctx.cancel.as_deref()).await;
                     }
-                    return from_error(requested, format!("未知工具 {other}"));
+                    return from_error(requested, format!("还不支持工具 {other}"));
                 }
             };
             via_intent(ctx, requested, intent).await
@@ -935,7 +935,7 @@ mod tests {
         let paths = temp_paths();
         let out = execute(&ToolContext::new(&paths), "does_not_exist", &json!({})).await;
         assert_eq!(out.card.status, ToolStatus::Error);
-        assert!(out.message_zh.contains("未知工具"));
+        assert!(out.message_zh.contains("还不支持工具"));
     }
 
     #[tokio::test]

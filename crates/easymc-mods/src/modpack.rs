@@ -114,7 +114,7 @@ fn progress(cb: &impl Fn(InstallProgress), phase: u32, label: &str, cur: u64, to
 /// Extract `<prefix>/…` entries of the zip into `game_dir`. Returns count.
 fn extract_overrides(zip_path: &Path, prefixes: &[&str], game_dir: &Path) -> Result<usize> {
     let f = std::fs::File::open(zip_path)?;
-    let mut z = zip::ZipArchive::new(f).map_err(|e| EasyMcError::msg(format!("整合包损坏: {e}")))?;
+    let mut z = zip::ZipArchive::new(f).map_err(|e| EasyMcError::msg(format!("整合包损坏：{e}")))?;
     let mut n = 0;
     for i in 0..z.len() {
         let mut e = z.by_index(i).map_err(|e| EasyMcError::msg(e.to_string()))?;
@@ -141,7 +141,7 @@ fn extract_overrides(zip_path: &Path, prefixes: &[&str], game_dir: &Path) -> Res
 
 fn read_zip_text(zip_path: &Path, name: &str) -> Result<Option<String>> {
     let f = std::fs::File::open(zip_path)?;
-    let mut z = zip::ZipArchive::new(f).map_err(|e| EasyMcError::msg(format!("整合包损坏: {e}")))?;
+    let mut z = zip::ZipArchive::new(f).map_err(|e| EasyMcError::msg(format!("整合包损坏：{e}")))?;
     let Ok(mut e) = z.by_name(name) else { return Ok(None) };
     let mut s = String::new();
     e.read_to_string(&mut s)?;
@@ -294,7 +294,7 @@ pub async fn install_cf_zip_file(
         file_id: u64,
     }
     let m: CfManifest = serde_json::from_str(&man)
-        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取：{e}")))?;
     let (loader, lv) = m
         .minecraft
         .mod_loaders
@@ -371,7 +371,7 @@ async fn install_mrpack_from_zip(
     let idx_raw = read_zip_text(zip_path, "modrinth.index.json")?
         .ok_or_else(|| EasyMcError::msg("不是 Modrinth 整合包（缺少 modrinth.index.json）"))?;
     let index: MrIndex = serde_json::from_str(&idx_raw)
-        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("整合包清单无法读取：{e}")))?;
     let game = index
         .dependencies
         .get("minecraft")

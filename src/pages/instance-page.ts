@@ -973,7 +973,7 @@ export class InstancePage extends LitElement {
             ? html`<div class="field" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--md-sys-color-outline-variant)">
                 <h2 style="margin:0 0 8px;font-size:var(--easymc-type-title)">隔离改动</h2>
                 <p class="muted" style="margin:0 0 10px">助手改模组或配置后，可在这里「应用」保留，或「丢弃」恢复原样（存档不会动）。</p>
-                <p class="muted" style="margin:0 0 10px">${this.layerState?.message_zh || this.workspaceHint || "加载层状态…"}</p>
+                <p class="muted" style="margin:0 0 10px">${this.layerState?.message_zh || this.workspaceHint || "正在读取状态…"}</p>
                 <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
                   <button class="ghost" type="button" ?disabled=${this.busy} @click=${() => this.act(async () => {
                     const r = await containerProvision(d.id);
@@ -1157,7 +1157,7 @@ export class InstancePage extends LitElement {
               `}
         </div>`;
       case "worlds":
-        return this.renderLocals(d, "saves", "世界 / 存档", "还没有存档 — 进游戏创建世界后会出现在这里");
+        return this.renderLocals(d, "saves", "世界 / 存档", "还没有存档。进游戏创建世界后，就会出现在这里");
       case "resourcepacks":
         return this.renderLocals(d, "resourcepacks", "资源包", "还没有资源包", "resourcepack");
       case "shaders":

@@ -49,7 +49,7 @@ pub fn show_instance_dir(paths: &Paths, instance_id: Option<&str>) -> ActionResu
             return ActionResult {
                 ok: false,
                 action: "open_instance_dir".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -145,7 +145,7 @@ pub fn check_mods(paths: &Paths, instance_id: Option<&str>) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "check_mods".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -242,7 +242,7 @@ pub fn check_mod_deps(paths: &Paths, instance_id: Option<&str>) -> ActionResult 
             return ActionResult {
                 ok: false,
                 action: "check_mod_deps".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -371,7 +371,7 @@ pub fn fetch_missing_mod_deps_action(
             return ActionResult {
                 ok: false,
                 action: "fetch_missing_mod_deps".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -459,7 +459,7 @@ pub fn check_mod_updates_action(paths: &Paths, instance_id: Option<&str>) -> Act
             return ActionResult {
                 ok: false,
                 action: "check_mod_updates".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -519,7 +519,7 @@ pub fn update_mods_action(
             return ActionResult {
                 ok: false,
                 action: "update_mods".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -575,25 +575,25 @@ pub fn write_diagnostic_bundle(paths: &Paths, report: &DiagnoseReport) -> Result
     let stamp = Local::now().format("%Y%m%d-%H%M%S");
     let path: PathBuf = dir.join(format!("easymc-diag-{stamp}.txt"));
     let mut body = String::new();
-    body.push_str(&format!("EasyMC diagnostic bundle\n生成时间: {}\n", Local::now()));
-    body.push_str(&format!("来源: {}\n", report.source_label));
-    body.push_str(&format!("摘要: {}\n\n", report.summary_zh));
-    body.push_str("=== findings ===\n");
+    body.push_str(&format!("EasyMC 问题报告\n生成时间：{}\n", Local::now()));
+    body.push_str(&format!("来源：{}\n", report.source_label));
+    body.push_str(&format!("摘要：{}\n\n", report.summary_zh));
+    body.push_str("=== 检查项 ===\n");
     for f in &report.findings {
         body.push_str(&format!(
-            "- [{}] {} — {}\n  建议: {}\n  证据: {}\n",
+            "- [{}] {} — {}\n  建议：{}\n  证据：{}\n",
             format!("{:?}", f.severity).to_ascii_lowercase(),
             f.title,
             f.summary,
             f.fixes.join(" | "),
-            f.evidence.as_deref().unwrap_or("(无)")
+            f.evidence.as_deref().unwrap_or("（无）")
         ));
     }
-    body.push_str("\n=== sources ===\n");
+    body.push_str("\n=== 日志来源 ===\n");
     for s in &report.sources {
         body.push_str(&format!("- {s}\n"));
     }
-    body.push_str("\n=== log excerpt ===\n");
+    body.push_str("\n=== 日志摘录 ===\n");
     body.push_str(&report.log_excerpt);
     fs::write(&path, body)?;
     Ok(ActionResult {
@@ -696,7 +696,7 @@ pub fn toggle_mod(
             return ActionResult {
                 ok: false,
                 action: "toggle_mod".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -866,7 +866,7 @@ pub fn toggle_mod(
         Err(e) => ActionResult {
             ok: false,
             action: "toggle_mod".into(),
-            message_zh: format!("改名失败：{e}"),
+            message_zh: format!("改名没成功：{e}"),
             path: Some(src.display().to_string()),
             value: None,
         },
@@ -881,7 +881,7 @@ pub fn list_instances(paths: &Paths) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "list_instances".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -957,7 +957,7 @@ pub fn select_instance(paths: &Paths, query: &str) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "select_instance".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1066,7 +1066,7 @@ pub fn select_instance(paths: &Paths, query: &str) -> ActionResult {
         Err(e) => ActionResult {
             ok: false,
             action: "select_instance".into(),
-            message_zh: format!("切换版本失败：{e}"),
+            message_zh: format!("切换版本没成功：{e}"),
             path: None,
             value: None,
         },
@@ -1081,7 +1081,7 @@ pub fn open_latest_log(paths: &Paths, instance_id: Option<&str>) -> ActionResult
             return ActionResult {
                 ok: false,
                 action: "open_latest_log".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1182,7 +1182,7 @@ pub fn list_accounts(paths: &Paths) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "list_accounts".into(),
-                message_zh: format!("读取账户失败：{e}"),
+                message_zh: format!("读不到账户列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1192,7 +1192,7 @@ pub fn list_accounts(paths: &Paths) -> ActionResult {
         return ActionResult {
             ok: true,
             action: "list_accounts".into(),
-            message_zh: "还没有账户。点侧栏左下角当前账号卡，添加正版、离线或皮肤站登录。".into(),
+            message_zh: "还没有账户。点侧栏左下角的当前账户卡片，添加正版、离线或皮肤站登录。".into(),
             path: None,
             value: Some(serde_json::json!({ "count": 0, "accounts": [] })),
         };
@@ -1255,7 +1255,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "select_account".into(),
-                message_zh: format!("读取账户失败：{e}"),
+                message_zh: format!("读不到账户列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1265,7 +1265,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
         return ActionResult {
             ok: false,
             action: "select_account".into(),
-            message_zh: "还没有账户。点侧栏左下角当前账号卡添加正版、离线或皮肤站登录。".into(),
+            message_zh: "还没有账户。点侧栏左下角的当前账户卡片，添加正版、离线或皮肤站登录。".into(),
             path: None,
             value: Some(serde_json::json!({ "count": 0 })),
         };
@@ -1390,7 +1390,7 @@ pub fn select_account(paths: &Paths, query: &str) -> ActionResult {
         Err(e) => ActionResult {
             ok: false,
             action: "select_account".into(),
-            message_zh: format!("切换账户失败：{e}"),
+            message_zh: format!("切换账户没成功：{e}"),
             path: None,
             value: None,
         },
@@ -1405,7 +1405,7 @@ pub fn open_screenshots(paths: &Paths, instance_id: Option<&str>) -> ActionResul
             return ActionResult {
                 ok: false,
                 action: "open_screenshots".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1458,7 +1458,7 @@ pub fn open_screenshots(paths: &Paths, instance_id: Option<&str>) -> ActionResul
     let tip = if count == 0 {
         "还没有截图。进游戏按 F2 拍一张就会出现在这里。".to_string()
     } else {
-        format!("里面大约有 {count} 张截图。")
+        format!("共 {count} 张截图。")
     };
     ActionResult {
         ok: true,
@@ -1568,7 +1568,7 @@ pub fn open_game_folder(
             return ActionResult {
                 ok: false,
                 action,
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1603,7 +1603,7 @@ pub fn open_game_folder(
             return ActionResult {
                 ok: false,
                 action,
-                message_zh: format!("没法创建{}文件夹：{e}", kind.label_zh()),
+                message_zh: format!("没法创建「{}」文件夹：{e}", kind.label_zh()),
                 path: Some(game.display().to_string()),
                 value: None,
             };
@@ -1623,7 +1623,7 @@ pub fn open_game_folder(
     let tip = if count == 0 {
         kind.empty_tip().to_string()
     } else {
-        format!("里面大约有 {count} 项。")
+        format!("共 {count} 项。")
     };
     ActionResult {
         ok: true,
@@ -1749,7 +1749,7 @@ pub fn rename_instance(paths: &Paths, query: Option<&str>, new_name: &str) -> Ac
             return ActionResult {
                 ok: false,
                 action: "rename_instance".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1791,7 +1791,7 @@ pub fn rename_instance(paths: &Paths, query: Option<&str>, new_name: &str) -> Ac
         Err(e) => ActionResult {
             ok: false,
             action: "rename_instance".into(),
-            message_zh: format!("改名失败：{e}"),
+            message_zh: format!("改名没成功：{e}"),
             path: None,
             value: None,
         },
@@ -1810,7 +1810,7 @@ pub fn duplicate_version(
             return ActionResult {
                 ok: false,
                 action: "duplicate_instance".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1845,7 +1845,7 @@ pub fn duplicate_version(
         Err(e) => ActionResult {
             ok: false,
             action: "duplicate_instance".into(),
-            message_zh: format!("复制版本失败：{e}"),
+            message_zh: format!("复制版本没成功：{e}"),
             path: None,
             value: None,
         },
@@ -1870,7 +1870,7 @@ pub fn delete_instance(paths: &Paths, query: &str) -> ActionResult {
             return ActionResult {
                 ok: false,
                 action: "delete_instance".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -1916,7 +1916,7 @@ pub fn delete_instance(paths: &Paths, query: &str) -> ActionResult {
         Err(e) => ActionResult {
             ok: false,
             action: "delete_instance".into(),
-            message_zh: format!("删除版本失败：{e}"),
+            message_zh: format!("删除版本没成功：{e}"),
             path: Some(game_dir),
             value: None,
         },
@@ -1941,7 +1941,7 @@ pub fn delete_mod(paths: &Paths, instance_id: Option<&str>, query: &str) -> Acti
             return ActionResult {
                 ok: false,
                 action: "delete_mod".into(),
-                message_zh: format!("读取版本列表失败：{e}"),
+                message_zh: format!("读不到版本列表：{e}"),
                 path: None,
                 value: None,
             };
@@ -2061,7 +2061,7 @@ pub fn delete_mod(paths: &Paths, instance_id: Option<&str>, query: &str) -> Acti
         Err(e) => ActionResult {
             ok: false,
             action: "delete_mod".into(),
-            message_zh: format!("删除模组失败：{e}"),
+            message_zh: format!("删除模组没成功：{e}"),
             path: Some(src.display().to_string()),
             value: None,
         },

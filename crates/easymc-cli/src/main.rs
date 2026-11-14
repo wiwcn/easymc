@@ -349,7 +349,7 @@ async fn real_main() -> easymc_core::Result<()> {
                     "usage: search-mods <modrinth|curseforge> [query] [--game VER] [--loader fabric|quilt|vanilla|forge|neoforge]"
                 ))?;
             let source = ModSource::parse(&source_s).ok_or_else(|| {
-                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}（modrinth|curseforge）"))
+                easymc_core::EasyMcError::msg(format!("未知模组源：{source_s}（modrinth|curseforge）"))
             })?;
             let query_text = args
                 .iter()
@@ -375,7 +375,7 @@ async fn real_main() -> easymc_core::Result<()> {
             };
             let hits = search_mods(source, &q).await?;
             if hits.is_empty() {
-                println!("(无结果)");
+                println!("（无结果）");
             }
             for h in hits {
                 let author = h.author.as_deref().unwrap_or("-");
@@ -404,7 +404,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 easymc_core::EasyMcError::msg("缺少 project-id")
             })?;
             let source = ModSource::parse(&source_s).ok_or_else(|| {
-                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}"))
+                easymc_core::EasyMcError::msg(format!("未知模组源：{source_s}"))
             })?;
             let game = flag_value(&args, "--game");
             let loader = flag_value(&args, "--loader").and_then(|s| ModLoader::parse_loose(&s));
@@ -442,11 +442,11 @@ async fn real_main() -> easymc_core::Result<()> {
             let store = load_instances(&paths)?;
             let inst_id = flag_value(&args, "--instance")
                 .or(store.active_id.clone())
-                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例"))?;
+                .ok_or_else(|| easymc_core::EasyMcError::msg("还没有选版本"))?;
             let inst = store.instances.iter().find(|i| i.id == inst_id).cloned()
                 .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
             let res = easymc_mods::install_content(&inst, source, kind, &project, flag_value(&args, "--version").as_deref(), flag_value(&args, "--world").as_deref()).await?;
-            println!("OK {} {} → {}{}", res.project_name, res.version_number, res.path, if res.skipped { " (已存在)" } else { "" });
+            println!("OK {} {} → {}{}", res.project_name, res.version_number, res.path, if res.skipped { "（已存在）" } else { "" });
         }
         "install-mod" => {
             let source_s = args.first().cloned().ok_or_else(|| {
@@ -458,13 +458,13 @@ async fn real_main() -> easymc_core::Result<()> {
                 easymc_core::EasyMcError::msg("缺少 project-id / slug")
             })?;
             let source = ModSource::parse(&source_s).ok_or_else(|| {
-                easymc_core::EasyMcError::msg(format!("未知模组源: {source_s}"))
+                easymc_core::EasyMcError::msg(format!("未知模组源：{source_s}"))
             })?;
             let version_id = flag_value(&args, "--version");
             let store = load_instances(&paths)?;
             let inst_id = flag_value(&args, "--instance")
                 .or(store.active_id.clone())
-                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active"))?;
+                .ok_or_else(|| easymc_core::EasyMcError::msg("还没有选版本，请用 --instance 或 set-active"))?;
             let inst = store
                 .instances
                 .iter()
@@ -492,7 +492,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 res.project_name,
                 res.version_number,
                 res.path,
-                if res.skipped { " (跳过)" } else { "" }
+                if res.skipped { "（跳过）" } else { "" }
             );
         }
         "list-mods" => {
@@ -503,7 +503,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 .cloned()
                 .or(flag_value(&args, "--instance"))
                 .or(store.active_id.clone())
-                .ok_or_else(|| easymc_core::EasyMcError::msg("无活动实例"))?;
+                .ok_or_else(|| easymc_core::EasyMcError::msg("还没有选版本"))?;
             let inst = store
                 .instances
                 .iter()
@@ -511,7 +511,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 .ok_or_else(|| easymc_core::EasyMcError::Missing(format!("instance {inst_id}")))?;
             let mods = list_installed_mods(inst)?;
             if mods.is_empty() {
-                println!("(mods 目录为空) {}", inst.game_dir);
+                println!("（mods 目录为空）{}", inst.game_dir);
             } else {
                 for m in mods {
                     println!("{m}");
@@ -532,7 +532,7 @@ async fn real_main() -> easymc_core::Result<()> {
             let inst_id = flag_value(&args, "--instance")
                 .or(store.active_id.clone())
                 .ok_or_else(|| {
-                    easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active")
+                    easymc_core::EasyMcError::msg("还没有选版本，请用 --instance 或 set-active")
                 })?;
             let inst = store
                 .instances
@@ -557,7 +557,7 @@ async fn real_main() -> easymc_core::Result<()> {
             let inst_id = flag_value(&args, "--instance")
                 .or(store.active_id.clone())
                 .ok_or_else(|| {
-                    easymc_core::EasyMcError::msg("无活动实例，请 --instance 或 set-active")
+                    easymc_core::EasyMcError::msg("还没有选版本，请用 --instance 或 set-active")
                 })?;
             let inst = store
                 .instances
@@ -585,8 +585,8 @@ async fn real_main() -> easymc_core::Result<()> {
                         }
                         ApiKeySource::None => {
                             println!("未配置 CurseForge API Key");
-                            println!("申请: {CONSOLE_URL}");
-                            println!("设置: curseforge-key set <key>  或在「设置」页粘贴");
+                            println!("申请：{CONSOLE_URL}");
+                            println!("设置：curseforge-key set <key> 或在「设置」页粘贴");
                             println!("也可 export {API_KEY_ENV}=...");
                             println!("Modrinth 无需此 Key。");
                         }
@@ -602,7 +602,7 @@ async fn real_main() -> easymc_core::Result<()> {
                     sync_api_key_from_settings(Some(&key));
                     println!("OK 已写入 settings.json（长度 {}）", key.trim().len());
                     if std::env::var(API_KEY_ENV).ok().filter(|s| !s.trim().is_empty()).is_some() {
-                        println!("注意: 环境变量 {API_KEY_ENV} 仍优先于 settings。");
+                        println!("注意：环境变量 {API_KEY_ENV} 仍优先于 settings。");
                     }
                 }
                 "clear" | "unset" => {
@@ -617,7 +617,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 }
                 other => {
                     return Err(easymc_core::EasyMcError::msg(format!(
-                        "未知子命令: {other}（status|set|clear）"
+                        "未知子命令：{other}（status|set|clear）"
                     )));
                 }
             }
@@ -637,7 +637,7 @@ async fn real_main() -> easymc_core::Result<()> {
                     })?;
                     let src = DownloadSource::parse(&val).ok_or_else(|| {
                         easymc_core::EasyMcError::msg(format!(
-                            "未知下载源: {val}（official / bmclapi）"
+                            "未知下载源：{val}（official / bmclapi）"
                         ))
                     })?;
                     let mut settings = load_settings(&paths)?;
@@ -647,7 +647,7 @@ async fn real_main() -> easymc_core::Result<()> {
                 }
                 other => {
                     return Err(easymc_core::EasyMcError::msg(format!(
-                        "未知子命令: {other}（status|set）"
+                        "未知子命令：{other}（status|set）"
                     )));
                 }
             }
@@ -842,7 +842,7 @@ async fn real_main() -> easymc_core::Result<()> {
                             println!("  - {fix}");
                         }
                         if let Some(ev) = &f.evidence {
-                            println!("  证据: {ev}");
+                            println!("  证据：{ev}");
                         }
                     }
                     if args.iter().any(|a| a == "--bundle" || a == "--export") {
@@ -972,7 +972,7 @@ async fn real_main() -> easymc_core::Result<()> {
                             };
                             let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned()
                             else {
-                                println!("✗ 找不到版本 {id}");
+                                println!("✗ 找不到版本：{id}");
                                 return Ok(());
                             };
                             if matches!(inst.loader, ModLoader::Vanilla) {
@@ -1046,7 +1046,7 @@ async fn real_main() -> easymc_core::Result<()> {
                             };
                             let store = load_instances(&paths)?;
                             let Some(inst) = store.instances.iter().find(|i| i.id == id).cloned() else {
-                                println!("✗ 找不到版本 {id}");
+                                println!("✗ 找不到版本：{id}");
                                 return Ok(());
                             };
                             println!("→ 正在导出 .mrpack「{}」…", inst.name);

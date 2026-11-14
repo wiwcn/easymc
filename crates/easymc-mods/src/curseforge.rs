@@ -61,7 +61,7 @@ pub fn api_key_source() -> ApiKeySource {
 pub fn require_api_key() -> Result<String> {
     api_key().ok_or_else(|| {
         EasyMcError::msg(format!(
-            "未配置 CurseForge API Key。请在「设置」中粘贴 Key，或设置环境变量 {API_KEY_ENV}（申请: {CONSOLE_URL}）。Modrinth 搜索/安装无需此 Key。"
+            "未配置 CurseForge API Key。请在「设置」中粘贴 Key，或设置环境变量 {API_KEY_ENV}（申请：{CONSOLE_URL}）。Modrinth 搜索/安装无需此 Key。"
         ))
     })
 }
@@ -267,12 +267,12 @@ pub async fn search(query: &SearchQuery) -> Result<Vec<ModProject>> {
     let body: CfData<Vec<CfMod>> = req
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 搜索失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 搜索失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 搜索 HTTP 错误: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 搜索 HTTP 错误：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 搜索结果失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 搜索结果失败：{e}")))?;
     Ok(body.data.into_iter().map(map_mod).collect())
 }
 
@@ -281,17 +281,17 @@ pub async fn get_project(mod_id: &str) -> Result<ModProject> {
     let client = curseforge_client(&key)?;
     let id: u64 = mod_id
         .parse()
-        .map_err(|_| EasyMcError::msg(format!("CurseForge 模组 ID 应为数字，收到: {mod_id}")))?;
+        .map_err(|_| EasyMcError::msg(format!("CurseForge 模组 ID 应为数字，收到：{mod_id}")))?;
     let body: CfData<CfMod> = client
         .get(format!("{BASE}/mods/{id}"))
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 项目请求失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 项目请求失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 项目不存在: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 项目不存在：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 项目失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 项目失败：{e}")))?;
     Ok(map_mod(body.data))
 }
 
@@ -304,7 +304,7 @@ pub async fn list_versions(
     let client = curseforge_client(&key)?;
     let id: u64 = mod_id
         .parse()
-        .map_err(|_| EasyMcError::msg(format!("CurseForge 模组 ID 应为数字，收到: {mod_id}")))?;
+        .map_err(|_| EasyMcError::msg(format!("CurseForge 模组 ID 应为数字，收到：{mod_id}")))?;
     let mut req = client
         .get(format!("{BASE}/mods/{id}/files"))
         .query(&[("pageSize", "50")]);
@@ -317,12 +317,12 @@ pub async fn list_versions(
     let body: CfData<Vec<CfFile>> = req
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件列表失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件列表失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件列表 HTTP 错误: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件列表 HTTP 错误：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 文件失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 文件失败：{e}")))?;
     // Ensure mod_id on files
     Ok(body
         .data
@@ -349,12 +349,12 @@ pub async fn get_version(mod_id: &str, file_id: &str) -> Result<ModVersion> {
         .get(format!("{BASE}/mods/{mid}/files/{fid}"))
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件请求失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件请求失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件不存在: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 文件不存在：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 文件失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 文件失败：{e}")))?;
     let mut f = body.data;
     if f.mod_id == 0 {
         f.mod_id = mid;
@@ -366,12 +366,12 @@ pub async fn get_version(mod_id: &str, file_id: &str) -> Result<ModVersion> {
             .get(format!("{BASE}/mods/{mid}/files/{fid}/download-url"))
             .send()
             .await
-            .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址失败: {e}")))?
+            .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址失败：{e}")))?
             .error_for_status()
-            .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址 HTTP 错误: {e}")))?
+            .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址 HTTP 错误：{e}")))?
             .json()
             .await
-            .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 下载地址失败: {e}")))?;
+            .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 下载地址失败：{e}")))?;
         if let Some(file) = ver.files.first_mut() {
             file.url = url_body.data;
         }
@@ -391,11 +391,11 @@ pub async fn resolve_download_url(mod_id: &str, file_id: &str, current: &str) ->
         .get(format!("{BASE}/mods/{mid}/files/{fid}/download-url"))
         .send()
         .await
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址失败: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址失败：{e}")))?
         .error_for_status()
-        .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址 HTTP 错误: {e}")))?
+        .map_err(|e| EasyMcError::Http(format!("CurseForge 下载地址 HTTP 错误：{e}")))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 下载地址失败: {e}")))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 CurseForge 下载地址失败：{e}")))?;
     Ok(url_body.data)
 }

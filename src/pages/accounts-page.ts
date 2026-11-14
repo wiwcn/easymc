@@ -495,7 +495,7 @@ export class AccountsPage extends LitElement {
             <easymc-empty-state
               variant="panel"
               title="咦？还没有账户呢…"
-              description="点下面加一个，就能开玩啦"
+              description="点下面加一个，就能开玩"
             >
               <button class="primary" type="button" @click=${() => (this.panel = "chooser")}>
                 添加账户

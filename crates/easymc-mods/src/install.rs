@@ -412,7 +412,7 @@ pub fn sanitize_mod_filename(filename: &str) -> Result<String> {
         return Err(EasyMcError::msg("模组文件名不能包含路径分隔符"));
     }
     if name == "." || name == ".." || name.contains("..") {
-        return Err(EasyMcError::msg("非法模组文件名"));
+        return Err(EasyMcError::msg("模组文件名不合法"));
     }
     // Basename only — Path::file_name should equal the whole string.
     let as_path = std::path::Path::new(name);
@@ -451,7 +451,7 @@ fn resolve_mod_jar(instance: &Instance, filename: &str) -> Result<PathBuf> {
         return Ok(alt);
     }
     Err(EasyMcError::msg(format!(
-        "未找到模组文件: {safe}（目录 {}）",
+        "未找到模组文件：{safe}（目录 {}）",
         dir.display()
     )))
 }
@@ -519,7 +519,7 @@ pub fn set_mod_disabled(instance: &Instance, filename: &str, disabled: bool) -> 
     let dest = mods_dir(instance).join(&new_name);
     if dest.exists() {
         return Err(EasyMcError::msg(format!(
-            "目标已存在，无法重命名: {new_name}"
+            "目标已存在，无法重命名：{new_name}"
         )));
     }
     std::fs::rename(&path, &dest)?;

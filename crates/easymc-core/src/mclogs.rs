@@ -61,7 +61,7 @@ pub async fn upload_log_content(content: &str) -> Result<MclogsUploadResult, Str
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
+        .map_err(|e| format!("创建 HTTP 客户端失败：{e}"))?;
     let res = client
         .post(MCLOGS_ENDPOINT)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -69,17 +69,17 @@ pub async fn upload_log_content(content: &str) -> Result<MclogsUploadResult, Str
         .body(body)
         .send()
         .await
-        .map_err(|e| format!("上传到 mclo.gs 失败: {e}"))?;
+        .map_err(|e| format!("上传到 mclo.gs 失败：{e}"))?;
     let status = res.status();
     let text = res
         .text()
         .await
-        .map_err(|e| format!("读 mclo.gs 响应失败: {e}"))?;
+        .map_err(|e| format!("读 mclo.gs 响应失败：{e}"))?;
     if !status.is_success() {
-        return Err(format!("mclo.gs 返回 {status}: {text}"));
+        return Err(format!("mclo.gs 返回 {status}：{text}"));
     }
     let parsed: MclogsApiResponse =
-        serde_json::from_str(&text).map_err(|e| format!("解析 mclo.gs 响应失败: {e} / {text}"))?;
+        serde_json::from_str(&text).map_err(|e| format!("解析 mclo.gs 响应失败：{e} / {text}"))?;
     if !parsed.success {
         return Err(parsed
             .error

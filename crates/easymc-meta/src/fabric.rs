@@ -138,10 +138,10 @@ pub async fn list_loaders_with_source(
     let client = http_client()?;
     let list: Vec<LoaderVersionInfo> = get_with_source(&client, &url, source)
         .await
-        .map_err(|e| EasyMcError::Http(format!("请求 {} 失败: {e}", kind.label_zh())))?
+        .map_err(|e| EasyMcError::Http(format!("请求 {} 失败：{e}", kind.label_zh())))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 {} loader 列表失败: {e}", kind.label_zh())))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 {} loader 列表失败：{e}", kind.label_zh())))?;
     if list.is_empty() {
         return Err(EasyMcError::msg(format!(
             "{} 不支持游戏版本 {game}（meta 无 loader）",
@@ -195,10 +195,10 @@ async fn fetch_profile_json(
     let client = http_client()?;
     let profile: VersionInfo = get_with_source(&client, &url, source)
         .await
-        .map_err(|e| EasyMcError::Http(format!("获取 {} profile 失败: {e}", kind.label_zh())))?
+        .map_err(|e| EasyMcError::Http(format!("获取 {} profile 失败：{e}", kind.label_zh())))?
         .json()
         .await
-        .map_err(|e| EasyMcError::Http(format!("解析 {} profile 失败: {e}", kind.label_zh())))?;
+        .map_err(|e| EasyMcError::Http(format!("解析 {} profile 失败：{e}", kind.label_zh())))?;
     Ok(profile)
 }
 
@@ -325,14 +325,14 @@ pub async fn install_loader(
 
     for (i, lib) in profile.libraries.iter().enumerate() {
         let rel = library_relative_path(lib).ok_or_else(|| {
-            EasyMcError::msg(format!("无法解析库路径: {}", lib.name))
+            EasyMcError::msg(format!("无法解析库路径：{}", lib.name))
         })?;
         let dest = paths.library_path(&rel);
         let art = lib
             .downloads
             .as_ref()
             .and_then(|d| d.artifact.as_ref())
-            .ok_or_else(|| EasyMcError::msg(format!("库缺少下载信息: {}", lib.name)))?;
+            .ok_or_else(|| EasyMcError::msg(format!("库缺少下载信息：{}", lib.name)))?;
         let sha = if art.sha1.is_empty() {
             None
         } else {

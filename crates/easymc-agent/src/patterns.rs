@@ -132,9 +132,9 @@ fn rules() -> &'static [Rule] {
             ],
             re: None,
             title: "加载器或模组不匹配",
-            summary: "实例加载器与模组要求不一致，或依赖缺失。",
+            summary: "版本的加载器与模组要求不一致，或依赖缺失。",
             fixes: &[
-                "确认实例是 Fabric / Quilt / Forge / NeoForge 中正确的一种",
+                "确认版本用的是 Fabric / Quilt / Forge / NeoForge 中正确的一种",
                 "到「商店」按当前加载器筛选后重装模组",
                 "检查 mods/ 下是否混入了其他加载器的 jar",
             ],
@@ -160,7 +160,7 @@ fn rules() -> &'static [Rule] {
             fixes: &[
                 "在有 GPU/显示器的桌面环境启动（需要 DISPLAY）",
                 "更新显卡驱动；Linux 确认安装了 libgl1 / mesa",
-                "头无服务器无法出窗口属预期，请在本机 GUI 再试",
+                "无头服务器不出窗口属正常现象，请在本机桌面环境再试",
             ],
             action: None,
         },
@@ -244,7 +244,7 @@ fn rules() -> &'static [Rule] {
             re: Some(r"(?i)(exit.?code[=:\s]+[1-9]|非正常退出|进程已退出:.*[^0])"),
             title: "进程异常退出",
             summary: "游戏进程已结束且可能非正常退出，请结合上方其它诊断项。",
-            fixes: &["查看完整日志末尾的 Exception 堆栈", "导出诊断包发给自己存档"],
+            fixes: &["查看完整日志末尾的 Exception 堆栈", "导出问题报告发给自己存档"],
             action: Some("diagnostics"),
         },
     ]

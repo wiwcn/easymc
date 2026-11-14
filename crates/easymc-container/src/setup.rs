@@ -120,7 +120,7 @@ pub fn install_guidance() -> SetupPlan {
                 actions.push(SetupStep {
                     action: SetupAction::InitMachine,
                     title_zh: "检查隔离组件服务".into(),
-                    detail_zh: "组件在，但连不上。请到设置里点「修复隔离环境」，或重新打开 EasyMC。".into(),
+                    detail_zh: "隔离组件已装好，但连接不上。请到设置里点「修复隔离环境」，或重新打开 EasyMC。".into(),
                     command: Some("podman info".into()),
                     url: None,
                 });

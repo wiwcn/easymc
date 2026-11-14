@@ -439,7 +439,7 @@ fn set_active_account(state: State<'_, AppState>, account_id: String) -> Result<
     let paths = state_paths(&state);
     let mut store = load_accounts(paths).map_err(|e| e.to_string())?;
     if !store.accounts.iter().any(|a| a.id == account_id) {
-        return Err("账户不存在".into());
+        return Err("找不到账户".into());
     }
     store.active_id = Some(account_id);
     save_accounts(paths, &store).map_err(|e| e.to_string())?;
@@ -456,7 +456,7 @@ fn remove_account(state: State<'_, AppState>, account_id: String) -> Result<Acco
     let before = store.accounts.len();
     store.accounts.retain(|a| a.id != account_id);
     if store.accounts.len() == before {
-        return Err("账户不存在".into());
+        return Err("找不到账户".into());
     }
     if store.active_id.as_deref() == Some(account_id.as_str()) {
         store.active_id = store.accounts.first().map(|a| a.id.clone());
@@ -482,7 +482,7 @@ fn msa_cfg(state: &AppState) -> Result<MicrosoftAuthConfig, String> {
     Ok(MicrosoftAuthConfig::resolve(settings.msa_client_id.as_deref()))
 }
 
-/// Step 1 of 正版登录: get the code the player types at microsoft.com/link.
+/// Step 1 of 正版登录：get the code the player types at microsoft.com/link.
 #[tauri::command]
 async fn msa_device_code_cmd(state: State<'_, AppState>) -> Result<easymc_core::msa::DeviceCodeInfo, String> {
     let cfg = msa_cfg(&state)?;
@@ -591,7 +591,7 @@ fn update_settings_cmd(
     let paths = state_paths(&state);
     let mut settings = load_settings(paths).map_err(|e| e.to_string())?;
     if let Some(mode) = patch.mode.as_deref() {
-        settings.mode = AppMode::parse(mode).ok_or_else(|| format!("未知模式: {mode}"))?;
+        settings.mode = AppMode::parse(mode).ok_or_else(|| format!("未知模式：{mode}"))?;
     }
     if let Some(done) = patch.onboarding_complete {
         settings.onboarding_complete = done;
@@ -615,7 +615,7 @@ fn update_settings_cmd(
     }
     if let Some(src) = patch.download_source.as_deref() {
         settings.download_source = DownloadSource::parse(src)
-            .ok_or_else(|| format!("未知下载源: {src}（official / bmclapi）"))?;
+            .ok_or_else(|| format!("未知下载源：{src}（official / bmclapi）"))?;
     }
     if let Some(v) = patch.container_mode_enabled {
         settings.container_mode_enabled = v;
@@ -640,7 +640,7 @@ fn update_settings_cmd(
         if matches!(t.as_str(), "light" | "dark" | "system") {
             settings.ui_theme = t;
         } else {
-            return Err(format!("未知外观模式: {theme}（light / dark / system）"));
+            return Err(format!("未知外观模式：{theme}（light / dark / system）"));
         }
     }
     if let Some(accent) = patch.accent_color {
@@ -652,7 +652,7 @@ fn update_settings_cmd(
             let ok = normalized.len() == 7
                 && normalized.bytes().skip(1).all(|b| b.is_ascii_hexdigit());
             if !ok {
-                return Err(format!("强调色须为 #RRGGBB，收到: {normalized}"));
+                return Err(format!("强调色须为 #RRGGBB，收到：{normalized}"));
             }
             settings.accent_color = Some(normalized.to_ascii_uppercase());
         }
@@ -667,7 +667,7 @@ fn update_settings_cmd(
             }
             None => {
                 return Err(format!(
-                    "未知镜像源: {profile}（daocloud / dockerproxy / onems / official）"
+                    "未知镜像源：{profile}（daocloud / dockerproxy / onems / official）"
                 ))
             }
         }
@@ -696,7 +696,7 @@ fn complete_onboarding_cmd(
         return Err("请先添加至少一个账户再进入主页".into());
     }
     let mut settings = load_settings(paths).map_err(|e| e.to_string())?;
-    settings.mode = AppMode::parse(&mode).ok_or_else(|| format!("未知模式: {mode}"))?;
+    settings.mode = AppMode::parse(&mode).ok_or_else(|| format!("未知模式：{mode}"))?;
     settings.preferred_login = preferred_login
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
@@ -716,7 +716,7 @@ fn msa_status_cmd(state: State<'_, AppState>) -> serde_json::Value {
         "message_zh": if cfg.is_configured() {
             "使用微软账户登录 Minecraft（正版）"
         } else {
-            "正版登录即将可用，可先离线游玩"
+            "微软登录还没配置，可先离线游玩"
         },
     })
 }
@@ -804,7 +804,7 @@ async fn list_loader_versions(
         "neoforge" | "neo" => LoaderKind::NeoForge,
         other => {
             return Err(format!(
-                "不支持的加载器: {other}（fabric / quilt / forge / neoforge）"
+                "不支持的加载器：{other}（fabric / quilt / forge / neoforge）"
             ))
         }
     };
@@ -838,7 +838,7 @@ async fn install_loader_version(
         "quilt" => LoaderKind::Quilt,
         "forge" => LoaderKind::Forge,
         "neoforge" | "neo" => LoaderKind::NeoForge,
-        other => return Err(format!("未知加载器: {other}")),
+        other => return Err(format!("未知加载器：{other}")),
     };
     let vanilla = InstallOptions {
         assets: with_assets.unwrap_or(true),
@@ -965,7 +965,7 @@ async fn apply_finished_playtime(paths: &Paths, procs: &ProcessManager, app: &Ap
                 );
             }
             Err(e) => {
-                let _ = app.emit("launch-log", format!("记录游玩时长失败: {e}"));
+                let _ = app.emit("launch-log", format!("记录游玩时长失败：{e}"));
             }
         }
     }
@@ -1127,7 +1127,7 @@ fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
 
 
 fn parse_mod_source(s: &str) -> Result<ModSource, String> {
-    ModSource::parse(s).ok_or_else(|| format!("未知模组源: {s}（modrinth|curseforge）"))
+    ModSource::parse(s).ok_or_else(|| format!("未知模组源：{s}（modrinth|curseforge）"))
 }
 
 #[tauri::command]
@@ -1201,12 +1201,12 @@ fn remove_mod_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?;
+        .ok_or_else(|| format!("找不到版本：{id}"))?;
     remove_mod(inst, &filename).map_err(|e| e.to_string())
 }
 
@@ -1221,12 +1221,12 @@ fn set_mod_disabled_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?;
+        .ok_or_else(|| format!("找不到版本：{id}"))?;
     set_mod_disabled(inst, &filename, disabled).map_err(|e| e.to_string())
 }
 
@@ -1279,12 +1279,12 @@ async fn install_mod_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .ok_or_else(|| format!("找不到版本：{id}"))?
         .clone();
     let app2 = app.clone();
     install_mod(
@@ -1309,12 +1309,12 @@ fn list_installed_mods_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?;
+        .ok_or_else(|| format!("找不到版本：{id}"))?;
     list_installed_mod_entries(inst).map_err(|e| e.to_string())
 }
 
@@ -1327,12 +1327,12 @@ fn mod_dep_graph_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?;
+        .ok_or_else(|| format!("找不到版本：{id}"))?;
     build_dep_graph(inst).map_err(|e| e.to_string())
 }
 
@@ -1347,12 +1347,12 @@ async fn fetch_missing_mod_deps_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .ok_or_else(|| format!("找不到版本：{id}"))?
         .clone();
     let app2 = app.clone();
     fetch_missing_deps(&inst, only_ids, move |p| {
@@ -1375,12 +1375,12 @@ async fn check_mod_updates_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .ok_or_else(|| format!("找不到版本：{id}"))?
         .clone();
     check_mod_updates(&inst).await.map_err(|e| e.to_string())
 }
@@ -1399,12 +1399,12 @@ async fn apply_mod_updates_cmd(
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let id = instance_id
         .or(store.active_id.clone())
-        .ok_or_else(|| "无活动实例".to_string())?;
+        .ok_or_else(|| "还没有选版本".to_string())?;
     let inst = store
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("实例不存在: {id}"))?
+        .ok_or_else(|| format!("找不到版本：{id}"))?
         .clone();
     let app2 = app.clone();
     apply_mod_updates(&inst, &items, move |p| {
@@ -1583,7 +1583,7 @@ async fn lan_worlds_listen(seconds: Option<u64>) -> Result<Vec<easymc_launch_des
     let secs = seconds.unwrap_or(3).clamp(1, 10);
     tauri::async_runtime::spawn_blocking(move || easymc_launch_desktop::listen_blocking(secs))
         .await
-        .map_err(|e| format!("局域网扫描任务失败: {e}"))?
+        .map_err(|e| format!("局域网扫描没成功：{e}"))?
         .map_err(|e| format!("无法监听局域网广播（端口 4445）：{e}"))
 }
 
@@ -2787,7 +2787,7 @@ async fn export_instance_cmd(
         .instances
         .iter()
         .find(|i| i.id == instance_id)
-        .ok_or_else(|| format!("实例不存在: {instance_id}"))?
+        .ok_or_else(|| format!("找不到版本：{instance_id}"))?
         .clone();
     let mode = if pack.unwrap_or(false) {
         ShareMode::Mrpack
@@ -2938,13 +2938,13 @@ fn delete_instance_cmd(state: State<'_, AppState>, instance_id: String, delete_f
 fn open_instance_folder_cmd(state: State<'_, AppState>, instance_id: String, kind: Option<String>) -> Result<String, String> {
     let paths = state_paths(&state);
     let store = load_instances(paths).map_err(|e| e.to_string())?;
-    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本：{instance_id}"))?;
     let dir = match kind.as_deref().unwrap_or("root") {
         "root" | "game" => std::path::PathBuf::from(&inst.game_dir),
         k => local_dir(inst, k).map_err(|e| e.to_string())?,
     };
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    open::that(&dir).map_err(|e| format!("无法打开文件夹: {e}"))?;
+    open::that(&dir).map_err(|e| format!("无法打开文件夹：{e}"))?;
     Ok(dir.to_string_lossy().into_owned())
 }
 
@@ -2954,12 +2954,12 @@ fn write_launch_script_cmd(state: State<'_, AppState>, instance_id: String) -> R
     let store = load_instances(paths).map_err(|e| e.to_string())?;
     let accounts = load_accounts(paths).map_err(|e| e.to_string())?;
     let settings = load_settings(paths).map_err(|e| e.to_string())?;
-    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本：{instance_id}"))?;
     let acc_id = inst.account_id.clone().or(accounts.active_id.clone()).ok_or_else(|| "请先添加一个账户".to_string())?;
-    let acc = accounts.accounts.iter().find(|a| a.id == acc_id).ok_or_else(|| "账户不存在".to_string())?;
+    let acc = accounts.accounts.iter().find(|a| a.id == acc_id).ok_or_else(|| "找不到账户".to_string())?;
     let mem = inst.memory_mb.unwrap_or(settings.memory_mb);
     let path = write_launch_script(paths, inst, acc, &settings, &LaunchRequest { memory_mb: mem, extra_jvm_args: vec![] }).map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "path": path, "message_zh": format!("已生成启动脚本（令牌已脱敏）\\n{}", path.display()) }))
+    Ok(serde_json::json!({ "path": path, "message_zh": format!("已生成启动脚本（令牌已脱敏）\n{}", path.display()) }))
 }
 
 
@@ -2973,7 +2973,7 @@ fn create_desktop_shortcut_cmd(state: State<'_, AppState>, instance_id: String) 
         .instances
         .iter()
         .find(|i| i.id == instance_id)
-        .ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+        .ok_or_else(|| format!("找不到版本：{instance_id}"))?;
     let acc_id = inst
         .account_id
         .clone()
@@ -2983,7 +2983,7 @@ fn create_desktop_shortcut_cmd(state: State<'_, AppState>, instance_id: String) 
         .accounts
         .iter()
         .find(|a| a.id == acc_id)
-        .ok_or_else(|| "账户不存在".to_string())?;
+        .ok_or_else(|| "找不到账户".to_string())?;
     let mem = inst.memory_mb.unwrap_or(settings.memory_mb);
     let path = create_desktop_shortcut(
         paths,
@@ -3017,7 +3017,7 @@ async fn upload_latest_log_cmd(
         .instances
         .iter()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("找不到版本: {id}"))?;
+        .ok_or_else(|| format!("找不到版本：{id}"))?;
     let game = std::path::PathBuf::from(&inst.game_dir);
     let latest = game.join("logs").join("latest.log");
     let crash_dir = game.join("crash-reports");
@@ -3045,7 +3045,7 @@ async fn upload_latest_log_cmd(
             inst.name
         ));
     };
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("读日志失败: {e}"))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读日志失败：{e}"))?;
     easymc_core::upload_log_content(&content)
         .await
         .map_err(|e| e.to_string())
@@ -3079,19 +3079,19 @@ async fn clear_logs_cmd(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 fn list_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String) -> Result<Vec<LocalEntry>, String> {
     let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
-    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本：{instance_id}"))?;
     list_local(inst, &kind).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn delete_local_content_cmd(state: State<'_, AppState>, instance_id: String, kind: String, name: String) -> Result<String, String> {
     let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
-    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本: {instance_id}"))?;
+    let inst = store.instances.iter().find(|i| i.id == instance_id).ok_or_else(|| format!("找不到版本：{instance_id}"))?;
     delete_local(inst, &kind, &name).map_err(|e| e.to_string())
 }
 
 fn parse_project_type(s: &str) -> Result<ProjectType, String> {
-    ProjectType::parse(s).ok_or_else(|| format!("未知类型: {s}"))
+    ProjectType::parse(s).ok_or_else(|| format!("未知类型：{s}"))
 }
 
 #[tauri::command]
@@ -3130,7 +3130,7 @@ async fn install_content_cmd(
     let pt = parse_project_type(&project_type)?;
     let store = load_instances(state_paths(&state)).map_err(|e| e.to_string())?;
     let id = instance_id.or(store.active_id.clone()).ok_or_else(|| "请先选择一个版本".to_string())?;
-    let inst = store.instances.iter().find(|i| i.id == id).ok_or_else(|| format!("找不到版本: {id}"))?.clone();
+    let inst = store.instances.iter().find(|i| i.id == id).ok_or_else(|| format!("找不到版本：{id}"))?.clone();
     install_content(&inst, source, pt, &project_id, version_id.as_deref(), world.as_deref()).await.map_err(|e| e.to_string())
 }
 

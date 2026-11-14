@@ -150,7 +150,7 @@ fn parse_mmc_pack(raw: &str) -> Result<MmcPackInfo> {
         version: String,
     }
     let pack: Pack = serde_json::from_str(raw)
-        .map_err(|e| EasyMcError::msg(format!("mmc-pack.json 无法读取: {e}")))?;
+        .map_err(|e| EasyMcError::msg(format!("mmc-pack.json 无法读取：{e}")))?;
 
     let game_version = pack
         .components
