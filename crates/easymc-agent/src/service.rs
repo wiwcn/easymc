@@ -13,7 +13,7 @@ use crate::actions::{
 use crate::diagnose::{diagnose, DiagnoseReport, DiagnoseRequest};
 use crate::intent::{route, Intent, IntentResult};
 use crate::agent_loop::{compose_reason_plan_zh, resolve_max_turns, run_agent_loop_with_progress, AgentLoopConfig, AgentStepEvent};
-use crate::llm::{llm_status, LlmStatus, OpenAiCompatibleProvider};
+use crate::llm::{llm_status, LlmStatus, LlmUsage, OpenAiCompatibleProvider};
 use crate::skills::skill_augmented_system_prompt;
 use crate::propose::{
     build_tune_proposal, oom_suggested_mb, proposal_to_action, ChangeProposal,
@@ -29,6 +29,9 @@ pub struct AskRequest {
     pub rules_only: bool,
     /// Prior chat turns (for LLM mode).
     pub history: Vec<ChatMessage>,
+    /// Cooperative cancellation flag from the host (not serialized).
+    #[serde(skip)]
+    pub cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -46,7 +49,24 @@ pub struct AskResponse {
     /// Progressive Chinese step abstracts (live via `agent-step` + final payload).
     #[serde(default)]
     pub steps: Vec<AgentStepEvent>,
+    /// Number of model turns actually used (0 for rules-only paths).
+    #[serde(default)]
+    pub turns_used: u32,
+    /// Why the loop stopped; empty for rules-only paths.
+    #[serde(default)]
+    pub stop_reason: String,
+    #[serde(default)]
+    pub elapsed_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<LlmUsage>,
     pub llm: LlmStatus,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConfirmToolResponse {
+    pub ok: bool,
+    pub reply_zh: String,
+    pub tool: crate::tool::ToolCall,
 }
 
 fn resolve_instance_id(paths: &Paths, hint: Option<&str>) -> Option<String> {
@@ -500,6 +520,10 @@ fn make_ask_response_with_tools(
         tool,
         tools,
         steps,
+        turns_used: 0,
+        stop_reason: String::new(),
+        elapsed_ms: 0,
+        usage: None,
         llm,
     }
 }
@@ -517,12 +541,7 @@ pub async fn ask_with_progress(
     let intent = route(&req.text);
 
     // Strong local intents always run locally (even if LLM is up), except Unknown/Help with LLM.
-    let use_llm = status.configured
-        && !req.rules_only
-        && matches!(
-            intent.intent,
-            Intent::Unknown { .. } | Intent::Help | Intent::Diagnose { .. }
-        );
+    let use_llm = status.configured && !req.rules_only && agent_worthy(&intent.intent);
 
     // For Diagnose: always get rule report; optionally enrich with LLM.
     if matches!(intent.intent, Intent::Diagnose { .. }) {
@@ -593,8 +612,8 @@ pub async fn ask_with_progress(
         return Ok(resp);
     }
 
-    // Other concrete intents → local
-    if !matches!(intent.intent, Intent::Unknown { .. } | Intent::Help) {
+    // Other concrete intents → local (unless the model should plan/execute tools).
+    if !use_llm && !matches!(intent.intent, Intent::Unknown { .. } | Intent::Help) {
         let (reply, report, action) = execute_intent(
             paths,
             &intent.intent,
@@ -614,7 +633,7 @@ pub async fn ask_with_progress(
         return Ok(resp);
     }
 
-    // Help / Unknown → multi-step LLM agent loop if configured (tool schemas + refeed).
+    // Agent-worthy intents → multi-step LLM loop if configured (tool schemas + refeed).
     if use_llm {
         if let Some(provider) = OpenAiCompatibleProvider::try_from_env() {
             let mut user = req.text.clone();
@@ -634,6 +653,8 @@ pub async fn ask_with_progress(
                 ));
             }
             let msgs = build_messages(&req.history, &user);
+            // Connect user-configured MCP servers before the tool list is built.
+            let _ = crate::mcp::prepare().await;
             match run_agent_loop_with_progress(
                 &provider,
                 paths,
@@ -642,6 +663,7 @@ pub async fn ask_with_progress(
                 req.instance_id.clone(),
                 AgentLoopConfig {
                     max_turns: resolve_max_turns(),
+                    cancel: req.cancel.clone(),
                 },
                 on_step,
             )
@@ -653,7 +675,7 @@ pub async fn ask_with_progress(
                     } else {
                         "llm+agent"
                     };
-                    return Ok(make_ask_response_with_tools(
+                    let mut resp = make_ask_response_with_tools(
                         mode,
                         Some(intent),
                         loop_result.reply_zh,
@@ -662,7 +684,12 @@ pub async fn ask_with_progress(
                         loop_result.tools,
                         loop_result.steps,
                         status,
-                    ));
+                    );
+                    resp.turns_used = loop_result.turns_used;
+                    resp.stop_reason = loop_result.stop_reason;
+                    resp.elapsed_ms = loop_result.elapsed_ms;
+                    resp.usage = loop_result.usage;
+                    return Ok(resp);
                 }
                 Err(e) => {
                     let fallback = intent.reply_zh.clone();
@@ -693,6 +720,27 @@ pub async fn ask_with_progress(
     );
     emit_response_steps(on_step, &resp);
     Ok(resp)
+}
+
+/// Intents where an LLM planner + tools adds real value over one-shot rules.
+/// Fast local commands (launch, list, select, open folder, accounts) stay rules-only.
+/// Host-deferred steps (Java/env/pack export/import/suggest) also stay rules-only so
+/// they are never silently dropped when they are not the last tool in a turn.
+fn agent_worthy(intent: &Intent) -> bool {
+    matches!(
+        intent,
+        Intent::Unknown { .. }
+            | Intent::Help
+            | Intent::Diagnose { .. }
+            | Intent::SearchMods { .. }
+            | Intent::InstallMod { .. }
+            | Intent::CheckMods { .. }
+            | Intent::CheckModDeps { .. }
+            | Intent::FetchMissingModDeps { .. }
+            | Intent::CheckModUpdates { .. }
+            | Intent::UpdateMods { .. }
+            | Intent::TuneConfig { .. }
+    )
 }
 
 fn build_messages(history: &[ChatMessage], user: &str) -> Vec<ChatMessage> {
@@ -737,6 +785,21 @@ fn truncate(s: &str, n: usize) -> String {
         s.to_string()
     } else {
         s.chars().take(n).collect::<String>() + "…"
+    }
+}
+
+/// Execute a dangerous tool after the player pressed「确认执行」on its card.
+pub async fn confirm_tool(
+    paths: &Paths,
+    name: &str,
+    args: serde_json::Value,
+    instance_id: Option<String>,
+) -> ConfirmToolResponse {
+    let out = crate::tool_runtime::execute_confirmed(paths, name, &args, instance_id).await;
+    ConfirmToolResponse {
+        ok: out.card.status == crate::tool::ToolStatus::Ok,
+        reply_zh: out.message_zh,
+        tool: out.card,
     }
 }
 

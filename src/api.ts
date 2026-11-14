@@ -1,4 +1,4 @@
-import type { AccountDto, AccountsState, AgentAskResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, MigratePortableResultDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PortableStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
+import type { AccountDto, AccountsState, AgentAskResponse, AgentConfirmToolResponse, AppMode, ChangeProposalDto, ContentInstallResultDto, CurseForgeStatusDto, DiagnoseReportDto, ExportResultDto, ImportResultDto, InstanceDto, InstancesState, LoaderVersionItem, InstalledModEntryDto, LocalEntryDto, LlmConfigViewDto, LlmStatusDto, McpStatusDto, MigratePortableResultDto, ModInstallResultDto, ModpackInstallResultDto, ModProjectDto, ModUpdateApplyItemDto, ModUpdateApplyResultDto, ModUpdateScanReportDto, ModVersionDto, MsaStatusDto, PortableStatusDto, PreferredLogin, ProjectTypeId, SettingsDto, VersionSummary } from "./types";
 import { versionId } from "./types";
 import type { InstallProgressDto } from "./install-progress";
 export type { InstallProgressDto } from "./install-progress";
@@ -595,6 +595,35 @@ export async function agentAsk(
     rulesOnly: opts?.rulesOnly ?? false,
     history: opts?.history ?? [],
   });
+}
+
+/** Ask the running agent loop to stop after the current model/tool step. */
+export async function agentCancel(): Promise<boolean> {
+  return (await invokeSafe<boolean>("agent_cancel")) ?? false;
+}
+
+/** Execute a gated tool after the player pressed「确认执行」. */
+export async function agentConfirmTool(
+  name: string,
+  args: Record<string, unknown> | null,
+  instanceId?: string | null,
+): Promise<AgentConfirmToolResponse> {
+  return invokeOrThrow<AgentConfirmToolResponse>("agent_confirm_tool", {
+    name,
+    args: args ?? {},
+    instanceId: instanceId || null,
+  });
+}
+
+/** Configured MCP servers + tool counts (connects lazily on first call). */
+export async function agentMcpStatus(): Promise<McpStatusDto> {
+  return (
+    (await invokeSafe<McpStatusDto>("agent_mcp_status")) ?? {
+      configured: false,
+      config_path: "",
+      servers: [],
+    }
+  );
 }
 
 

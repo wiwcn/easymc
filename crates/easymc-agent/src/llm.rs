@@ -150,6 +150,18 @@ struct ApiToolFnOut {
 struct ChatResponse {
     choices: Option<Vec<Choice>>,
     error: Option<ApiError>,
+    #[serde(default)]
+    usage: Option<ChatUsage>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct ChatUsage {
+    #[serde(default)]
+    prompt_tokens: u64,
+    #[serde(default)]
+    completion_tokens: u64,
+    #[serde(default)]
+    total_tokens: u64,
 }
 
 #[derive(Deserialize)]
@@ -191,10 +203,29 @@ pub struct LlmToolCall {
     pub arguments: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LlmUsage {
+    #[serde(default)]
+    pub prompt_tokens: u64,
+    #[serde(default)]
+    pub completion_tokens: u64,
+    #[serde(default)]
+    pub total_tokens: u64,
+}
+
+impl LlmUsage {
+    pub fn add(&mut self, other: &LlmUsage) {
+        self.prompt_tokens += other.prompt_tokens;
+        self.completion_tokens += other.completion_tokens;
+        self.total_tokens += other.total_tokens;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LlmCompletion {
     pub content: String,
     pub tool_calls: Vec<LlmToolCall>,
+    pub usage: Option<LlmUsage>,
 }
 
 #[derive(Deserialize)]
@@ -302,6 +333,11 @@ impl OpenAiCompatibleProvider {
                 err.message.unwrap_or_else(|| "unknown".into())
             )));
         }
+        let usage = parsed.usage.map(|u| LlmUsage {
+            prompt_tokens: u.prompt_tokens,
+            completion_tokens: u.completion_tokens,
+            total_tokens: u.total_tokens,
+        });
         let message = parsed
             .choices
             .and_then(|c| c.into_iter().next())
@@ -328,6 +364,7 @@ impl OpenAiCompatibleProvider {
         Ok(LlmCompletion {
             content: sanitize_reply(&content),
             tool_calls,
+            usage,
         })
     }
 }
@@ -380,12 +417,12 @@ EasyMC 已内置这些工具（玩家可直接说，或你引导他们说原话�
 · 「打开模组文件夹」/「打开资源包」/「打开光影」/「打开存档」/「打开配置文件夹」/「打开日志文件夹」/ open_game_folder — 定位常见游戏文件夹；\
 · 「账户列表」/ list_accounts — 列出已保存账户（不含令牌）；\
 · 「一键环境」「优化配置」「修好 Java」「内存 4G」「切换 BMCLAPI 加速」。\
-不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。你可多步调用工具：先看（诊断/日志/模组列表/依赖树）→ 再做（建议更改、补全依赖等）→ 再验证（再查依赖或再诊断）。当玩家说「模组更新」「有没有更新」「升级模组」时：先 check_mod_updates，再按需 update_mods。当玩家说「缺依赖」「缺啥」「能不能玩」「整合包好像缺东西」「能不能补上」时：必须先 list_installed_mods 或直接 check_mod_deps，再根据缺失结果调用 fetch_missing_mod_deps 或明确列出缺失项让玩家确认；不要只列模组就说「好了」。删除版本/模组、启用禁用模组、直接改内存等危险操作不会自动执行，需玩家确认。"
+不要编造不存在的启动器命令；不要提 MCBBS。信息不足时先问需要哪份 latest.log / crash-report。你可多步调用工具：先看（诊断/日志/模组列表/依赖树）→ 再做（建议更改、补全依赖等）→ 再验证（再查依赖或再诊断）。工具会真实执行并把结构化结果返回给你，不要假装已执行，也不要在没拿到结果前断言成功。当玩家说「模组更新」「有没有更新」「升级模组」时：先 check_mod_updates，再按需 update_mods。当玩家说「缺依赖」「缺啥」「能不能玩」「整合包好像缺东西」「能不能补上」时：必须先 list_installed_mods 或直接 check_mod_deps，再根据缺失结果调用 fetch_missing_mod_deps 或明确列出缺失项让玩家确认；不要只列模组就说「好了」。删除版本/模组、启用禁用模组、直接改内存等危险操作不会自动执行，只会生成待确认卡片，玩家点「确认执行」后才生效。若玩家配置了 MCP，额外工具名形如 mcp__服务器__工具，可按需调用。ensure_java / setup_env / build_pack / import_mrpack 这类由启动器宿主完成的步骤，请放在本次工具调用的最后一步。"
 }
 
 /// OpenAI-compatible tool definitions the cloud model may call (host still executes).
 pub fn cloud_tool_definitions() -> serde_json::Value {
-    serde_json::json!([
+    let mut defs = serde_json::json!([
         {
             "type": "function",
             "function": {
@@ -409,7 +446,8 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
                     "properties": {
                         "query": { "type": "string" },
                         "game_version": { "type": "string" },
-                        "loader": { "type": "string", "description": "fabric/forge/neoforge/quilt" }
+                        "loader": { "type": "string", "description": "fabric/forge/neoforge/quilt" },
+                        "source": { "type": "string", "enum": ["modrinth", "curseforge"] }
                     },
                     "required": ["query"]
                 }
@@ -692,7 +730,13 @@ pub fn cloud_tool_definitions() -> serde_json::Value {
                 }
             }
         }
-    ])
+    ]);
+    if let serde_json::Value::Array(more) = crate::mcp::tool_definitions() {
+        if let Some(arr) = defs.as_array_mut() {
+            arr.extend(more);
+        }
+    }
+    defs
 }
 
 /// Map a cloud tool name + JSON args into a player utterance the local router understands.

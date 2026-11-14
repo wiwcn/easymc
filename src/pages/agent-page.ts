@@ -5,12 +5,15 @@ import {
   agentApplyProposal,
   agentAsk,
   agentBumpMemory,
+  agentCancel,
+  agentConfirmTool,
   agentDataDir,
   agentExportDiagnostics,
   agentLlmConfigClear,
   agentLlmConfigGet,
   agentLlmConfigSave,
   agentLlmStatus,
+  agentMcpStatus,
   agentUndoProposal,
   listenAgentStep,
   listInstancesState,
@@ -29,6 +32,7 @@ import type {
   InstanceDto,
   LlmConfigViewDto,
   LlmStatusDto,
+  McpStatusDto,
   ToolCallDto,
   ToolStatus,
 } from "../types";
@@ -46,6 +50,11 @@ type ChatTurn = {
   tools?: ToolCallDto[];
   /** Live / final look→do→verify step abstracts. */
   steps?: AgentStepDto[];
+  /** Loop telemetry: turns, wall-clock, tokens, stop reason. */
+  turnsUsed?: number;
+  elapsedMs?: number;
+  stopReason?: string;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
 };
 
 
@@ -179,6 +188,7 @@ export class AgentPage extends LitElement {
   @state() private llm: LlmStatusDto | null = null;
   @state() private report: DiagnoseReportDto | null = null;
   @state() private busy = false;
+  @state() private mcp: McpStatusDto | null = null;
   @state() private input = "";
   @state() private turns: ChatTurn[] = [];
   @state() private instances: InstanceDto[] = [];
@@ -1012,6 +1022,7 @@ export class AgentPage extends LitElement {
       if (st.configured) {
         // Structured empty chat teaches next steps (Impeccable onboard / Extremes).
         this.turns = [];
+        void agentMcpStatus().then((m) => (this.mcp = m)).catch(() => undefined);
         if (sessionStorage.getItem("easymc-agent-autodiagnose") === "1") {
           sessionStorage.removeItem("easymc-agent-autodiagnose");
           void this.onDiagnose();
@@ -1059,6 +1070,49 @@ export class AgentPage extends LitElement {
       "推荐模组 生存",
       runningTool("suggest_mods", [{ key: "theme", label_zh: "主题", value: "生存" }]),
     );
+  }
+
+  private async onStop() {
+    try {
+      await agentCancel();
+      showToast("已请求停止，当前步骤结束后会停下");
+    } catch (e) {
+      showToast(friendlyError(e));
+    }
+  }
+
+  private renderTurnMeta(t: ChatTurn) {
+    if (t.mode === "running") return nothing;
+    const bits: string[] = [];
+    if ((t.turnsUsed ?? 0) > 1) bits.push(`${t.turnsUsed} 轮`);
+    if ((t.elapsedMs ?? 0) >= 800) bits.push(`${((t.elapsedMs ?? 0) / 1000).toFixed(1)}s`);
+    const tokens =
+      t.usage?.total_tokens ||
+      (t.usage?.prompt_tokens ?? 0) + (t.usage?.completion_tokens ?? 0);
+    if (tokens) bits.push(`${(tokens / 1000).toFixed(1)}k tokens`);
+    if (t.stopReason === "cancelled") bits.push("已停止");
+    if (!bits.length) return nothing;
+    return html`<div class="meta turn-meta">${bits.join(" · ")}</div>`;
+  }
+
+  private renderMcpSummary() {
+    if (!this.mcp) return nothing;
+    if (!this.mcp.configured) {
+      return html`<span class="muted"
+        >MCP：未配置（${this.mcp.config_path || "~/.config/easymc/mcp.json"}）</span
+      >`;
+    }
+    const connected = this.mcp.servers.filter((s) => s.connected);
+    const tools = connected.reduce((n, s) => n + s.tool_count, 0);
+    const failed = this.mcp.servers.filter((s) => !s.connected);
+    const hint = failed
+      .map((s) => `${s.name}: ${s.error || "未连接"}`)
+      .join("\n");
+    return html`<span class="muted" title=${hint || nothing}>
+      MCP：${connected.length} 个服务 · ${tools} 个工具${failed.length
+        ? html` · ${failed.length} 个未连上`
+        : nothing}
+    </span>`;
   }
 
   private async onAsk(text?: string, runningHint?: ToolCallDto) {
@@ -1196,6 +1250,10 @@ export class AgentPage extends LitElement {
         tool,
         tools,
         steps,
+        turnsUsed: resp.turns_used ?? 0,
+        elapsedMs: resp.elapsed_ms ?? 0,
+        stopReason: resp.stop_reason ?? "",
+        usage: resp.usage ?? null,
       };
       this.turns = this.turns.map((t, i) => (i === progressIndex ? assistantTurn : t));
     } catch (e) {
@@ -1212,6 +1270,7 @@ export class AgentPage extends LitElement {
     } finally {
       unlistenStep?.();
       this.busy = false;
+      void agentMcpStatus().then((m) => (this.mcp = m)).catch(() => undefined);
     }
   }
 
@@ -1532,6 +1591,38 @@ ${extraContent}` : t.content,
 
 
   private async onToolUiAction(turnIndex: number, actionId: string, tool: ToolCallDto) {
+    if (actionId === "confirm_tool") {
+      if (this.busy) return;
+      this.busy = true;
+      try {
+        const args = (tool.payload ?? null) as Record<string, unknown> | null;
+        const res = await agentConfirmTool(tool.name, args, this.instanceId);
+        this.turns = this.turns.map((t, i) => {
+          if (i !== turnIndex) return t;
+          const tools = (t.tools ?? []).map((x) => (x.id === tool.id ? res.tool : x));
+          return {
+            ...t,
+            tool: t.tool?.id === tool.id ? res.tool : t.tool,
+            tools,
+          };
+        });
+        showToast(res.ok ? "已完成" : "这次没做成");
+        if (res.ok) {
+          try {
+            const st = await listInstancesState();
+            this.instances = st.instances;
+            this.instanceId = st.active_id;
+          } catch {
+            /* keep current sidebar */
+          }
+        }
+      } catch (e) {
+        showToast(friendlyError(e));
+      } finally {
+        this.busy = false;
+      }
+      return;
+    }
     if (actionId === "apply_proposal" && this.turns[turnIndex]?.proposal) {
       await this.onAcceptProposal(turnIndex, this.turns[turnIndex].proposal!);
       return;
@@ -2146,6 +2237,7 @@ ${extraContent}` : t.content,
                 <span class="badge on">云端助手已连接</span>
               </h1>
               <p class="sub">游戏崩了、启动不了？让助手帮你看看哪里坏了。</p>
+              <div class="meta" style="margin-top:4px">${this.renderMcpSummary()}</div>
               <div class="row" style="margin-top:8px">
                 <button
                   class="ghost"
@@ -2278,6 +2370,7 @@ ${extraContent}` : t.content,
                                 : this.renderProposal(t, idx))
                           : nothing}
                         ${this.modeMeta(t.mode)}
+                        ${this.renderTurnMeta(t)}
                       </div>
                     </div>
                   `,
@@ -2342,6 +2435,16 @@ ${extraContent}` : t.content,
               }}
             />
             <button class="primary" ?disabled=${this.busy} @click=${() => this.onAsk()}>发送</button>
+            ${this.busy
+              ? html`<button
+                  class="ghost"
+                  type="button"
+                  title="停止当前任务"
+                  @click=${() => void this.onStop()}
+                >
+                  停止
+                </button>`
+              : nothing}
           </div>
         </div>
 

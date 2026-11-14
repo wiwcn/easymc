@@ -7,11 +7,13 @@ mod agent_loop;
 mod diagnose;
 mod intent;
 pub mod llm;
+pub mod mcp;
 mod patterns;
 mod propose;
 mod service;
 mod skills;
 mod tool;
+mod tool_runtime;
 
 pub use actions::{
     bump_memory, check_mod_deps, check_mod_updates_action, check_mods, duplicate_version,
@@ -25,8 +27,8 @@ pub use intent::{route, Intent, IntentResult};
 pub use llm::{
     clear_llm_config, cloud_tool_definitions, llm_env_path, llm_status, read_llm_config,
     save_llm_config, tool_call_to_utterance, try_load_dotenv_llm, LlmCompletion, LlmConfig,
-    LlmConfigView, LlmStatus, LlmToolCall, OpenAiCompatibleProvider, ENV_API_KEY, ENV_BASE_URL,
-    ENV_MODEL,
+    LlmConfigView, LlmStatus, LlmToolCall, LlmUsage, OpenAiCompatibleProvider, ENV_API_KEY,
+    ENV_BASE_URL, ENV_MODEL,
 };
 pub use patterns::{scan_log, Finding, FindingSeverity};
 pub use propose::{
@@ -39,7 +41,8 @@ pub use agent_loop::{
     AgentLoopConfig, AgentLoopResult, AgentStepEvent, DEFAULT_MAX_TURNS, ENV_MAX_TURNS,
 };
 pub use service::{
-    ask, ask_with_progress, execute_intent, memory_suggestion, run_diagnose, run_diagnose_with_path, tune_proposal, AskRequest, AskResponse,
+    ask, ask_with_progress, confirm_tool, execute_intent, memory_suggestion, run_diagnose,
+    run_diagnose_with_path, tune_proposal, AskRequest, AskResponse, ConfirmToolResponse,
     DisabledGguf, LocalGgufBackend,
 };
 pub use skills::{select_skills_for_prompt, skill_augmented_system_prompt};
@@ -47,6 +50,8 @@ pub use tool::{
     attach_tool_to_ask, refresh_ask_tool, tool_call_from_action, tool_call_from_diagnose, tool_meta, tool_running,
     ToolArg, ToolCall, ToolStatus, ToolUiAction,
 };
+pub use tool_runtime::{canonical_tool_name, execute_confirmed, ToolContext, ToolExecResult};
+pub use mcp::{prepare as prepare_mcp, status_snapshot as mcp_status, McpStatus, McpToolDescriptor};
 
 use async_trait::async_trait;
 use easymc_core::Result;

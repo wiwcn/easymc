@@ -505,7 +505,32 @@ export interface AgentAskResponse {
   tools?: ToolCallDto[];
   /** Short Chinese step abstracts (look → do → verify). */
   steps?: AgentStepDto[];
+  /** Model turns spent in the loop (0 for rules-only replies). */
+  turns_used?: number;
+  /** final_text | no_tools | max_turns | error | cancelled | no_progress */
+  stop_reason?: string;
+  elapsed_ms?: number;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
   llm: LlmStatusDto;
+}
+
+export interface AgentConfirmToolResponse {
+  ok: boolean;
+  reply_zh: string;
+  tool: ToolCallDto;
+}
+
+export interface McpServerStatusDto {
+  name: string;
+  connected: boolean;
+  tool_count: number;
+  error?: string | null;
+}
+
+export interface McpStatusDto {
+  configured: boolean;
+  config_path: string;
+  servers: McpServerStatusDto[];
 }
 
 export interface ExportResultDto {

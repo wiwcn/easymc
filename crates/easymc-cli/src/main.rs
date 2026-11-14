@@ -894,6 +894,7 @@ async fn real_main() -> easymc_core::Result<()> {
                             process_logs: None,
                             rules_only,
                             history: vec![],
+                            cancel: None,
                         },
                     )
                     .await?;

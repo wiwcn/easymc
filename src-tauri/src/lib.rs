@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use easymc_core::{
@@ -38,10 +39,11 @@ use easymc_share::{
     ShareMode,
 };
 use easymc_agent::{
-    apply_proposal, ask_with_progress, bump_memory, clear_llm_config, llm_status, parse_proposal, read_llm_config,
-    run_diagnose, save_llm_config, show_data_dir, try_load_dotenv_llm, undo_proposal,
-    write_diagnostic_bundle, refresh_ask_tool, ActionResult, AskRequest, AskResponse, ChatMessage, DiagnoseReport,
-    AgentStepEvent, LlmConfigView, LlmStatus,
+    apply_proposal, ask_with_progress, bump_memory, clear_llm_config, confirm_tool, llm_status,
+    parse_proposal, read_llm_config, run_diagnose, save_llm_config, show_data_dir, mcp_status,
+    try_load_dotenv_llm, undo_proposal, write_diagnostic_bundle, refresh_ask_tool, ActionResult,
+    AskRequest, AskResponse, ChatMessage, ConfirmToolResponse, DiagnoseReport, AgentStepEvent,
+    LlmConfigView, LlmStatus, McpStatus,
 };
 use easymc_container::{
     apply_game_layer, apply_one_click_setup, attach_container_to_instance,
@@ -70,6 +72,8 @@ use tauri::{AppHandle, Emitter, State};
 pub struct AppState {
     pub paths: Paths,
     pub procs: Arc<ProcessManager>,
+    /// Cooperative cancel flag for the running agent loop.
+    pub agent_cancel: Arc<AtomicBool>,
 }
 
 #[derive(Serialize)]
@@ -1535,6 +1539,37 @@ async fn agent_search_mod_projects(
 }
 
 #[tauri::command]
+fn agent_cancel(state: State<'_, AppState>) -> bool {
+    state.agent_cancel.store(true, Ordering::Relaxed);
+    true
+}
+
+/// Run a gated tool directly after the player pressed「确认执行」on its card.
+#[tauri::command]
+async fn agent_confirm_tool(
+    state: State<'_, AppState>,
+    name: String,
+    args: Option<serde_json::Value>,
+    instance_id: Option<String>,
+) -> Result<ConfirmToolResponse, String> {
+    Ok(
+        confirm_tool(
+            &state.paths,
+            &name,
+            args.unwrap_or_else(|| serde_json::json!({})),
+            instance_id,
+        )
+        .await,
+    )
+}
+
+/// Report configured MCP servers (does not spawn them; connections happen on first ask).
+#[tauri::command]
+async fn agent_mcp_status() -> McpStatus {
+    mcp_status().await
+}
+
+#[tauri::command]
 async fn agent_ask(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -1544,6 +1579,7 @@ async fn agent_ask(
     history: Option<Vec<ChatMessage>>,
 ) -> Result<AskResponse, String> {
     try_load_dotenv_llm();
+    state.agent_cancel.store(false, Ordering::Relaxed);
     let logs = state.procs.logs_snapshot().await;
     let process_logs = if logs.is_empty() { None } else { Some(logs) };
     let app_for_steps = app.clone();
@@ -1558,6 +1594,7 @@ async fn agent_ask(
             process_logs,
             rules_only: rules_only.unwrap_or(false),
             history: history.unwrap_or_default(),
+            cancel: Some(state.agent_cancel.clone()),
         },
         Some(&on_step),
     )
@@ -3388,6 +3425,7 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
         .manage(AppState {
             paths,
             procs: Arc::new(ProcessManager::new()),
+            agent_cancel: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             app_info,
@@ -3438,6 +3476,9 @@ fn container_read_env_manifest_cmd(path: String) -> Result<easymc_container::Env
             agent_llm_config_clear,
             agent_diagnose,
             agent_ask,
+            agent_cancel,
+            agent_confirm_tool,
+            agent_mcp_status,
             agent_data_dir,
             portable_status_cmd,
             set_portable_mode_cmd,

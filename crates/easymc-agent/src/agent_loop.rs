@@ -15,15 +15,18 @@
 
 use easymc_core::{Paths, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::diagnose::DiagnoseReport;
-use crate::intent::route;
 use async_trait::async_trait;
 
-use crate::llm::{tool_call_to_utterance, LlmCompletion, LlmToolCall, OpenAiCompatibleProvider};
+use crate::llm::{tool_call_to_utterance, LlmCompletion, LlmToolCall, LlmUsage, OpenAiCompatibleProvider};
 use crate::propose::{build_tune_proposal, proposal_to_action};
-use crate::service::execute_intent;
-use crate::tool::{tool_call_from_action, tool_call_from_diagnose, ToolCall, ToolStatus};
+use crate::tool::{tool_call_from_action, ToolCall, ToolStatus, ToolUiAction};
+use crate::tool_runtime::{self, ToolContext, ToolExecResult};
 use crate::{ActionResult, ChatMessage};
 
 /// Default max model turns (each complete_raw counts as one).
@@ -558,32 +561,42 @@ fn is_host_deferred_tool(name: &str) -> bool {
     matches!(
         name,
         "ensure_java"
-            | "install_mod"
-            | "search_mods"
-            | "suggest_mods"
             | "setup_env"
             | "build_pack"
-            | "create_modpack"
-            | "export_modpack"
             | "import_mrpack"
-            | "import_modpack"
-            | "fetch_missing_mod_deps"
-            | "install_missing_deps"
+            | "suggest_mods"
+    )
+}
+
+/// Read-only tools that may run in parallel within one model turn.
+fn is_parallel_safe_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "search_mods"
+            | "list_installed_mods"
+            | "check_mod_deps"
             | "check_mod_updates"
-            | "update_mods"
-            | "batch_update_mods"
+            | "diagnose"
+            | "list_instances"
+            | "list_accounts"
+            | "open_latest_log"
+            | "open_screenshots"
+            | "show_data_dir"
     )
 }
 
 #[derive(Debug, Clone)]
 pub struct AgentLoopConfig {
     pub max_turns: u32,
+    /// Cooperative cancellation from the UI (checked between turns / tools).
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 impl Default for AgentLoopConfig {
     fn default() -> Self {
         Self {
             max_turns: DEFAULT_MAX_TURNS,
+            cancel: None,
         }
     }
 }
@@ -596,11 +609,17 @@ pub struct AgentLoopResult {
     /// Last action for host side-effects (ensure_java / install_mod / …).
     pub action: Option<ActionResult>,
     pub turns_used: u32,
-    /// `final_text` | `no_tools` | `max_turns` | `error`
+    /// `final_text` | `no_tools` | `max_turns` | `error` | `cancelled` | `no_progress`
     pub stop_reason: String,
     /// Ordered short Chinese step abstracts for the chat UI.
     #[serde(default)]
     pub steps: Vec<AgentStepEvent>,
+    /// Wall-clock time spent in the loop.
+    #[serde(default)]
+    pub elapsed_ms: u64,
+    /// Token usage summed over model turns (when the endpoint reports it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<LlmUsage>,
 }
 
 fn new_tool_call_id(turn: u32, idx: usize) -> String {
@@ -679,10 +698,11 @@ fn gate_dangerous(
         )
     } else {
         format!(
-            "【需确认】「{utterance}」会改动你的游戏文件，助手不会自动执行。请你在对话里用明确的中文再说一次（例如「确认删除版本 xxx」或「禁用 sodium」），本地规则才会执行。"
+            "【需确认】「{utterance}」会改动你的游戏文件，助手不会自动执行。点卡片上的「确认执行」，或在对话里明确说一次（例如「确认删除版本 xxx」）。"
         )
     };
     let (title, tag) = crate::tool::tool_meta(name);
+    let can_confirm = matches!(name, "delete_instance" | "delete_mod" | "toggle_mod");
     let card = ToolCall {
         id: format!("gate-{}", tc.id),
         name: name.into(),
@@ -696,91 +716,125 @@ fn gate_dangerous(
         result_zh: Some(msg.clone()),
         path: None,
         payload: Some(tc.arguments.clone()),
-        ui_actions: vec![],
+        ui_actions: if can_confirm {
+            vec![ToolUiAction {
+                id: "confirm_tool".into(),
+                label_zh: "确认执行".into(),
+            }]
+        } else {
+            vec![]
+        },
         tag_zh: tag.map(|s| s.into()),
     };
     (msg, card, None)
 }
 
-async fn run_one_tool(
-    paths: &Paths,
-    tc: &LlmToolCall,
-    process_logs: Option<Vec<String>>,
-    instance_id: Option<String>,
-) -> (String, ToolCall, Option<ActionResult>, Option<DiagnoseReport>) {
+async fn run_one_tool(ctx: &ToolContext<'_>, tc: &LlmToolCall) -> ToolExecResult {
     if is_dangerous_tool(&tc.name) {
-        let (msg, card, action) = gate_dangerous(tc, paths, instance_id.as_deref());
-        return (msg, card, action, None);
+        let (msg, card, action) = gate_dangerous(tc, ctx.paths, ctx.instance_id.as_deref());
+        return ToolExecResult {
+            model_text: msg.clone(),
+            message_zh: msg,
+            card,
+            action,
+            report: None,
+        };
     }
 
-    let utterance = tool_call_to_utterance(&tc.name, &tc.arguments);
-    let routed = route(&utterance);
-    match execute_intent(
-        paths,
-        &routed.intent,
-        process_logs,
-        instance_id,
-    )
-    .await
-    {
-        Ok((reply, report, action)) => {
-            let card = if let Some(ref ar) = action {
-                tool_call_from_action(ar)
-            } else if let Some(ref r) = report {
-                tool_call_from_diagnose(r)
-            } else {
-                let (title, tag) = crate::tool::tool_meta(&tc.name);
-                ToolCall {
-                    id: format!("tool-{}", tc.id),
-                    name: tc.name.clone(),
-                    title_zh: title.into(),
-                    status: ToolStatus::Ok,
-                    args: vec![],
-                    result_zh: Some(reply.clone()),
-                    path: None,
-                    payload: None,
-                    ui_actions: vec![],
-                    tag_zh: tag.map(|s| s.into()),
-                }
-            };
-            let mut result_text = reply;
-            if let Some(ref r) = report {
-                if !r.summary_zh.is_empty() && !result_text.contains(&r.summary_zh) {
-                    result_text.push_str(&format!("\n\n[诊断摘要] {}", r.summary_zh));
-                }
-                if !r.findings.is_empty() {
-                    let lines: Vec<String> = r
-                        .findings
-                        .iter()
-                        .take(6)
-                        .map(|f| format!("- {}: {}", f.title, f.summary))
-                        .collect();
-                    result_text.push_str(&format!("\n{}", lines.join("\n")));
-                }
-            }
-            if is_host_deferred_tool(&tc.name) {
-                result_text.push_str(
-                    "\n（此步骤由启动器宿主完成；若需安装/搜索结果，见工具卡或下载页。）",
-                );
-            }
-            (truncate(&result_text, 8000), card, action, report)
+    let mut out = tool_runtime::execute(ctx, &tc.name, &tc.arguments).await;
+    if is_host_deferred_tool(&tc.name) {
+        out.model_text
+            .push_str("\n（此步骤由启动器宿主在本次对话结束后完成。）");
+    }
+    out
+}
+
+/// Placeholder result when the model repeats the exact same tool call too often.
+fn repeated_call_result(tc: &LlmToolCall, count: u32) -> ToolExecResult {
+    let msg = format!(
+        "同一工具（{}）用相同参数已调用 {count} 次，已跳过。请换一种方法，或直接给出结论。",
+        tc.name
+    );
+    let (title, tag) = crate::tool::tool_meta(&tc.name);
+    ToolExecResult {
+        model_text: msg.clone(),
+        message_zh: msg.clone(),
+        card: ToolCall {
+            id: format!("tool-{}", tc.id),
+            name: tc.name.clone(),
+            title_zh: title.into(),
+            status: ToolStatus::Error,
+            args: vec![],
+            result_zh: Some(msg),
+            path: None,
+            payload: None,
+            ui_actions: vec![],
+            tag_zh: tag.map(|s| s.into()),
+        },
+        action: None,
+        report: None,
+    }
+}
+
+fn call_key(tc: &LlmToolCall) -> String {
+    let name = tool_runtime::canonical_tool_name(&tc.name);
+    format!("{name}:{}", tc.arguments)
+}
+
+/// Keep recent tool results intact; compact older ones so long sessions fit context.
+fn compact_old_tool_results(messages: &mut [ChatMessage], keep_last: usize) {
+    let tool_idx: Vec<usize> = messages
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.role == "tool")
+        .map(|(i, _)| i)
+        .collect();
+    if tool_idx.len() <= keep_last {
+        return;
+    }
+    for i in tool_idx[..tool_idx.len() - keep_last].iter().copied() {
+        let text = &mut messages[i].content;
+        if text.chars().count() > 420 {
+            let cut: String = text.chars().take(420).collect();
+            *text = format!("{cut}…\n[较早的工具结果已压缩]");
         }
-        Err(e) => {
-            let msg = format!("工具执行失败：{e}");
-            let (title, tag) = crate::tool::tool_meta(&tc.name);
-            let card = ToolCall {
-                id: format!("tool-{}", tc.id),
-                name: tc.name.clone(),
-                title_zh: title.into(),
-                status: ToolStatus::Error,
-                args: vec![],
-                result_zh: Some(msg.clone()),
-                path: None,
-                payload: None,
-                ui_actions: vec![],
-                tag_zh: tag.map(|s| s.into()),
-            };
-            (msg, card, None, None)
+    }
+}
+
+fn cancelled(config: &AgentLoopConfig) -> bool {
+    config
+        .cancel
+        .as_ref()
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+}
+
+/// Retry transient model/network errors (not auth / bad-request).
+async fn complete_with_retry(
+    provider: &impl AgentCompleter,
+    messages: &[ChatMessage],
+    config: &AgentLoopConfig,
+) -> Result<LlmCompletion> {
+    let mut attempt = 0u32;
+    loop {
+        if cancelled(config) {
+            return Err(easymc_core::EasyMcError::msg("已停止"));
+        }
+        match provider.complete_raw(messages, true).await {
+            Ok(c) => return Ok(c),
+            Err(e) => {
+                let text = format!("{e}");
+                let permanent = text.contains("HTTP 400")
+                    || text.contains("HTTP 401")
+                    || text.contains("HTTP 403")
+                    || text.contains("HTTP 404");
+                if permanent || attempt >= 2 {
+                    return Err(e);
+                }
+                let wait = Duration::from_millis(300 * (1 << attempt));
+                tokio::time::sleep(wait).await;
+                attempt += 1;
+            }
         }
     }
 }
@@ -826,15 +880,38 @@ pub async fn run_agent_loop_with_progress(
     let mut turns_used = 0u32;
     let mut stop_reason = "final_text".to_string();
     let mut step_index = 0u32;
+    let started = Instant::now();
+    let mut usage: Option<LlmUsage> = None;
+    let mut call_counts: HashMap<String, u32> = HashMap::new();
+    let mut no_progress_turns = 0u32;
+
+    let ctx = ToolContext {
+        paths,
+        instance_id: instance_id.clone(),
+        process_logs: process_logs.clone(),
+        confirmed: false,
+        cancel: config.cancel.clone(),
+    };
 
     for turn in 1..=config.max_turns {
+        if cancelled(&config) {
+            stop_reason = "cancelled".into();
+            last_content = "已停止当前任务。".into();
+            break;
+        }
         turns_used = turn;
         step_index += 1;
         emit_step(&mut steps_out, on_step, AgentStepEvent::thinking(step_index));
 
-        let completion: LlmCompletion = match provider.complete_raw(&messages, true).await {
+        let completion: LlmCompletion = match complete_with_retry(provider, &messages, &config).await
+        {
             Ok(c) => c,
             Err(e) => {
+                if cancelled(&config) {
+                    stop_reason = "cancelled".into();
+                    last_content = "已停止当前任务。".into();
+                    break;
+                }
                 if tools_out.is_empty() && last_content.is_empty() {
                     return Err(e);
                 }
@@ -844,6 +921,9 @@ pub async fn run_agent_loop_with_progress(
             }
         };
 
+        if let Some(u) = completion.usage.as_ref() {
+            usage.get_or_insert_with(LlmUsage::default).add(u);
+        }
         last_content = completion.content.clone();
         if completion.tool_calls.is_empty() {
             stop_reason = if turn == 1 { "no_tools" } else { "final_text" }.into();
@@ -864,7 +944,7 @@ pub async fn run_agent_loop_with_progress(
             &normalized,
         ));
 
-        // Execute ALL tool_calls this turn (pi: batch then refeed).
+        // Announce every tool start first so the UI shows the plan immediately.
         for tc in &normalized {
             step_index += 1;
             emit_step(
@@ -872,32 +952,102 @@ pub async fn run_agent_loop_with_progress(
                 on_step,
                 AgentStepEvent::tool_start(step_index, &tc.name),
             );
-            let (result_text, card, action, report) = run_one_tool(
-                paths,
-                tc,
-                process_logs.clone(),
-                instance_id.clone(),
-            )
-            .await;
-            if let Some(ar) = action {
+        }
+
+        let mut results: Vec<Option<ToolExecResult>> = (0..normalized.len()).map(|_| None).collect();
+        let mut skipped: Vec<bool> = vec![false; normalized.len()];
+        let mut to_run: Vec<usize> = Vec::new();
+        for (i, tc) in normalized.iter().enumerate() {
+            let key = call_key(tc);
+            let seen = *call_counts.get(&key).unwrap_or(&0);
+            if seen >= 2 {
+                skipped[i] = true;
+                results[i] = Some(repeated_call_result(tc, seen + 1));
+            } else {
+                call_counts.insert(key, seen + 1);
+                to_run.push(i);
+            }
+        }
+
+        // Read-only calls run concurrently; writes stay ordered.
+        let (parallel_idx, sequential_idx): (Vec<usize>, Vec<usize>) = to_run
+            .into_iter()
+            .partition(|&i| {
+                let n = tool_runtime::canonical_tool_name(&normalized[i].name);
+                is_parallel_safe_tool(n) && !is_dangerous_tool(&normalized[i].name)
+            });
+
+        if !parallel_idx.is_empty() {
+            let futures = parallel_idx
+                .iter()
+                .map(|&i| run_one_tool(&ctx, &normalized[i]));
+            let outs = futures_util::future::join_all(futures).await;
+            for (i, out) in parallel_idx.into_iter().zip(outs) {
+                results[i] = Some(out);
+            }
+        }
+
+        let mut cancelled_mid_turn = false;
+        for i in sequential_idx {
+            if cancelled(&config) {
+                cancelled_mid_turn = true;
+                break;
+            }
+            results[i] = Some(run_one_tool(&ctx, &normalized[i]).await);
+        }
+
+        let mut executed = 0usize;
+        let mut repeated = 0usize;
+        for (i, tc) in normalized.iter().enumerate() {
+            let Some(out) = results[i].take() else {
+                continue;
+            };
+            if skipped[i] {
+                repeated += 1;
+            } else {
+                executed += 1;
+            }
+            if let Some(ar) = out.action.clone() {
                 last_action = Some(ar);
             }
-            if report.is_some() {
-                last_report = report;
+            if out.report.is_some() {
+                last_report = out.report;
             }
             step_index += 1;
             emit_step(
                 &mut steps_out,
                 on_step,
-                AgentStepEvent::tool_done(step_index, &tc.name, &card),
+                AgentStepEvent::tool_done(step_index, &tc.name, &out.card),
             );
-            tools_out.push(card);
-            messages.push(tool_result_message(&tc.id, &tc.name, &result_text));
+            tools_out.push(out.card);
+            messages.push(tool_result_message(
+                &tc.id,
+                &tc.name,
+                &truncate(&out.model_text, 8000),
+            ));
+        }
+        compact_old_tool_results(&mut messages, 8);
+
+        if cancelled_mid_turn || cancelled(&config) {
+            stop_reason = "cancelled".into();
+            if last_content.trim().is_empty() {
+                last_content = "已停止当前任务。".into();
+            }
+            break;
+        }
+
+        if repeated > 0 && executed == 0 {
+            no_progress_turns += 1;
+        } else {
+            no_progress_turns = 0;
+        }
+        if no_progress_turns >= 2 {
+            stop_reason = "no_progress".into();
+            break;
         }
 
         if turn == config.max_turns {
             stop_reason = "max_turns".into();
-            // One more optional: if we hit the cap after tools, keep last assistant text.
             break;
         }
     }
@@ -913,6 +1063,9 @@ pub async fn run_agent_loop_with_progress(
         && !tools_out.is_empty()
     {
         if let Ok(c) = provider.complete_raw(&messages, false).await {
+            if let Some(u) = c.usage.as_ref() {
+                usage.get_or_insert_with(LlmUsage::default).add(u);
+            }
             if !c.content.trim().is_empty() && c.content.trim() != "(空回复)" {
                 last_content = c.content;
             }
@@ -925,8 +1078,12 @@ pub async fn run_agent_loop_with_progress(
         }
     }
 
+    if stop_reason == "no_progress" {
+        last_content.push_str("\n\n我连续几步都在重复同样的操作，先停在这里。你可以换个说法，或直接告诉我目标。");
+    }
+
     // Prefer structured 原因/方案 over bare「好了。」 when tools ran.
-    if !tools_out.is_empty() {
+    if !tools_out.is_empty() && stop_reason != "cancelled" {
         last_content = compose_reason_plan_zh(&tools_out, &last_content);
     }
 
@@ -947,6 +1104,8 @@ pub async fn run_agent_loop_with_progress(
         turns_used,
         stop_reason,
         steps: steps_out,
+        elapsed_ms: started.elapsed().as_millis() as u64,
+        usage,
     })
 }
 
@@ -1072,11 +1231,13 @@ mod tests {
                         json!({ "query": "keep-me", "name": "keep-me" }),
                     ),
                 ],
+                usage: None,
             },
             // Turn 2: model saw tool results; finishes with prose
             LlmCompletion {
                 content: "版本列好了；删除需你确认，我不会自动删。".into(),
                 tool_calls: vec![],
+                usage: None,
             },
         ]);
 
@@ -1092,7 +1253,10 @@ mod tests {
             }],
             None,
             None,
-            AgentLoopConfig { max_turns: 8 },
+            AgentLoopConfig {
+                max_turns: 8,
+                cancel: None,
+            },
         )
         .await
         .expect("loop ok");
@@ -1168,10 +1332,12 @@ mod tests {
             LlmCompletion {
                 content: "t1".into(),
                 tool_calls: vec![tc("a", "list_instances", json!({}))],
+                usage: None,
             },
             LlmCompletion {
                 content: "t2".into(),
                 tool_calls: vec![tc("b", "list_instances", json!({}))],
+                usage: None,
             },
             // Would be turn 3 if max_turns ignored — must not be consumed for tools path.
             // (max_turns finalizer may call once more with tools=false if content empty;
@@ -1179,6 +1345,7 @@ mod tests {
             LlmCompletion {
                 content: "should-not-run".into(),
                 tool_calls: vec![],
+                usage: None,
             },
         ]);
 
@@ -1194,7 +1361,10 @@ mod tests {
             }],
             None,
             None,
-            AgentLoopConfig { max_turns: 2 },
+            AgentLoopConfig {
+                max_turns: 2,
+                cancel: None,
+            },
         )
         .await
         .expect("loop ok");
@@ -1248,10 +1418,12 @@ mod tests {
             LlmCompletion {
                 content: "".into(),
                 tool_calls: vec![tc("c1", "list_instances", json!({}))],
+                usage: None,
             },
             LlmCompletion {
                 content: "版本列好了。".into(),
                 tool_calls: vec![],
+                usage: None,
             },
         ]);
         let recorded: std::sync::Mutex<Vec<AgentStepEvent>> = std::sync::Mutex::new(Vec::new());
@@ -1267,7 +1439,10 @@ mod tests {
             }],
             None,
             None,
-            AgentLoopConfig { max_turns: 8 },
+            AgentLoopConfig {
+                max_turns: 8,
+                cancel: None,
+            },
             Some(&|ev| {
                 recorded.lock().unwrap().push(ev);
             }),
@@ -1289,6 +1464,161 @@ mod tests {
             prev = s.index;
             assert!(!s.summary_zh.is_empty());
             assert!(s.summary_zh.chars().count() <= 64, "{}", s.summary_zh);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancellation_stops_before_any_model_call() {
+        let (_tmp, paths) = temp_paths();
+        let script = ScriptedCompleter::new(vec![]);
+        let cancel = Arc::new(AtomicBool::new(true));
+        let result = run_agent_loop(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "列版本".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig {
+                max_turns: 8,
+                cancel: Some(cancel),
+            },
+        )
+        .await
+        .expect("loop ok");
+
+        assert_eq!(result.stop_reason, "cancelled");
+        assert_eq!(result.turns_used, 0);
+        assert!(result.reply_zh.contains("停止"));
+        assert!(script.seen.lock().unwrap().is_empty(), "model must not run");
+    }
+
+    #[tokio::test]
+    async fn repeated_identical_calls_stop_with_no_progress() {
+        let (_tmp, paths) = temp_paths();
+        let call = || LlmCompletion {
+            content: "再看一次".into(),
+            tool_calls: vec![tc("same", "list_instances", json!({}))],
+            usage: None,
+        };
+        let script = ScriptedCompleter::new(vec![
+            call(),
+            call(),
+            call(),
+            call(),
+            LlmCompletion {
+                content: "不该走到这里".into(),
+                tool_calls: vec![],
+                usage: None,
+            },
+        ]);
+        let result = run_agent_loop(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "一直列版本".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig {
+                max_turns: 8,
+                cancel: None,
+            },
+        )
+        .await
+        .expect("loop ok");
+
+        assert_eq!(result.stop_reason, "no_progress");
+        assert_eq!(result.turns_used, 4);
+        assert_eq!(result.tools.len(), 4);
+        assert_eq!(
+            result
+                .tools
+                .iter()
+                .filter(|t| t.status == ToolStatus::Error)
+                .count(),
+            2,
+            "third and fourth identical calls must be skipped"
+        );
+        assert!(result.reply_zh.contains("重复"), "{}", result.reply_zh);
+    }
+
+    #[tokio::test]
+    async fn usage_is_summed_across_turns() {
+        let (_tmp, paths) = temp_paths();
+        let mut first = LlmCompletion {
+            content: "".into(),
+            tool_calls: vec![tc("c1", "list_instances", json!({}))],
+            usage: Some(LlmUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+            }),
+        };
+        let second = LlmCompletion {
+            content: "好了。".into(),
+            tool_calls: vec![],
+            usage: Some(LlmUsage {
+                prompt_tokens: 20,
+                completion_tokens: 7,
+                total_tokens: 27,
+            }),
+        };
+        first.tool_calls.push(tc("c2", "list_accounts", json!({})));
+        let script = ScriptedCompleter::new(vec![first, second]);
+        let result = run_agent_loop(
+            &script,
+            &paths,
+            vec![ChatMessage {
+                role: "user".into(),
+                content: "看看".into(),
+                tool_call_id: None,
+                name: None,
+                tool_calls: vec![],
+            }],
+            None,
+            None,
+            AgentLoopConfig {
+                max_turns: 4,
+                cancel: None,
+            },
+        )
+        .await
+        .expect("loop ok");
+
+        let usage = result.usage.expect("usage");
+        assert_eq!(usage.prompt_tokens, 30);
+        assert_eq!(usage.completion_tokens, 12);
+        assert_eq!(usage.total_tokens, 42);
+    }
+
+    #[test]
+    fn compact_keeps_recent_tool_results_intact() {
+        let mut msgs: Vec<ChatMessage> = (0..10)
+            .map(|i| ChatMessage {
+                role: "tool".into(),
+                content: format!("{}", "x".repeat(800 + i)),
+                tool_call_id: Some(format!("c{i}")),
+                name: Some("list_instances".into()),
+                tool_calls: vec![],
+            })
+            .collect();
+        compact_old_tool_results(&mut msgs, 3);
+        for m in &msgs[..7] {
+            assert!(m.content.chars().count() < 460, "old compacted");
+            assert!(m.content.contains("已压缩"));
+        }
+        for m in &msgs[7..] {
+            assert!(!m.content.contains("已压缩"), "recent stays intact");
         }
     }
 
