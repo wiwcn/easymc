@@ -6,7 +6,10 @@ on:
       release_tag:
         description: "GitHub Release tag (empty = artifact only)"
         required: false
-        default: "v0.2.2"
+        default: "v0.3.0"
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -96,38 +99,22 @@ jobs:
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easymc-windows-0.2.2
+          name: easymc-windows-0.3.0
           path: dist-windows/*
           if-no-files-found: error
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: ${{ inputs.release_tag != '' }}
+        if: ${{ inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v') }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${{ inputs.release_tag }}"
-          NOTES="$(cat <<'MD'
-          ## EasyMC ${TAG}（Windows）
-
-          桌面端定稿安装包（未签名，首次运行可能被 SmartScreen 拦截，选「仍要运行」即可）。
-
-          ### 下载
-          - **EasyMC_${VER}_x64-setup.exe** — NSIS 安装程序（推荐）
-          - **easymc-app.exe** — 免安装便携版（需自行放置；一般用 setup）
-
-          ### 说明
-          - Java Edition 启动器（Rust + Lit + Tauri）
-          - 含助手 / 下载 / 账户 / 一键环境等桌面 M1 能力
-          - 默认窗口 1100×700
-          MD
-          )"
-          # Normalize tag interpolation (heredoc was literal)
+          TAG="${{ inputs.release_tag || github.ref_name }}"
           VER="${TAG#v}"
           SETUP="EasyMC_${VER}_x64-setup.exe"
-          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.2.2 亮点" "- **Prism/MultiMC 实例 zip 导入**：instance.cfg + mmc-pack.json + .minecraft；首次启动再装游戏/加载器" "- 库页「导入分享 / 整合包」原生文件选择器；CF manifest.zip / mrpack / EasyMC 分享同一入口" "- 累计 0.2.1：Authlib 皮肤站登录；0.2.0 助手页与主题等" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
+          NOTES=$(printf '%s\n' "## EasyMC ${TAG}（Windows）" "" "正式版桌面安装包（未代码签名；首次运行若被 SmartScreen 拦截，选「仍要运行」）。" "" "### 下载" "- **${SETUP}** — NSIS 安装程序（推荐）" "- **easymc-app.exe** + **portable.txt** — 便携绿色运行" "" "### 0.3.0 亮点" "- **助手 Agent Loop 重做**：工具真实执行（装模组、补依赖、查更新、导入/制作整合包），多轮步骤、可取消、危险操作先确认" "- **MCP 接入**：外部工具连接与断线自动重连" "- **局域网联机页**：同一网络下发现与加入世界" "- **一键环境与版本隔离**：Java 检测/下载、隔离环境修复、启动链路更稳" "- **全量中文文案统一**：标点、术语、错误提示与空态成对补齐" "- 累计 0.2.x：Prism/MultiMC 导入、Authlib 皮肤站登录、助手页与主题" "" "许可 LGPL-3.0-or-later · 默认窗口 1100×700")
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist-windows/* --clobber
             gh release edit "$TAG" --title "EasyMC ${TAG}" --notes "$NOTES"

@@ -33,7 +33,7 @@ EasyMC 帮普通玩家把「装版本 → 起游戏 → 装模组 → 换皮肤 
 |---|---|
 | **仓库** | https://github.com/wiwcn/easymc |
 | **许可** | [LGPL-3.0-or-later](./LICENSE)（见 [COPYING](./COPYING) / [NOTICE](./NOTICE)） |
-| **当前版本** | **0.2.2** |
+| **当前版本** | **0.3.0** |
 
 ## 界面预览
 
@@ -97,7 +97,7 @@ EasyMC 帮普通玩家把「装版本 → 起游戏 → 装模组 → 换皮肤 
 
 ## 快速开始（Windows）
 
-1. 打开 [Releases](https://github.com/wiwcn/easymc/releases) → 下载 **`EasyMC_0.2.2_x64-setup.exe`**
+1. 打开 [Releases](https://github.com/wiwcn/easymc/releases) → 下载 **`EasyMC_0.3.0_x64-setup.exe`**
 2. 安装并运行（未代码签名时，SmartScreen 可能提示「仍要运行」）
 3. 或使用便携包：**`easymc-app.exe`** 与同目录的 **`portable.txt`**，数据落在旁路 `data/`
 
@@ -146,7 +146,7 @@ Issue / PR 欢迎。许可为 [LGPL-3.0-or-later](./LICENSE)。产品设计见 [
 
 **EasyMC** is an open-source, desktop-first **Minecraft Java Edition** launcher (Tauri 2 + Lit + Rust). Install versions, launch, manage mods, wardrobe skins, and troubleshoot with a calm Chinese-first Agent UI — without turning into a server ops console.
 
-**License:** [LGPL-3.0-or-later](./LICENSE) · **Version:** 0.2.2 · **Repo:** https://github.com/wiwcn/easymc
+**License:** [LGPL-3.0-or-later](./LICENSE) · **Version:** 0.3.0 · **Repo:** https://github.com/wiwcn/easymc
 
 ### Screenshots
 
@@ -162,7 +162,7 @@ Same captures as above: [home](docs/screenshots/home.png) · [instances](docs/sc
 
 ### Install (Windows)
 
-Download **`EasyMC_0.2.2_x64-setup.exe`** from [Releases](https://github.com/wiwcn/easymc/releases/latest). Portable: place `easymc-app.exe` next to `portable.txt`. Unsigned builds may trigger SmartScreen — choose “Run anyway”.
+Download **`EasyMC_0.3.0_x64-setup.exe`** from [Releases](https://github.com/wiwcn/easymc/releases/latest). Portable: place `easymc-app.exe` next to `portable.txt`. Unsigned builds may trigger SmartScreen — choose “Run anyway”.
 
 ### Build
 
